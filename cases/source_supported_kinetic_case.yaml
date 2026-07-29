@@ -1,0 +1,139 @@
+# Source: user-supplied 01_calcite_co2_kinec_reaktoro.ipynb.
+# The source labels this as a functional post-CO2-injection test, not a
+# calibrated experiment.
+case:
+  name: source_supported_calcite_co2_functional_test
+
+paths:
+  output_dir: outputs/source_supported_kinetic_case
+
+database:
+  source: local
+  path: data/thermo/Kinec_v3_4.dat
+
+activity_models:
+  aqueous: phreeqc
+  gas: peng_robinson_phreeqc
+
+physical:
+  temperature_c: 40.0
+  pressure_bar: 100.0
+
+brine:
+  aqueous_elements:
+    - H
+    - O
+    - Na
+    - Cl
+    - C
+    - Ca
+  species_amounts:
+    H2O:
+      value: 1.0
+      unit: kg
+    Na+:
+      value: 1.0
+      unit: mol
+    Cl-:
+      value: 1.0
+      unit: mol
+
+co2:
+  mode: finite
+  gas_species: CO2(g)
+  initial_amount:
+    value: 1.0
+    unit: mol
+
+redox:
+  enabled: false
+
+kinetics:
+  enabled: true
+  path: data/kinetics/kinec_rates_minimal.yaml
+
+minerals:
+  - name: Calcite
+    role: kinetic
+    initial_amount:
+      value: 10.0
+      unit: g
+    surface_area:
+      value: 6.0
+      unit: cm2/cm3
+
+solver:
+  workflow:
+    mode: closed_kinetics
+    precondition_kinetics: true
+  timestep:
+    mode: fixed
+    time:
+      duration_value: 259200.0
+      duration_unit: seconds
+    step_size:
+      dt: {value: 3600.0, unit: seconds}
+
+postprocessing:
+  requested_species:
+    - H+
+    - HCO3-
+    - CO3-2
+  requested_minerals:
+    - Calcite
+  aqueous_molalities: true
+  saturation_indices: true
+  reaction_rates: false
+  element_budget: {enabled: false, elements: [], species: {}, minerals: {}, gas_species: {}}
+  carbon_inventory: {enabled: false, carbon_species: {}, carbon_minerals: {}, carbon_gas_species: {}}
+  mineral_volume_change: {enabled: false, molar_volumes_cm3_per_mol: {}, sources: {}}
+  regime_classification: {enabled: false}
+  surface_area_audit: {enabled: false}
+  workflow_comparison: {enabled: false}
+  secondary_mineral_assemblage: {enabled: false}
+  surrogate_dataset: {enabled: false}
+  porosity_permeability: {enabled: false}
+
+validation:
+  enabled: false
+  targets: []
+
+outputs:
+  manifest: {enabled: true, include_input_snapshot: true}
+  diagnostics: {enabled: true}
+  timeseries:
+    enabled: true
+    include_species_amounts: true
+    include_species_molalities: true
+    include_mineral_amounts: true
+    include_mineral_deltas: true
+    include_saturation_indices: true
+    include_solver_columns: true
+  summaries:
+    mineral_summary: true
+    aqueous_summary: true
+    reaction_rates: false
+    kinec_rate_validation: false
+    carbon_inventory: false
+    element_budget: false
+    mineral_volume_change: false
+    regime_classification: false
+    surface_area_audit: false
+    workflow_comparison: false
+    secondary_mineral_assemblage: false
+    surrogate_dataset: false
+    validation_ledger: false
+    porosity_permeability: false
+  solver_history: {enabled: true}
+  plots:
+    enabled: true
+    pH: true
+    mineral_change: true
+    saturation_index: true
+    solver_dt: false
+    solver_iterations: false
+  debug:
+    enabled: true
+    mineral_connection: true
+    resolved_config: true
+    final_state: true

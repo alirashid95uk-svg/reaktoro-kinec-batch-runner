@@ -1,0 +1,108 @@
+# Schema template only. Replace placeholders with source-supported values.
+case:
+  name: REQUIRED
+
+paths:
+  output_dir: REQUIRED
+
+database:
+  source: REQUIRED  # embedded | local
+  name: REQUIRED_IF_EMBEDDED
+  path: REQUIRED_IF_LOCAL_DATABASE
+
+activity_models:
+  aqueous: REQUIRED  # phreeqc
+  gas: OPTIONAL  # peng_robinson_phreeqc
+
+physical:
+  temperature_c: TBD_SOURCE_REQUIRED
+  pressure_bar: TBD_SOURCE_REQUIRED
+
+brine:
+  aqueous_elements: [REQUIRED]
+  species_amounts:
+    REQUIRED_SPECIES_NAME: {value: TBD_SOURCE_REQUIRED, unit: REQUIRED}
+
+co2:
+  mode: REQUIRED  # disabled | finite | fixed_fugacity
+  gas_species: REQUIRED_IF_ENABLED
+  initial_amount: {value: REQUIRED_IF_FINITE, unit: REQUIRED_IF_FINITE}
+  fugacity_bar: REQUIRED_IF_FIXED_FUGACITY
+
+redox:
+  enabled: REQUIRED
+  pe: REQUIRED_IF_ENABLED
+  apply_during: REQUIRED_IF_ENABLED  # initial_equilibrium_only | kinetic_steps
+
+kinetics:
+  enabled: REQUIRED
+  path: REQUIRED_IF_KINETICS_ENABLED
+
+minerals:
+  - name: REQUIRED
+    role: REQUIRED  # equilibrium | kinetic
+    initial_amount: {value: REQUIRED_IF_CONFIGURED, unit: REQUIRED_IF_CONFIGURED}
+    surface_area: {value: REQUIRED_IF_KINETIC, unit: REQUIRED_IF_KINETIC}
+
+solver:
+  workflow:
+    mode: REQUIRED
+    precondition_kinetics: REQUIRED
+  timestep:
+    mode: fixed
+    time:
+      duration_value: REQUIRED
+      duration_unit: REQUIRED
+    step_size:
+      dt: REQUIRED
+
+postprocessing:
+  requested_species: [REQUIRED_IF_SPECIES_OUTPUT_ENABLED]
+  requested_minerals: [REQUIRED_IF_MINERAL_OUTPUT_ENABLED]
+  aqueous_molalities: REQUIRED
+  saturation_indices: REQUIRED
+  reaction_rates: REQUIRED
+  element_budget:
+    enabled: REQUIRED
+    elements: []
+    species: {}
+    minerals: {}
+    gas_species: {}
+  carbon_inventory:
+    enabled: REQUIRED
+    carbon_species: {}
+    carbon_minerals: {}
+    carbon_gas_species: {}
+  mineral_volume_change:
+    enabled: REQUIRED
+    molar_volumes_cm3_per_mol: {}
+    sources: {}
+  regime_classification:
+    enabled: REQUIRED
+  surface_area_audit:
+    enabled: REQUIRED
+  workflow_comparison:
+    enabled: REQUIRED
+  secondary_mineral_assemblage:
+    enabled: REQUIRED
+  surrogate_dataset:
+    enabled: REQUIRED
+    validity_domain: REQUIRED_IF_ENABLED
+  porosity_permeability:
+    enabled: REQUIRED
+    bulk_volume_cm3: REQUIRED_IF_ENABLED
+    permeability_update_law: REQUIRED_IF_ENABLED
+    capillary_entry_pressure_law: REQUIRED_IF_ENABLED
+
+validation:
+  enabled: REQUIRED
+  targets: []
+
+outputs:
+  manifest: REQUIRED
+  diagnostics: REQUIRED
+  timeseries: REQUIRED
+  summaries: REQUIRED
+  solver_history: REQUIRED
+  plots: REQUIRED
+  debug: REQUIRED

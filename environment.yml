@@ -1,0 +1,10 @@
+name: reaktoro-kinec-batch-runner
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - reaktoro=2.13
+  - pydantic=2
+  - pyyaml
+  - pytest
+  - matplotlib

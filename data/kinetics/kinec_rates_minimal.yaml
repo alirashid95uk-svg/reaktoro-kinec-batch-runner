@@ -1,0 +1,1754 @@
+Albite:
+  family: standard
+  omega: Albite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.7
+      E: 58000.0
+      n: 0.3
+    neutral:
+      A: 0.205
+      E: 60000.0
+    basic:
+      A: 1.5e-05
+      E: 50000.0
+      n: -0.3
+Albite_high:
+  family: standard
+  omega: Albite_high
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.7
+      E: 58000.0
+      n: 0.3
+    neutral:
+      A: 0.205
+      E: 60000.0
+    basic:
+      A: 1.5e-05
+      E: 50000.0
+      n: -0.3
+Albite_low:
+  family: standard
+  omega: Albite_low
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.7
+      E: 58000.0
+      n: 0.3
+    neutral:
+      A: 0.205
+      E: 60000.0
+    basic:
+      A: 1.5e-05
+      E: 50000.0
+      n: -0.3
+Almandine:
+  family: standard
+  omega: Almandine
+  sigma: 3.0
+  terms:
+    acid:
+      A: 200000.0
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.000231
+      E: 43200.0
+    basic:
+      A: 6.0e-08
+      E: 42300.0
+      n: -0.4
+Analcime:
+  family: standard
+  omega: Analcime
+  sigma: 2.04
+  terms:
+    acid:
+      A: 50000000.0
+      E: 63000.0
+      n: 1.0
+    neutral:
+      A: 0.1
+      E: 58500.0
+    basic:
+      A: 7.5e-05
+      E: 58000.0
+      n: -0.4
+Andalusite:
+  family: standard
+  omega: Andalusite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.39
+      E: 58000.0
+      n: 0.15
+    neutral:
+      A: 0.008
+      E: 60000.0
+    basic:
+      A: 8.8e-15
+      E: 50000.0
+      n: -1.2
+Andradite:
+  family: standard
+  omega: Andradite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 260000.0
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.00032
+      E: 43200.0
+Annite:
+  family: standard
+  omega: Annite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 5.9e-07
+      E: 18200.0
+      n: 0.5
+    neutral:
+      A: 5.0e-09
+      E: 22000.0
+    basic:
+      A: 4.0e-10
+      E: 25500.0
+      n: -0.16
+Anorthite:
+  family: standard
+  omega: Anorthite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 98200.0
+      E: 58000.0
+      n: 1.22
+    neutral:
+      A: 0.15
+      E: 60000.0
+    basic:
+      A: 1.5e-05
+      E: 50000.0
+      n: -0.35
+Anthophyllite:
+  family: standard
+  omega: Anthophyllite
+  sigma: 8.0
+  terms:
+    acid:
+      A: 0.00057
+      E: 52000.0
+      n: 0.42
+    neutral:
+      A: 5.0e-06
+      E: 48000.0
+Antigorite:
+  family: standard
+  omega: Antigorite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 2.8e-06
+      E: 27000.0
+      n: 0.25
+    neutral:
+      A: 2.0e-08
+      E: 27000.0
+Beidellite-Ca:
+  family: standard
+  omega: Beidellite-Ca
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Beidellite-Fe:
+  family: standard
+  omega: Beidellite-Fe
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Beidellite-K:
+  family: standard
+  omega: Beidellite-K
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Beidellite-Mg:
+  family: standard
+  omega: Beidellite-Mg
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Beidellite-Na:
+  family: standard
+  omega: Beidellite-Na
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Chabazite-Ca:
+  family: standard
+  omega: Chabazite-Ca
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.221
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.000156
+      E: 44200.0
+    basic:
+      A: 4.94e-05
+      E: 44200.0
+      n: -0.2
+Chabazite-Na:
+  family: standard
+  omega: Chabazite-Na
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.221
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.000156
+      E: 44200.0
+    basic:
+      A: 4.94e-05
+      E: 44200.0
+      n: -0.2
+Chalcedony:
+  family: standard
+  omega: Chalcedony
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0004563
+      E: 41610.0
+      n: 0.309
+    basic:
+      A: 0.0353
+      E: 73000.0
+      n: -0.41
+Chrysotile:
+  family: standard
+  omega: Chrysotile
+  sigma: 2.0
+  terms:
+    acid:
+      A: 2.8e-06
+      E: 27000.0
+      n: 0.25
+    neutral:
+      A: 2.0e-08
+      E: 27000.0
+Chamosite:
+  family: standard
+  omega: Chamosite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00015
+      E: 30000.0
+      n: 0.74
+    neutral:
+      A: 4.7e-11
+      E: 15000.0
+    basic:
+      A: 2.0e-12
+      E: 15000.0
+      n: -0.19
+Clinochlore-14A:
+  family: standard
+  omega: Clinochlore-14A
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00015
+      E: 30000.0
+      n: 0.74
+    neutral:
+      A: 4.7e-11
+      E: 15000.0
+    basic:
+      A: 2.0e-12
+      E: 15000.0
+      n: -0.19
+Clinochlore-7A:
+  family: standard
+  omega: Clinochlore-7A
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00015
+      E: 30000.0
+      n: 0.74
+    neutral:
+      A: 4.7e-11
+      E: 15000.0
+    basic:
+      A: 2.0e-12
+      E: 15000.0
+      n: -0.19
+Clinoptilolite-Ca:
+  family: standard
+  omega: Clinoptilolite-Ca
+  sigma: 15.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Clinoptilolite-Na:
+  family: standard
+  omega: Clinoptilolite-Na
+  sigma: 15.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Cristobalite(alpha):
+  family: standard
+  omega: Cristobalite(alpha)
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.000403
+      E: 45600.0
+      n: 0.309
+    basic:
+      A: 0.105
+      E: 80000.0
+      n: -0.41
+Cristobalite(beta):
+  family: standard
+  omega: Cristobalite(beta)
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.000403
+      E: 45600.0
+      n: 0.309
+    basic:
+      A: 0.105
+      E: 80000.0
+      n: -0.41
+Daphnite-14A:
+  family: standard
+  omega: Daphnite-14A
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00015
+      E: 30000.0
+      n: 0.74
+    neutral:
+      A: 4.7e-11
+      E: 15000.0
+    basic:
+      A: 2.0e-12
+      E: 15000.0
+      n: -0.19
+Daphnite-7A:
+  family: standard
+  omega: Daphnite-7A
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00015
+      E: 30000.0
+      n: 0.74
+    neutral:
+      A: 4.7e-11
+      E: 15000.0
+    basic:
+      A: 2.0e-12
+      E: 15000.0
+      n: -0.19
+Diopside:
+  family: standard
+  omega: Diopside
+  sigma: 2.0
+  terms:
+    acid:
+      A: 8.55e-05
+      E: 32654.0
+      n: 0.25
+    neutral:
+      A: 0.00043
+      E: 43866.0
+Enstatite:
+  family: standard
+  omega: Enstatite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.574
+      E: 46080.0
+      n: 0.5
+    neutral:
+      A: 6252.0
+      E: 89538.0
+Epidote:
+  family: standard
+  omega: Epidote
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1.09
+      E: 60000.0
+      n: 0.3
+    neutral:
+      A: 5.13e-05
+      E: 43200.0
+    basic:
+      A: 1.4e-09
+      E: 42300.0
+      n: -0.4
+Epidote-ord:
+  family: standard
+  omega: Epidote-ord
+  sigma: 3.0
+  terms:
+    acid:
+      A: 11.4
+      E: 60000.0
+      n: 0.56
+    neutral:
+      A: 5.13e-05
+      E: 43200.0
+    basic:
+      A: 1.4e-09
+      E: 42300.0
+      n: -0.4
+Fayalite:
+  family: standard
+  omega: Fayalite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 1200000.0
+      E: 70400.0
+      n: 0.44
+    basic:
+      A: 1910.0
+      E: 60900.0
+      n: 0.22
+Ferroactinolite:
+  family: standard
+  omega: Ferroactinolite
+  sigma: 8.0
+  terms:
+    acid:
+      A: 0.003
+      E: 50000.0
+      n: 0.22
+    neutral:
+      A: 2.0e-05
+      E: 48000.0
+Forsterite:
+  family: standard
+  omega: Forsterite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 148000.0
+      E: 70400.0
+      n: 0.44
+    basic:
+      A: 220.0
+      E: 60900.0
+      n: 0.22
+Grossular:
+  family: standard
+  omega: Grossular
+  sigma: 3.0
+  terms:
+    acid:
+      A: 200000.0
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.000231
+      E: 43200.0
+    basic:
+      A: 6.0e-08
+      E: 42300.0
+      n: -0.4
+Heulandite-Ca:
+  family: standard
+  omega: Heulandite-Ca
+  sigma: 7.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Heulandite-Na:
+  family: standard
+  omega: Heulandite-Na
+  sigma: 7.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Illite:
+  family: standard
+  omega: Illite
+  sigma: 3.5
+  terms:
+    acid:
+      A: 0.00073
+      E: 50000.0
+      n: 0.55
+    neutral:
+      A: 0.003348
+      E: 70000.0
+    basic:
+      A: 6.0e-08
+      E: 74000.0
+      n: -0.6
+Jadeite:
+  family: standard
+  omega: Jadeite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 25.0
+      E: 46080.0
+      n: 0.5
+    neutral:
+      A: 270000.0
+      E: 89538.0
+Kaolinite:
+  family: standard
+  omega: Kaolinite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 2.85
+      E: 73000.0
+      n: 0.45
+    neutral:
+      A: 0.00415
+      E: 67000.0
+    basic:
+      A: 2.4e-11
+      E: 61000.0
+      n: -0.76
+K-Feldspar:
+  family: standard
+  omega: K-Feldspar
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.05
+      E: 51700.0
+      n: 0.45
+    neutral:
+      A: 0.0108
+      E: 60000.0
+    basic:
+      A: 1.2e-10
+      E: 62195.0
+      n: -0.75
+Kyanite:
+  family: standard
+  omega: Kyanite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.115
+      E: 58000.0
+      n: 0.15
+    neutral:
+      A: 0.001
+      E: 60000.0
+    basic:
+      A: 1.5e-13
+      E: 50000.0
+      n: -1.0
+Larnite:
+  family: standard
+  omega: Larnite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 525000000.0
+      E: 70400.0
+      n: 0.4
+    basic:
+      A: 825000.0
+      E: 60900.0
+      n: 0.2
+Laumontite:
+  family: standard
+  omega: Laumontite
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.25
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00139
+      E: 44200.0
+    basic:
+      A: 7.5e-06
+      E: 44200.0
+      n: -0.2
+Lizardite:
+  family: standard
+  omega: Lizardite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 2.8e-06
+      E: 27000.0
+      n: 0.25
+    neutral:
+      A: 2.0e-08
+      E: 27000.0
+Leonhardite:
+  family: standard
+  omega: Leonhardite
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.25
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00139
+      E: 44200.0
+    basic:
+      A: 7.5e-06
+      E: 44200.0
+      n: -0.2
+Maximum_Microcline:
+  family: standard
+  omega: Maximum_Microcline
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.05
+      E: 51700.0
+      n: 0.45
+    neutral:
+      A: 0.0108
+      E: 60000.0
+    basic:
+      A: 1.2e-10
+      E: 62195.0
+      n: -0.75
+Mesolite:
+  family: standard
+  omega: Mesolite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1.97
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00111
+      E: 44200.0
+    basic:
+      A: 0.000554
+      E: 44200.0
+      n: -0.2
+Montmor-Ca:
+  family: standard
+  omega: Montmor-Ca
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Montmor-Mg:
+  family: standard
+  omega: Montmor-Mg
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Montmor-K:
+  family: standard
+  omega: Montmor-K
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Mordenite-Ca:
+  family: standard
+  omega: Mordenite-Ca
+  sigma: 5.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Mordenite-Na:
+  family: standard
+  omega: Mordenite-Na
+  sigma: 5.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Muscovite:
+  family: standard
+  omega: Muscovite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.000126
+      E: 41311.0
+      n: 0.37
+    neutral:
+      A: 6.31e-06
+      E: 39301.0
+    basic:
+      A: 3.16e-05
+      E: 56950.0
+      n: -0.22
+Natrolite:
+  family: standard
+  omega: Natrolite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1.97
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00111
+      E: 44200.0
+    basic:
+      A: 0.000554
+      E: 44200.0
+      n: -0.2
+Nepheline:
+  family: standard
+  omega: Nepheline
+  sigma: 1.0
+  terms:
+    acid:
+      A: 50000000.0
+      E: 63000.0
+      n: 1.0
+    neutral:
+      A: 0.1
+      E: 58500.0
+    basic:
+      A: 7.5e-05
+      E: 58000.0
+      n: -0.4
+Nontronite-Ca:
+  family: standard
+  omega: Nontronite-Ca
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Nontronite-K:
+  family: standard
+  omega: Nontronite-K
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Nontronite-Mg:
+  family: standard
+  omega: Nontronite-Mg
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Nontronite-Na:
+  family: standard
+  omega: Nontronite-Na
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Paragonite:
+  family: standard
+  omega: Paragonite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.00073
+      E: 50000.0
+      n: 0.55
+    neutral:
+      A: 0.00348
+      E: 70000.0
+    basic:
+      A: 6.0e-08
+      E: 74000.0
+      n: -0.6
+Pargasite:
+  family: standard
+  omega: Pargasite
+  sigma: 6.0
+  terms:
+    acid:
+      A: 0.003
+      E: 50000.0
+      n: 0.2
+    neutral:
+      A: 2.0e-05
+      E: 48000.0
+Phlogopite:
+  family: standard
+  omega: Phlogopite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 5.9e-07
+      E: 18200.0
+      n: 0.5
+    neutral:
+      A: 5.0e-09
+      E: 22000.0
+    basic:
+      A: 4.0e-10
+      E: 25500.0
+      n: -0.16
+Prehnite:
+  family: standard
+  omega: Prehnite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1300.0
+      E: 77000.0
+      n: 0.35
+    neutral:
+      A: 1.0
+      E: 80000.0
+    basic:
+      A: 15.3
+      E: 80000.0
+      n: -0.075
+Pyrophyllite:
+  family: standard
+  omega: Pyrophyllite
+  sigma: 4.0
+  terms:
+    acid:
+      A: 16000.0
+      E: 73000.0
+      n: 0.7
+    neutral:
+      A: 0.15
+      E: 67000.0
+    basic:
+      A: 2.0e-08
+      E: 61000.0
+      n: -0.7
+Quartz:
+  family: standard
+  omega: Quartz
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.000403
+      E: 45600.0
+      n: 0.309
+    basic:
+      A: 0.105
+      E: 80000.0
+      n: -0.41
+Sanidine_high:
+  family: standard
+  omega: Sanidine_high
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.05
+      E: 51700.0
+      n: 0.45
+    neutral:
+      A: 0.0108
+      E: 60000.0
+    basic:
+      A: 1.2e-10
+      E: 62195.0
+      n: -0.75
+Saponite-Fe-Ca:
+  family: standard
+  omega: Saponite-Fe-Ca
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Fe-Fe:
+  family: standard
+  omega: Saponite-Fe-Fe
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Fe-K:
+  family: standard
+  omega: Saponite-Fe-K
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Fe-Mg:
+  family: standard
+  omega: Saponite-Fe-Mg
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Fe-Na:
+  family: standard
+  omega: Saponite-Fe-Na
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Mg-Ca:
+  family: standard
+  omega: Saponite-Mg-Ca
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Mg-Fe:
+  family: standard
+  omega: Saponite-Mg-Fe
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Mg-K:
+  family: standard
+  omega: Saponite-Mg-K
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Mg-Mg:
+  family: standard
+  omega: Saponite-Mg-Mg
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Saponite-Mg-Na:
+  family: standard
+  omega: Saponite-Mg-Na
+  sigma: 3.65
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Scolecite:
+  family: standard
+  omega: Scolecite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1.97
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00111
+      E: 44200.0
+    basic:
+      A: 0.000554
+      E: 44200.0
+      n: -0.2
+Sepiolite:
+  family: standard
+  omega: Sepiolite
+  sigma: 6.0
+  terms:
+    acid:
+      A: 0.00589
+      E: 50200.0
+      n: 0.248
+    neutral:
+      A: 8.0e-07
+      E: 40700.0
+SiO2(am):
+  family: standard
+  omega: SiO2(am)
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0004563
+      E: 41610.0
+      n: 0.309
+    basic:
+      A: 0.0353
+      E: 73000.0
+      n: -0.41
+Smectite-high-Fe-Mg:
+  family: standard
+  omega: Smectite-high-Fe-Mg
+  sigma: 3.5
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Smectite-low-Fe-Mg:
+  family: standard
+  omega: Smectite-low-Fe-Mg
+  sigma: 3.75
+  terms:
+    acid:
+      A: 0.00166
+      E: 50798.0
+      n: 0.55
+    neutral:
+      A: 9.0e-10
+      E: 30000.0
+    basic:
+      A: 1.5e-09
+      E: 48000.0
+      n: -0.3
+Spodumene:
+  family: standard
+  omega: Spodumene
+  sigma: 2.0
+  terms:
+    acid:
+      A: 490.0
+      E: 46080.0
+      n: 0.5
+    neutral:
+      A: 5400000.0
+      E: 89538.0
+Stilbite:
+  family: standard
+  omega: Stilbite
+  sigma: 3.75
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Stilbite-Ca:
+  family: standard
+  omega: Stilbite-Ca
+  sigma: 3.0
+  terms:
+    acid:
+      A: 0.0248
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 1.39e-05
+      E: 44200.0
+    basic:
+      A: 3.5e-06
+      E: 44200.0
+      n: -0.2
+Talc:
+  family: standard
+  omega: Talc
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.004424914
+      E: 50200.0
+      n: 0.36
+    neutral:
+      A: 1.56e-06
+      E: 40700.0
+Tremolite:
+  family: standard
+  omega: Tremolite
+  sigma: 8.0
+  terms:
+    acid:
+      A: 0.003
+      E: 50000.0
+      n: 0.22
+    neutral:
+      A: 2.0e-05
+      E: 48000.0
+Thomsonite:
+  family: standard
+  omega: Thomsonite
+  sigma: 5.0
+  terms:
+    acid:
+      A: 1.97
+      E: 33700.0
+      n: 0.82
+    neutral:
+      A: 0.00111
+      E: 44200.0
+    basic:
+      A: 0.000554
+      E: 44200.0
+      n: -0.2
+Wollastonite:
+  family: standard
+  omega: Wollastonite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 700.0
+      E: 56000.0
+      n: 0.4
+    basic:
+      A: 20.0
+      E: 52000.0
+      n: 0.15
+Zoisite:
+  family: standard
+  omega: Zoisite
+  sigma: 3.0
+  terms:
+    acid:
+      A: 1.09
+      E: 60000.0
+      n: 0.3
+    neutral:
+      A: 5.13e-05
+      E: 43200.0
+    basic:
+      A: 1.4e-09
+      E: 42300.0
+      n: -0.4
+Anglesite:
+  family: standard
+  omega: Anglesite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.05
+      E: 26000.0
+      n: 0.11
+    basic:
+      A: 2.0e-14
+      E: 26000.0
+      n: -1.0
+Anhydrite:
+  family: standard
+  omega: Anhydrite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 5300.0
+      E: 37700.0
+      n: 0.11
+Fluorapatite:
+  family: standard
+  omega: Fluorapatite
+  sigma: 5.0
+  terms:
+    acid:
+      A: 80.0
+      E: 43000.0
+      n: 0.8
+    basic:
+      A: 0.03
+      E: 43000.0
+      n: 0.2
+Hydroxyapatite:
+  family: standard
+  omega: Hydroxyapatite
+  sigma: 5.0
+  terms:
+    acid:
+      A: 80.0
+      E: 43000.0
+      n: 0.8
+    basic:
+      A: 0.03
+      E: 43000.0
+      n: 0.2
+Barite:
+  family: standard
+  omega: Barite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0025
+      E: 26000.0
+      n: 0.11
+Boehmite:
+  family: standard
+  omega: Boehmite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 2.85
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.0042
+      E: 60000.0
+    basic:
+      A: 5.4e-11
+      E: 60000.0
+      n: -1.0
+Brucite:
+  family: standard
+  omega: Brucite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 12000.0
+      E: 60000.0
+      n: 0.19
+Celestite:
+  family: standard
+  omega: Celestite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.038
+      E: 24000.0
+      n: 0.11
+Diaspore:
+  family: standard
+  omega: Diaspore
+  sigma: 1.0
+  terms:
+    acid:
+      A: 2.85
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.0042
+      E: 60000.0
+    basic:
+      A: 5.4e-11
+      E: 60000.0
+      n: -1.0
+Fluorite:
+  family: standard
+  omega: Fluorite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 1200000.0
+      E: 75000.0
+      n: 0.12
+Gibbsite:
+  family: standard
+  omega: Gibbsite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 20.0
+      E: 60000.0
+      n: 1.0
+    neutral:
+      A: 0.03
+      E: 60000.0
+    basic:
+      A: 3.0e-10
+      E: 60000.0
+      n: -1.0
+Gypsum:
+  family: standard
+  omega: Gypsum
+  sigma: 1.0
+  terms:
+    acid:
+      A: 18000.0
+      E: 37700.0
+      n: 0.11
+Halite:
+  family: standard
+  omega: Halite
+  sigma: 1.0
+  terms:
+    neutral:
+      A: 0.00033
+      E: -22340.0
+Monazite-Ce:
+  family: standard
+  omega: Monazite-Ce
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0001
+      E: 43000.0
+      n: 0.7
+    neutral:
+      A: 1.0e-07
+      E: 43000.0
+    basic:
+      A: 1.2e-11
+      E: 43000.0
+      n: -0.5
+Periclase:
+  family: standard
+  omega: Periclase
+  sigma: 1.0
+  terms:
+    acid:
+      A: 12000.0
+      E: 60000.0
+      n: 0.19
+Pyromorphite:
+  family: standard
+  omega: Pyromorphite
+  sigma: 5.0
+  terms:
+    acid:
+      A: 58.0
+      E: 43000.0
+      n: 0.68
+Variscite:
+  family: standard
+  omega: Variscite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0005
+      E: 43000.0
+      n: 0.3
+    basic:
+      A: 2.4e-07
+      E: 43000.0
+      n: -0.3
+Aragonite:
+  family: carbonate
+  omega: Aragonite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 11.025
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 122.5
+      E: 48000.0
+      Kc: 160.0
+Calcite:
+  family: carbonate
+  omega: Calcite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 5.625
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 62.5
+      E: 48000.0
+      Kc: 160.0
+Cerussite:
+  family: carbonate
+  omega: Cerussite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 2.55
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 45.45
+      E: 48000.0
+      Kc: 160.0
+Dawsonite:
+  family: carbonate
+  omega: Dawsonite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 160000.0
+      E: 55000.0
+      n: 1.0
+    carbonate:
+      A: 0.3
+      E: 55000.0
+      Kc: 0.0
+Dolomite:
+  family: carbonate
+  omega: Dolomite
+  sigma: 1.9
+  terms:
+    acid:
+      A: 0.0012
+      E: 10000.0
+      n: 0.5
+    carbonate:
+      A: 650.0
+      E: 65000.0
+      Kc: 160.0
+Gaspeite:
+  family: carbonate
+  omega: Gaspeite
+  sigma: 3.73
+  terms:
+    acid:
+      A: 2.6e-06
+      E: 16000.0
+      n: 0.55
+    carbonate:
+      A: 0.00673
+      E: 48000.0
+      Kc: 1000.0
+Magnesite:
+  family: carbonate
+  omega: Magnesite
+  sigma: 3.94
+  terms:
+    acid:
+      A: 0.0005
+      E: 16000.0
+      n: 0.66
+    carbonate:
+      A: 0.027
+      E: 45000.0
+      Kc: 380.0
+Otavite:
+  family: carbonate
+  omega: Otavite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 1.02
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 11.36
+      E: 48000.0
+      Kc: 160.0
+Rhodochrosite:
+  family: carbonate
+  omega: Rhodochrosite
+  sigma: 4.65
+  terms:
+    acid:
+      A: 0.00228
+      E: 16000.0
+      n: 0.5
+    carbonate:
+      A: 0.4
+      E: 48000.0
+      Kc: 1000.0
+Siderite:
+  family: carbonate
+  omega: Siderite
+  sigma: 4.0
+  terms:
+    acid:
+      A: 0.002
+      E: 16000.0
+      n: 0.7
+    carbonate:
+      A: 0.2
+      E: 48000.0
+      Kc: 160.0
+Smithsonite:
+  family: carbonate
+  omega: Smithsonite
+  sigma: 2.0
+  terms:
+    acid:
+      A: 1.94
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 8.89
+      E: 48000.0
+      Kc: 200.0
+Strontianite:
+  family: carbonate
+  omega: Strontianite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 0.0022
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 8.89
+      E: 48000.0
+      Kc: 240.0
+Witherite:
+  family: carbonate
+  omega: Witherite
+  sigma: 1.0
+  terms:
+    acid:
+      A: 35.0
+      E: 16000.0
+      n: 1.0
+    carbonate:
+      A: 12.0
+      E: 48000.0
+      Kc: 160.0
