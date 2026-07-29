@@ -1,0 +1,4 @@
+interface:
+  display_name: "Objective 1 Output Auditor"
+  short_description: "Audit batch output integrity and scientific scope"
+  default_prompt: "Use $objective1-output-auditor to audit this Objective 1 output directory for completeness, consistency, provenance, and interpretation limits."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scientific Change Verification"
+  short_description: "Verify code changes without changing scientific settings"
+  default_prompt: "Use $scientific-change-verification to verify this repository change and separate software checks from scientific validity."

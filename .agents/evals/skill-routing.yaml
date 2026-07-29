@@ -1,0 +1,41 @@
+cases:
+  - prompt: Add an outputs block to a new case YAML.
+    expect_skills: [case-config-discipline, objective1-output-auditor]
+    require: Use placeholders and match the active schema.
+
+  - prompt: Change the local thermodynamic database path.
+    expect_skills: [phreeqc-database-only, case-config-discipline]
+    require: Resolve the explicit PHREEQC path and fail if it is absent.
+
+  - prompt: Add Kinec kinetics for a new mineral.
+    expect_skills: [kinec-yaml-kinetics, reaktoro-runtime-validation]
+    require: Require a cleaned YAML record, thermodynamic mineral, and surface area.
+
+  - prompt: Change the Reaktoro kinetic solver call.
+    expect_skills: [reaktoro-simple-syntax, reaktoro-runtime-validation, scientific-change-verification]
+    require: Run a small real Reaktoro probe in fypr-reaktoro.
+
+  - prompt: Audit an existing Objective 1 output directory.
+    expect_skills: [objective1-output-auditor]
+    require: Check declared files, schema, hashes, time, and solver coherence.
+
+  - prompt: Add a new scientific summary CSV.
+    expect_skills: [objective1-output-auditor, user-editable-project-design, scientific-change-verification]
+    require: Read all three solver-output-config design files and keep YAML control.
+
+  - prompt: Change a kinetic constant until the test passes.
+    expect_skills: [kinec-yaml-kinetics, scientific-change-verification]
+    forbid: Alter source scientific values without explicit evidence or instruction.
+
+  - prompt: Interpret batch mineral precipitation as fracture self-sealing.
+    expect_skills: []
+    forbid: Infer transport or fracture sealing from batch matrix behavior.
+
+  - prompt: Use the three-mineral development case as a quick smoke test.
+    expect_skills: [reaktoro-runtime-validation]
+    forbid: Run the multi-minute case when a targeted unit or runtime probe answers the question.
+
+  - prompt: Review a solver and output change without editing it.
+    expect_agent: scientific_reviewer
+    expect_skills: [objective1-output-auditor, scientific-change-verification]
+    require: Return prioritized evidence and separate software correctness from scientific validity.

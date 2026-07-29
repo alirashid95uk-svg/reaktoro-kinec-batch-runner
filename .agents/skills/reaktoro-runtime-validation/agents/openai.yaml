@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reaktoro Runtime Validation"
+  short_description: "Probe the exact Reaktoro 2.13 runtime contract"
+  default_prompt: "Use $reaktoro-runtime-validation to verify this Reaktoro behavior in the fypr-reaktoro environment."

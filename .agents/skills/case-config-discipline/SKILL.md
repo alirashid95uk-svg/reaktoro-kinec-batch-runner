@@ -46,16 +46,17 @@ physical:
 brine:
 co2:
 redox:
-cation_exchange:
 kinetics:
 minerals:
 solver:
 postprocessing:
 validation:
+outputs:
 ```
 
-Cation exchange is planned but not implemented in V1.
-Experiment validation is planned but not implemented in V1.
+Do not add a `cation_exchange` block: cation exchange is planned but is not an
+active V1 field. The active `validation` block records explicit comparison
+targets; it does not make experiment-validation workflows implemented.
 
 ## Rules
 

@@ -19,6 +19,42 @@ geochemistry take precedence over software abstraction.
 Cation exchange is planned but not implemented in V1.
 Experiment validation is planned but not implemented in V1.
 
+## Active V1 Baseline
+
+- Standard Reaktoro equilibrium and kinetics solvers.
+- Fixed timesteps only.
+- Base outputs and YAML-controlled Objective 1 audit outputs.
+- No adaptive stepping, rejected-step recovery, checkpoints, restart, cation
+  exchange, reactive transport, or experiment-validation workflow.
+
+Use the verified environment:
+
+```powershell
+conda run -n fypr-reaktoro python -m pytest -q
+```
+
+The three-mineral development case is not a routine smoke test because one
+kinetic step can take several minutes.
+
+## Skill Routing
+
+- YAML case changes: `case-config-discipline`.
+- PHREEQC database loading: `phreeqc-database-only`.
+- Kinec parameters or attachment: `kinec-yaml-kinetics`.
+- Reaktoro construction or solver code: `reaktoro-simple-syntax` and
+  `reaktoro-runtime-validation`.
+- Any source-code change: `scientific-change-verification`.
+- Output generation or package review: `objective1-output-auditor`; also read
+  the three coordinated design files named below.
+
+## Scientific Interpretation Boundary
+
+- Batch results are not reactive-transport behaviour.
+- Mineral-volume change is not porosity, permeability, or capillary-entry-
+  pressure change without an explicit update law and its provenance.
+- Matrix mineral precipitation is not fracture sealing unless fracture-surface
+  reactions and aperture evolution are represented.
+
 ## User-Supplied Scientific Files
 
 The user supplied these files. They have been moved to their active project
@@ -193,4 +229,3 @@ Checkpointing and restart are separate features.
 CSV column order must be deterministic.
 Output tables should report runtime results, not repeated copies of the input YAML.
 ```
-

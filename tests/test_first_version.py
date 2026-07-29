@@ -1,5 +1,8 @@
 import csv
+import json
 import re
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -160,6 +163,59 @@ def test_local_database_loads_and_kinec_adapter_attaches() -> None:
     )
     assert len(system.reactions()) == 1
     assert len(system.surfaces()) == 1
+
+
+def test_general_reaction_rate_contract_positive_mol_per_second_dissolves() -> None:
+    code = """
+import json
+import os
+import sys
+import reaktoro as rkt
+
+rate_mol_s = 1.0e-8
+dt_s = 1.0
+
+def constant_rate(props: rkt.ChemicalProps) -> rkt.ReactionRate:
+    return rkt.ReactionRate(rate_mol_s)
+
+database = rkt.PhreeqcDatabase.withName("phreeqc.dat")
+aqueous = rkt.AqueousPhase(rkt.speciate(["H", "O", "C", "Ca"]))
+aqueous.setActivityModel(rkt.ActivityModelPhreeqc(database))
+reaction = rkt.MineralReaction("Calcite")
+reaction.setRateModel(rkt.ReactionRateModel(constant_rate))
+system = rkt.ChemicalSystem(database, aqueous, rkt.MineralPhases(["Calcite"]), reaction)
+coefficient = float(system.reactions()[0].equation().coefficient("Calcite"))
+
+state = rkt.ChemicalState(system)
+state.temperature(25.0, "celsius")
+state.pressure(1.0, "bar")
+state.set("H2O", 1.0, "kg")
+state.set("Calcite", 1.0, "mol")
+initial_calcite_mol = float(state.speciesAmount("Calcite"))
+result = rkt.KineticsSolver(system).solve(state, dt_s)
+dissolved_mol = initial_calcite_mol - float(state.speciesAmount("Calcite"))
+
+print(json.dumps({
+    "version": rkt.__version__,
+    "coefficient": coefficient,
+    "succeeded": result.succeeded(),
+    "dissolved_mol": dissolved_mol,
+}), flush=True)
+os._exit(0)
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    observed = json.loads(completed.stdout)
+    assert observed["version"] == "2.13.0"
+    assert observed["coefficient"] == -1.0
+    assert observed["succeeded"] is True
+    assert observed["dissolved_mol"] == pytest.approx(1.0e-8, rel=1.0e-6)
 
 
 def test_source_supported_case_loads_with_fixed_timestep(tmp_path: Path) -> None:
