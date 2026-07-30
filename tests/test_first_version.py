@@ -290,7 +290,7 @@ def test_zero_initial_mineral_summary_avoids_divide_by_zero(tmp_path: Path) -> N
         {"mineral_amount_mol::Calcite": 0.0, "saturation_index::Calcite": -1.0},
         {"mineral_amount_mol::Calcite": 1.0, "saturation_index::Calcite": 0.5},
     ]
-    result = SimpleNamespace(rows=rows)
+    result = SimpleNamespace(initial_row=rows[0], final_row=rows[-1])
     summary = mineral_summary_rows(case, result)[0]
     assert summary["delta_percent"] is None
     assert summary["net_change"] == "precipitation_from_zero"
@@ -380,6 +380,25 @@ def test_base_output_package_and_disabled_plot_behavior(tmp_path: Path) -> None:
     }
     assert expected == actual
     assert not (case.output_dir / "plots").exists()
+    manifest = json.loads((case.output_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["time_semantics"] == {
+        "canonical_unit": "second",
+        "duration_s": case.duration_s,
+        "timestep_mode": "fixed",
+        "configured_fixed_dt_s": case.dt_s,
+        "configured_adaptive_dt_initial_s": None,
+        "configured_adaptive_dt_min_s": None,
+        "configured_adaptive_dt_max_s": None,
+        "base_internal_steps": case.base_internal_step_count,
+        "resolved_internal_steps": case.internal_step_count,
+        "solver_target_rule": (
+            "absolute fixed-grid targets split at requested output and checkpoint timestamps"
+        ),
+        "output_state_rule": "accepted states only; no interpolation",
+        "output_schedule": case.output_schedule_summary(),
+        "checkpoint_schedule": case.checkpoint_schedule_summary(),
+        "restart": {"enabled": False, "from_checkpoint": None},
+    }
 
 
 def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path) -> None:

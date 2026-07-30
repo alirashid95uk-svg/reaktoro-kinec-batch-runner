@@ -78,6 +78,38 @@ def build_manifest(
             "timestep": config.solver.timestep.model_dump(mode="json"),
             "redox_apply_during": config.redox.apply_during,
         },
+        "time_semantics": {
+            "canonical_unit": "second",
+            "duration_s": case.duration_s,
+            "timestep_mode": config.solver.timestep.mode,
+            "configured_fixed_dt_s": (
+                case.dt_s if config.solver.timestep.mode == "fixed" else None
+            ),
+            "configured_adaptive_dt_initial_s": (
+                case.dt_initial_s if config.solver.timestep.mode != "fixed" else None
+            ),
+            "configured_adaptive_dt_min_s": (
+                case.dt_min_s if config.solver.timestep.mode != "fixed" else None
+            ),
+            "configured_adaptive_dt_max_s": (
+                case.dt_max_s if config.solver.timestep.mode != "fixed" else None
+            ),
+            "base_internal_steps": (
+                case.base_internal_step_count if config.solver.timestep.mode == "fixed" else None
+            ),
+            "resolved_internal_steps": (
+                case.internal_step_count if config.solver.timestep.mode == "fixed" else None
+            ),
+            "solver_target_rule": (
+                "absolute fixed-grid targets split at requested output and checkpoint timestamps"
+                if config.solver.timestep.mode == "fixed"
+                else "accepted adaptive targets capped at the next output, checkpoint, or final timestamp"
+            ),
+            "output_state_rule": "accepted states only; no interpolation",
+            "output_schedule": case.output_schedule_summary(),
+            "checkpoint_schedule": case.checkpoint_schedule_summary(),
+            "restart": config.solver.restart.model_dump(mode="json"),
+        },
         "output_configuration": config.outputs.model_dump(mode="json"),
         "software_environment": {
             "python_version": platform.python_version(),

@@ -2,11 +2,11 @@
 
 ## Runtime V1 Status
 
-The active runner schema implements fixed timesteps with standard Reaktoro
-solvers only. Optional Objective 1 reaction-rate and configured budget
-diagnostics are implemented as postprocessing outputs. Smart solvers, adaptive
-timesteps, long-horizon checkpointing, restart, rejected-step control, and
-solver safety controls remain design notes in `docs/dev` until implemented.
+The active runner implements fixed, adaptive, and `adaptive_long_horizon`
+timesteps with standard Reaktoro solvers, independent scheduled timeseries
+output, accepted-state checkpoints, rollback, attempt logging, and configured
+state-change acceptance checks. Smart solvers and automatic restart remain
+disabled.
 
 ## 1. Purpose
 
@@ -365,7 +365,7 @@ solver:
     time:
       duration_value: 10000
       duration_unit: years
-      year_definition_days: 365.25
+      year_definition_days: 360  # explicit project choice; no implicit default
 ```
 
 Do not generate fixed `step_sizes_s()` from kinetics for adaptive or long-horizon modes.
@@ -410,7 +410,32 @@ Runtime:
 ```text
 Use constant dt until duration is reached.
 Shorten final step if needed to land exactly on final time.
+Split a fixed interval at output or checkpoint targets without resetting the absolute fixed-step grid.
+Emit chemistry rows only at requested output targets; never interpolate states.
+Write checkpoints only at independent checkpoint targets after solver acceptance.
+Generate fixed steps lazily from integer indices; do not allocate the full schedule.
+Reject non-finite time values and runs above max_internal_steps before solver construction.
+Stream accepted result rows and solver records instead of retaining the full trajectory.
+Snapshot the accepted ChemicalState before each trial solve.
+If a trial fails, restore that snapshot, keep accepted time unchanged, write failure diagnostics, and stop.
 ```
+
+This is failure-safe fixed stepping, not adaptive stepping: failed trials are
+not retried with a smaller `dt`.
+
+Fixed-step time ownership is separated as follows:
+
+```text
+step_size.dt          = absolute fixed-grid spacing
+output_schedule       = accepted states written to timeseries and downstream trajectory outputs
+checkpoint_schedule   = accepted states written under checkpoints/
+solver_history        = every accepted or failed solver attempt
+```
+
+All three schedules use canonical seconds after preprocessing. Output and
+checkpoint targets are sorted and de-duplicated independently, then their union
+splits fixed-grid intervals. The configured duration remains the final solver
+target even when `include_final: false` suppresses the final timeseries row.
 
 ### 9.2 Adaptive Timestep
 
@@ -438,17 +463,24 @@ solver:
       max_retries_per_step: 8
     acceptance:
       enabled: true
+      fail_on_non_finite: true
+      fail_on_negative_amounts: true
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
       max_mineral_fraction_change: 0.05
-      max_species_fraction_change: 0.10
+      max_selected_species_fraction_change: 0.10
+      element_conservation:
+        enabled: false
+        relative_tolerance: null
+        absolute_tolerance_mol: null
       max_relative_rate_change: null
-      fail_on_nan: true
-      fail_on_negative_amounts: true
-    failure_recovery:
-      restore_previous_state_on_reject: true
-      write_rejected_steps: true
-      stop_if_dt_below_min: true
+    max_internal_steps: 100000
+    output_schedule:
+      mode: explicit
+      include_initial: true
+      include_final: true
+      explicit_times: []
+    checkpoint_schedule: { enabled: false, times: [] }
 ```
 
 Core algorithm:
@@ -473,6 +505,15 @@ Mandatory:
 ```text
 Rejected steps must not corrupt accepted state.
 ```
+
+The implementation uses `ChemicalState(state)` before every trial and
+`state.assign(snapshot)` after rejection. The accepted timestamp advances only
+after both solver success and configured acceptance checks pass. Every trial is
+written to `solver_history.csv`; rejected rows retain
+`time_end_s == time_start_s`. Target calculation uses canonical seconds and is
+capped at the next output, checkpoint, or final time. A target-shortened step
+may be smaller than `dt_min`; `dt_min` governs retry shrinkage, while exact event
+landing takes precedence.
 
 ### 9.3 Adaptive Long-Horizon Timestep
 
@@ -501,13 +542,8 @@ year
 years
 ```
 
-Use and record:
-
-```text
-1 year = 365.25 days
-```
-
-unless explicitly changed.
+Any use of `year` or `years` requires an explicit positive
+`year_definition_days`; there is no implicit year length.
 
 #### Scheduled Output Times
 
@@ -594,7 +630,8 @@ dt_max
 
 #### Checkpointing
 
-Checkpointing is required for long runs when enabled under `solver.timestep.checkpoints`.
+Checkpointing is required for `adaptive_long_horizon` under
+`solver.timestep.checkpoint_schedule`.
 
 Suggested path:
 
@@ -667,13 +704,9 @@ If direct `ChemicalState` copying is unreliable, reconstruct from saved species/
 
 #### Rejected-Step Logging
 
-Long-horizon mode must support:
-
-```text
-rejected_steps.csv
-```
-
-Recommended rejected-step fields are defined in `output_package_design.md`.
+Long-horizon mode records rejected and accepted attempts in the same
+deterministic `solver_history.csv` schema. A separate rejected-step table is
+unnecessary because `accepted` provides a lossless filter.
 
 #### Long-Horizon Controller Algorithm
 
@@ -737,7 +770,11 @@ For long simulations, `dt_max` must support days, years, or decades depending on
 
 ---
 
-## 10. Solver Safety Features
+## 10. Roadmap Solver Safety Features
+
+This separate `solver.safety` block is not active. Implemented finite and
+negative-amount checks live under `solver.timestep.acceptance`; blocking
+wall-time interruption and depletion actions remain future work.
 
 Recommended safety block:
 

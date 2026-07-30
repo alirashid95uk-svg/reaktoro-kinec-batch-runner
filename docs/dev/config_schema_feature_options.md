@@ -2,11 +2,11 @@
 
 ## Runtime V1 Status
 
-The active `CaseConfig` implements fixed timesteps, standard Reaktoro solvers,
-current plots/debug outputs, and optional Objective 1 audit outputs under
-`postprocessing`, `validation`, and `outputs.summaries`. Adaptive timesteps,
-smart solvers, checkpoints, restart, and solver safety controls remain roadmap
-fields and must stay out of case YAML until implemented and tested.
+The active `CaseConfig` implements fixed, adaptive, and
+`adaptive_long_horizon` timesteps, scheduled timeseries output, explicit
+accepted-state checkpoints, standard Reaktoro solvers, and optional Objective
+1 audit outputs. Adaptive rollback and state-change acceptance checks are
+active. Smart solvers and automatic restart remain disabled.
 
 ## 1. Purpose
 
@@ -199,7 +199,8 @@ solver:
     from_checkpoint: null
 ```
 
-Do not add a separate `solver.recording.checkpoints` flag. Checkpoint creation timing belongs under `solver.timestep.checkpoints`; checkpoint file writing belongs under `outputs.checkpoints`.
+Do not add a separate checkpoint-output flag. Checkpoint creation and writing
+are controlled by `solver.timestep.checkpoint_schedule`.
 
 ---
 
@@ -303,11 +304,25 @@ Each mode must have a clean schema. Do not allow fields from unrelated modes.
 solver:
   timestep:
     mode: fixed
+    max_internal_steps: 100000
     time:
       duration_value: 10
       duration_unit: seconds
     step_size:
       dt: { value: 1, unit: second }
+    output_schedule:
+      mode: hybrid
+      include_initial: true
+      include_final: true
+      explicit_times:
+        - { value: 30, unit: seconds }
+      logarithmic:
+        start: { value: 1, unit: second }
+        end: { value: 10, unit: seconds }
+        points_per_decade: 4
+    checkpoint_schedule:
+      enabled: false
+      times: []
 ```
 
 Validation:
@@ -316,9 +331,25 @@ Validation:
 requires time.duration_value
 requires time.duration_unit
 requires step_size.dt
+max_internal_steps must be a positive integer; default 100000
+duration, dt, converted seconds, and year_definition_days must be finite
+output_schedule.mode is every_internal_step, explicit, logarithmic, or hybrid
+every_internal_step is the compatibility default and is generated lazily
+explicit uses explicit_times; logarithmic uses logarithmic; hybrid requires both
+include_initial and include_final add those boundary rows when true
+all resolved output timestamps must be within duration; duplicates are removed
+reject an oversized logarithmic schedule before generating its timestamps
+checkpoint_schedule.enabled true requires explicit times within duration
+checkpoint timestamps are independent of timeseries output timestamps
+reject before execution when fixed-grid plus schedule-split steps exceed max_internal_steps
 forbids adaptive-only fields
 forbids long-horizon-only fields
 ```
+
+Canonical runtime time is seconds. All schedule values use the same configured
+`year_definition_days` and Decimal-based conversion as duration and `dt`.
+Existing fixed-step YAML without `output_schedule` retains one row per fixed
+step plus the initial row through the documented `every_internal_step` default.
 
 ### 9.2 Adaptive Timestep Schema
 
@@ -338,17 +369,24 @@ solver:
       max_retries_per_step: 8
     acceptance:
       enabled: true
+      fail_on_non_finite: true
+      fail_on_negative_amounts: true
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
       max_mineral_fraction_change: 0.05
-      max_species_fraction_change: 0.10
+      max_selected_species_fraction_change: 0.10
+      element_conservation:
+        enabled: false
+        relative_tolerance: null
+        absolute_tolerance_mol: null
       max_relative_rate_change: null
-      fail_on_nan: true
-      fail_on_negative_amounts: true
-    failure_recovery:
-      restore_previous_state_on_reject: true
-      write_rejected_steps: true
-      stop_if_dt_below_min: true
+    max_internal_steps: 100000
+    output_schedule:
+      mode: explicit
+      include_initial: true
+      include_final: true
+      explicit_times: []
+    checkpoint_schedule: { enabled: false, times: [] }
 ```
 
 Validation:
@@ -362,9 +400,12 @@ requires growth_factor
 requires shrink_factor
 requires max_retries_per_step
 requires acceptance
-requires failure_recovery
 forbids fixed step_size.dt
-forbids long-horizon-only fields
+requires at least one active acceptance check
+requires dt_min <= dt_initial <= dt_max
+growth_factor must exceed 1; shrink_factor must be between 0 and 1
+max_relative_rate_change must remain null because runtime rate acceptance is unverified
+element conservation is forbidden for fixed-fugacity kinetic steps
 ```
 
 ### 9.3 Adaptive Long-Horizon Timestep Schema
@@ -373,65 +414,44 @@ forbids long-horizon-only fields
 solver:
   timestep:
     mode: adaptive_long_horizon
-
     time:
       duration_value: 10000
       duration_unit: years
-      year_definition_days: 365.25
-
-      output_schedule:
-        mode: hybrid
-        include_initial: true
-        include_final: true
-        fixed_times:
-          - { value: 1, unit: day }
-          - { value: 1, unit: year }
-          - { value: 10000, unit: years }
-        log_times:
-          enabled: true
-          start: { value: 1, unit: day }
-          end: { value: 10000, unit: years }
-          points_per_decade: 8
-
+      year_definition_days: 360
     step_size:
       dt_initial: { value: 1, unit: second }
       dt_min: { value: 1.0e-6, unit: second }
       dt_max: { value: 100, unit: years }
       growth_factor: 1.5
       shrink_factor: 0.5
-      max_growth_after_accept: 2.0
       max_retries_per_step: 12
-
     acceptance:
       enabled: true
+      fail_on_non_finite: true
+      fail_on_negative_amounts: true
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
       max_mineral_fraction_change: 0.02
-      max_species_fraction_change: 0.10
+      max_selected_species_fraction_change: 0.10
+      element_conservation:
+        enabled: false
+        relative_tolerance: null
+        absolute_tolerance_mol: null
       max_relative_rate_change: null
-      fail_on_nan: true
-      fail_on_negative_amounts: true
-
-    long_horizon:
-      enable_quasi_steady_growth: true
-      rate_floor_mol_s: 1.0e-20
-      near_equilibrium_si_tolerance: 0.05
-      require_si_stability_for_large_steps: true
-      allow_large_steps_when_slow: true
-      require_checkpoint_before_large_step: true
-
-    checkpoints:
+    max_internal_steps: 100000
+    output_schedule:
+      mode: logarithmic
+      include_initial: true
+      include_final: true
+      explicit_times: []
+      logarithmic:
+        start: { value: 1, unit: day }
+        end: { value: 10000, unit: years }
+        points_per_decade: 8
+    checkpoint_schedule:
       enabled: true
-      interval: { value: 100, unit: years }
-      save_before_dt_larger_than: { value: 1, unit: year }
-      keep_last_n: 20
-
-    failure_recovery:
-      restore_previous_state_on_reject: true
-      write_rejected_steps: true
-      stop_if_dt_below_min: true
-      stop_if_repeated_failures: true
-      max_consecutive_rejected_steps: 20
+      times:
+        - { value: 100, unit: years }
 ```
 
 Validation:
@@ -442,11 +462,10 @@ requires output_schedule
 requires include_final: true
 requires step_size
 requires acceptance
-requires long_horizon
-requires checkpoints
-requires failure_recovery
+requires checkpoint_schedule.enabled: true
+forbids every_internal_step output
 
-if duration_unit is year/years
+if duration or any configured timestep value uses year/years
 → requires year_definition_days
 
 forbids fixed step_size.dt
@@ -689,8 +708,6 @@ outputs:
     resolved_config: false
     final_state: true
 
-  checkpoints:
-    enabled: true
 ```
 
 Validation:
@@ -717,8 +734,7 @@ summaries.carbon_inventory: true
 summaries.element_budget: true
 → postprocessing.element_budget.enabled must be true
 
-outputs.checkpoints.enabled: true
-→ solver.timestep.checkpoints.enabled must be true
+checkpoint files are controlled only by solver.timestep.checkpoint_schedule.enabled
 ```
 
 ---
@@ -775,7 +791,11 @@ Missing kinetic record, missing surface area, and missing thermodynamic mineral 
 
 ---
 
-## 19. Recommended Default Development Profile
+## 19. Historical Roadmap Profile (Not Runtime YAML)
+
+The following older design sketch contains unimplemented fields and is not
+accepted by the strict `CaseConfig`. Use the mode schemas in Section 9 for
+runnable timestep YAML.
 
 Use this as the first enhanced development profile.
 
@@ -946,14 +966,14 @@ Suggested tests:
 3. redox.enabled true requires pe and apply_during.
 4. fixed timestep config forbids adaptive-only fields.
 5. adaptive timestep config forbids fixed dt and long-horizon-only fields.
-6. adaptive_long_horizon requires time, step_size, output_schedule, checkpoints, and failure_recovery.
+6. adaptive_long_horizon requires time, step_size, acceptance, output_schedule, and checkpoint_schedule.
 7. adaptive_long_horizon requires include_final: true.
 8. fixed-fugacity staged workflow requires co2.mode fixed_fugacity.
 9. plots.solver_dt requires solver_history enabled.
 10. plots.reaction_rate requires postprocessing.reaction_rates true.
 11. carbon_inventory output requires carbon_inventory postprocessing config.
 12. element_budget output requires element_budget postprocessing config.
-13. outputs.checkpoints requires solver.timestep.checkpoints.
+13. checkpoint files require solver.timestep.checkpoint_schedule.enabled.
 14. restart.enabled true requires from_checkpoint and fails if restart is not implemented.
 15. three-mineral development case validates.
 16. output feature toggles suppress disabled files.

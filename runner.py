@@ -18,12 +18,16 @@ def main() -> None:
     case = load_case(args.case_config)
     result = run_simulation(case, mapping_ready=lambda mapping: write_kinetic_mapping(case, mapping))
     output_dir = write_outputs(case, result)
-    print(f"Completed case '{case.config.case.name}'. Outputs: {output_dir}", flush=True)
+    completed = result.diagnostics["simulation_completed"]
+    status = "Completed" if completed else "Failed"
+    print(f"{status} case '{case.config.case.name}'. Outputs: {output_dir}", flush=True)
 
     # Reaktoro 2.13 can retain Python rate callbacks until faulty interpreter
     # finalization on Windows. All run outputs are closed before this point.
     if case.config.kinetics.enabled:
-        os._exit(0)
+        os._exit(0 if completed else 1)
+    if not completed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

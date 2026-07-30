@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -112,108 +113,92 @@ POROSITY_PERMEABILITY_COLUMNS = [
 ]
 
 
-def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    rows = []
+def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     kinetic_minerals = [mineral for mineral in case.config.minerals if mineral.role == "kinetic"]
-    for row in result.rows:
+    for row in result.iter_rows():
         for mineral in kinetic_minerals:
             name = mineral.name
-            rows.append(
-                {
-                    "time_s": row["time_s"],
-                    "time_days": row["time_days"],
-                    "mineral": name,
-                    "rate_mol_s": row[f"reaction_rate_mol_s::{name}"],
-                    "rate_surface_normalized": row[f"reaction_rate_surface_normalized::{name}"],
-                    "saturation_index": row[f"saturation_index::{name}"],
-                    "saturation_ratio": row[f"reaction_rate_saturation_ratio::{name}"],
-                    "surface_area_value": mineral.surface_area.value,
-                    "surface_area_unit": mineral.surface_area.unit,
-                    "rate_evaluation_status": row[f"reaction_rate_status::{name}"],
-                }
-            )
-    return rows
+            yield {
+                "time_s": row["time_s"],
+                "time_days": row["time_days"],
+                "mineral": name,
+                "rate_mol_s": row[f"reaction_rate_mol_s::{name}"],
+                "rate_surface_normalized": row[f"reaction_rate_surface_normalized::{name}"],
+                "saturation_index": row[f"saturation_index::{name}"],
+                "saturation_ratio": row[f"reaction_rate_saturation_ratio::{name}"],
+                "surface_area_value": mineral.surface_area.value,
+                "surface_area_unit": mineral.surface_area.unit,
+                "rate_evaluation_status": row[f"reaction_rate_status::{name}"],
+            }
 
 
-def kinec_rate_validation_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    rows = []
+def kinec_rate_validation_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     for row in reaction_rate_rows(case, result):
         expected = _expected_rate_sign(row["saturation_index"])
         observed = _sign(row["rate_mol_s"])
-        rows.append(
-            {
-                "time_s": row["time_s"],
-                "time_days": row["time_days"],
-                "mineral": row["mineral"],
-                "saturation_index": row["saturation_index"],
-                "expected_rate_sign_from_si": expected,
-                "observed_rate_sign": observed,
-                "sign_check": "passed" if expected == observed else "failed",
-                "scope_note": "batch rate-sign diagnostic; not a transport or fracture-sealing result",
-            }
-        )
-    return rows
+        yield {
+            "time_s": row["time_s"],
+            "time_days": row["time_days"],
+            "mineral": row["mineral"],
+            "saturation_index": row["saturation_index"],
+            "expected_rate_sign_from_si": expected,
+            "observed_rate_sign": observed,
+            "sign_check": "passed" if expected == observed else "failed",
+            "scope_note": "batch rate-sign diagnostic; not a transport or fracture-sealing result",
+        }
 
 
-def carbon_inventory_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+def carbon_inventory_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     config = case.config.postprocessing.carbon_inventory
-    rows = []
     initial_total = None
-    for row in result.rows:
+    for row in result.iter_rows():
         aqueous = _weighted_sum(row, "species_amount_mol", config.carbon_species)
         gas = _weighted_sum(row, "species_amount_mol", config.carbon_gas_species)
         mineral = _weighted_sum(row, "mineral_amount_mol", config.carbon_minerals)
         total = aqueous + gas + mineral
         if initial_total is None:
             initial_total = total
-        rows.append(
-            {
-                "time_s": row["time_s"],
-                "time_days": row["time_days"],
-                "aqueous_carbon_mol": aqueous,
-                "gas_carbon_mol": gas,
-                "mineral_carbon_mol": mineral,
-                "total_carbon_mol": total,
-                "initial_total_carbon_mol": initial_total,
-                "carbon_balance_error_mol": total - initial_total,
-                "carbon_balance_error_percent": _percent_error(total - initial_total, initial_total),
-            }
-        )
-    return rows
+        yield {
+            "time_s": row["time_s"],
+            "time_days": row["time_days"],
+            "aqueous_carbon_mol": aqueous,
+            "gas_carbon_mol": gas,
+            "mineral_carbon_mol": mineral,
+            "total_carbon_mol": total,
+            "initial_total_carbon_mol": initial_total,
+            "carbon_balance_error_mol": total - initial_total,
+            "carbon_balance_error_percent": _percent_error(total - initial_total, initial_total),
+        }
 
 
-def element_budget_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+def element_budget_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     config = case.config.postprocessing.element_budget
     initial_totals: dict[str, float] = {}
-    rows = []
-    for row in result.rows:
+    for row in result.iter_rows():
         for element in config.elements:
             aqueous = _element_sum(row, "species_amount_mol", config.species, element)
             mineral = _element_sum(row, "mineral_amount_mol", config.minerals, element)
             gas = _element_sum(row, "species_amount_mol", config.gas_species, element)
             total = aqueous + mineral + gas
             initial = initial_totals.setdefault(element, total)
-            rows.append(
-                {
-                    "time_s": row["time_s"],
-                    "time_days": row["time_days"],
-                    "element": element,
-                    "aqueous_mol": aqueous,
-                    "mineral_mol": mineral,
-                    "gas_mol": gas,
-                    "total_mol": total,
-                    "initial_total_mol": initial,
-                    "delta_mol": total - initial,
-                    "relative_error_percent": _percent_error(total - initial, initial),
-                }
-            )
-    return rows
+            yield {
+                "time_s": row["time_s"],
+                "time_days": row["time_days"],
+                "element": element,
+                "aqueous_mol": aqueous,
+                "mineral_mol": mineral,
+                "gas_mol": gas,
+                "total_mol": total,
+                "initial_total_mol": initial,
+                "delta_mol": total - initial,
+                "relative_error_percent": _percent_error(total - initial, initial),
+            }
 
 
 def mineral_volume_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
     config = case.config.postprocessing.mineral_volume_change
-    initial = result.rows[0]
-    final = result.rows[-1]
+    initial = result.initial_row
+    final = result.final_row
     rows = []
     for mineral in case.config.minerals:
         name = mineral.name
@@ -239,17 +224,20 @@ def mineral_volume_rows(case: ResolvedCase, result: SimulationResult) -> list[di
 
 
 def regime_classification_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    final = result.rows[-1]
+    final = result.final_row
     dissolving = []
     precipitating = []
     delayed = []
+    saw_negative = {name: False for name in case.config.postprocessing.requested_minerals}
+    for row in result.iter_rows():
+        for name in saw_negative:
+            saw_negative[name] |= row[f"mineral_delta_mol::{name}"] < 0
     for name in case.config.postprocessing.requested_minerals:
-        deltas = [row[f"mineral_delta_mol::{name}"] for row in result.rows]
         if final[f"mineral_delta_mol::{name}"] < 0:
             dissolving.append(name)
         if final[f"mineral_delta_mol::{name}"] > 0:
             precipitating.append(name)
-        if min(deltas) < 0 and final[f"mineral_delta_mol::{name}"] > 0:
+        if saw_negative[name] and final[f"mineral_delta_mol::{name}"] > 0:
             delayed.append(name)
     if delayed:
         label = "delayed_precipitation"
@@ -309,8 +297,15 @@ def workflow_comparison_columns(case: ResolvedCase) -> list[str]:
 
 
 def workflow_comparison_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    initial = result.rows[0]
-    final = result.rows[-1]
+    initial = result.initial_row
+    final = result.final_row
+    total_wall_time_s = 0.0
+    max_iterations = None
+    for record in result.iter_solver_history():
+        total_wall_time_s += record["wall_time_s"]
+        iterations = record["iterations"]
+        if iterations is not None:
+            max_iterations = iterations if max_iterations is None else max(max_iterations, iterations)
     row = {
         "case_name": case.config.case.name,
         "workflow_mode": case.config.solver.workflow.mode,
@@ -321,11 +316,8 @@ def workflow_comparison_rows(case: ResolvedCase, result: SimulationResult) -> li
         "final_pH": final["pH"],
         "delta_pH": final["pH"] - initial["pH"],
         "final_time_s": final["time_s"],
-        "total_solver_wall_time_s": sum(record["wall_time_s"] for record in result.solver_history),
-        "max_solver_iterations": max(
-            (record["iterations"] for record in result.solver_history if record["iterations"] is not None),
-            default=None,
-        ),
+        "total_solver_wall_time_s": total_wall_time_s,
+        "max_solver_iterations": max_iterations,
     }
     for name in case.config.postprocessing.requested_minerals:
         row[f"final_mineral_delta_mol::{name}"] = final[f"mineral_delta_mol::{name}"]
@@ -371,7 +363,7 @@ def surrogate_dataset_columns(case: ResolvedCase) -> list[str]:
 
 
 def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    final = result.rows[-1]
+    final = result.final_row
     row = {
         "case_name": case.config.case.name,
         "output_schema_version": result.diagnostics["output_schema_version"],
@@ -396,7 +388,7 @@ def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list
 
 
 def validation_ledger_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    final = result.rows[-1]
+    final = result.final_row
     rows = []
     for target in case.config.validation.targets:
         runtime = final.get(target.quantity)
@@ -435,7 +427,7 @@ def porosity_permeability_rows(case: ResolvedCase, result: SimulationResult) -> 
             if name not in volume_config.molar_volumes_cm3_per_mol
         ]
         if not missing:
-            final = result.rows[-1]
+            final = result.final_row
             volume_delta = sum(
                 final[f"mineral_delta_mol::{name}"] * volume_config.molar_volumes_cm3_per_mol[name]
                 for name in case.config.postprocessing.requested_minerals

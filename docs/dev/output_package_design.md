@@ -2,13 +2,15 @@
 
 ## Runtime V1 Status
 
-The active runner schema implements the base V1 output package and optional
+The active runner schema implements the base V1 output package, streamed
+scheduled timeseries/solver-history staging, explicit accepted-state
+checkpoints, machine-readable fixed/adaptive failure diagnostics, and optional
 Objective 1 audit outputs for reaction rates, Kinec sign checks, carbon
 inventory, element budgets, mineral-volume change, regime classification,
 surface-area audit, workflow comparison, secondary-mineral assemblage,
 surrogate-dataset export, validation ledger, and porosity/permeability
-inference status. Rejected steps, checkpoints, restart, and long-horizon
-outputs remain design notes until implemented.
+inference status. Adaptive and adaptive-long-horizon control are implemented;
+automatic restart and smart solvers remain disabled.
 
 ## 1. Purpose
 
@@ -70,7 +72,6 @@ timeseries.csv
 mineral_summary.csv
 aqueous_summary.csv
 solver_history.csv
-rejected_steps.csv
 plots
 ```
 
@@ -106,7 +107,6 @@ outputs/
     ├── mineral_summary.csv
     ├── aqueous_summary.csv
     ├── solver_history.csv
-    ├── rejected_steps.csv                 # optional
     ├── reaction_rates.csv                 # optional
     ├── carbon_inventory.csv               # optional
     ├── element_budget.csv                 # optional
@@ -157,7 +157,6 @@ These files should still be configurable. The code should not force all outputs 
 The output system should also support optional files when requested by config:
 
 ```text
-rejected_steps.csv
 reaction_rates.csv
 carbon_inventory.csv
 element_budget.csv
@@ -350,6 +349,15 @@ backend_type
 smart_backend_fallback_status
 ```
 
+The active manifest records a `time_semantics` group containing the canonical
+second, resolved duration, mode-specific timestep bounds, output-state rule,
+resolved output schedule, independent checkpoint schedule, and disabled
+restart configuration.
+Explicit/logarithmic/hybrid schedules list their sorted unique timestamps in
+seconds. The compatibility `every_internal_step` schedule is recorded as a
+lazy fixed-grid rule plus its resolved count rather than expanded into a large
+manifest array.
+
 ### 8.7 Rules
 
 ```text
@@ -380,6 +388,15 @@ final_time_reached_years
 number_of_accepted_steps
 number_of_rejected_steps
 number_of_result_rows
+requested_internal_steps
+max_internal_steps
+estimated_solver_calls
+estimated_result_rows
+partial_run
+number_of_failed_steps
+failed_attempt_target_time_s
+failed_attempt_dt_s
+accepted_state_restored
 largest_dt_s
 smallest_dt_s
 average_dt_s
@@ -413,6 +430,12 @@ Do not repeat the full input snapshot.
 Include failure stage and error message whenever possible.
 Keep machine-readable JSON.
 ```
+
+For an incomplete fixed or adaptive run, write diagnostics plus configured partial
+timeseries and solver history from accepted states. Record the failed trial in
+solver history with `accepted: false` and no advance in `time_end_s`. Do not
+write scientific summaries, plots, validation ledgers, or surrogate datasets
+from an incomplete trajectory.
 
 ---
 
@@ -479,6 +502,9 @@ A near-equilibrium band may be used, but the tolerance must be explicit and conf
 ```text
 Do not repeat constant input values.
 Include time-zero state because it is the actual initialized state.
+When `include_initial` is false, retain the initialized state internally for summaries but omit its timeseries row.
+Write rows only at resolved output timestamps, not every internal or checkpoint step.
+When `include_final` is false, the solver still reaches duration exactly but the final row is omitted.
 Track only requested species, not every species automatically.
 Keep units in column names.
 Prefer molality plus amount for selected species.
@@ -575,12 +601,13 @@ Handle zero initial amount explicitly.
 
 ### 13.1 Purpose
 
-Record accepted solver-step behaviour.
+Record every solver attempt, accepted or rejected.
 
 ### 13.2 Recommended Columns
 
 ```text
 step_index
+attempt_index
 time_start_s
 time_end_s
 dt_s
@@ -590,6 +617,17 @@ solver_succeeded
 iterations
 wall_time_s
 failure_reason
+acceptance_reason
+next_dt_s
+delta_pH
+max_delta_saturation_index
+max_selected_species_fraction_change
+max_mineral_fraction_change
+minimum_species_amount_mol
+max_element_balance_error_mol
+max_element_balance_error_ratio
+worst_element
+trial_charge_mol
 ```
 
 ### 13.3 Rules
@@ -602,11 +640,12 @@ Support fixed, adaptive, and adaptive_long_horizon modes.
 
 ---
 
-## 14. `rejected_steps.csv`
+## 14. Rejected attempt view
 
 ### 14.1 Purpose
 
-Record rejected adaptive attempts for numerical-method evidence.
+Rejected adaptive attempts are rows in `solver_history.csv` with
+`accepted: false`; no duplicate `rejected_steps.csv` is written.
 
 ### 14.2 Recommended Columns
 
@@ -619,7 +658,7 @@ solver_succeeded
 delta_pH
 max_delta_SI
 max_mineral_fraction_change
-max_species_fraction_change
+max_selected_species_fraction_change
 wall_time_s
 next_dt_s
 ```
@@ -627,7 +666,7 @@ next_dt_s
 ### 14.3 Rules
 
 ```text
-Only write if rejected-step logging is enabled.
+Every rejected trial is written.
 Rejected steps must not corrupt accepted state.
 ```
 
@@ -854,7 +893,7 @@ Suggested path:
 outputs/<case_name>/checkpoints/
 ```
 
-Minimum checkpoint content:
+Restart-ready long-horizon checkpoint target:
 
 ```text
 checkpoint metadata
@@ -864,6 +903,13 @@ latest accepted timeseries row
 readable ChemicalState export
 solver-controller state
 ```
+
+The active fixed/adaptive implementation writes `checkpoints/index.jsonl` and one
+readable `checkpoint_<index>_state.txt` per configured accepted checkpoint.
+The index records checkpoint index, absolute `time_s`, preceding accepted
+`dt_s`, and state filename. Checkpoint times do not create timeseries rows
+unless they also occur in the output schedule. It is a diagnostic checkpoint,
+not yet the full restart-ready controller-state package listed above.
 
 ### 20.2 Restart
 
@@ -990,7 +1036,7 @@ summaries.element_budget: true
 → element budget postprocessing must be enabled and configured
 
 outputs.checkpoints.enabled: true
-→ solver.timestep.checkpoints.enabled must be true for long-horizon checkpoint files
+→ solver.timestep.checkpoint_schedule.enabled must be true for long-horizon checkpoint files
 ```
 
 ---
@@ -1006,7 +1052,7 @@ The output package is successful if:
 4. timeseries.csv includes pH, ionic strength, selected species amounts/molalities, mineral amounts, and saturation indices when requested.
 5. mineral_summary.csv reports initial/final mineral change and saturation-state interpretation.
 6. aqueous_summary.csv reports initial/final amount and molality changes for selected species.
-7. solver_history.csv and rejected_steps.csv support numerical-method review.
+7. solver_history.csv contains accepted and rejected attempts for numerical-method review.
 8. reaction_rates.csv, carbon_inventory.csv, and element_budget.csv are defined and only written when configured.
 9. plots are controlled by config and reproducible from CSV outputs.
 10. debug outputs are separated from scientific result tables.

@@ -177,20 +177,31 @@ def audit(output_dir: Path) -> dict[str, Any]:
     if "timeseries.csv" in actual:
         timeseries = _read_csv(output_dir / "timeseries.csv", errors)
         times = [_float(row.get("time_s")) for row in timeseries]
-        if not timeseries or any(value is None for value in times):
-            errors.append("timeseries has no rows or contains invalid time_s values")
-        elif times != sorted(times):
-            errors.append("timeseries time_s is not monotonic")
+        if any(value is None for value in times):
+            errors.append("timeseries contains invalid time_s values")
+        elif times != sorted(set(times)):
+            errors.append("timeseries time_s is not strictly increasing and unique")
         else:
             metrics["timeseries_rows"] = len(timeseries)
-            metrics["final_time_s"] = times[-1]
+            metrics["last_output_time_s"] = times[-1] if times else None
             if diagnostics.get("result_rows") != len(timeseries):
                 errors.append("diagnostics result_rows does not match timeseries row count")
-            expected_final = _float(diagnostics.get("final_time_reached_s"))
-            if expected_final is None or not math.isclose(
-                times[-1], expected_final, rel_tol=1e-12, abs_tol=1e-12
-            ):
-                errors.append("diagnostics final time does not match timeseries")
+            schedule = manifest.get("time_semantics", {}).get("output_schedule")
+            if schedule and schedule.get("resolved_times_s") is not None:
+                if times != schedule["resolved_times_s"]:
+                    errors.append("timeseries timestamps disagree with the resolved output schedule")
+            elif schedule and schedule.get("include_final") and times:
+                expected_final = _float(diagnostics.get("final_time_reached_s"))
+                if expected_final is None or not math.isclose(
+                    times[-1], expected_final, rel_tol=1e-12, abs_tol=1e-12
+                ):
+                    errors.append("configured final output does not match the accepted final time")
+            elif not schedule and times:
+                expected_final = _float(diagnostics.get("final_time_reached_s"))
+                if expected_final is None or not math.isclose(
+                    times[-1], expected_final, rel_tol=1e-12, abs_tol=1e-12
+                ):
+                    errors.append("diagnostics final time does not match timeseries")
         if any(
             str(row.get("solver_succeeded", "")).lower() == "false"
             for row in timeseries
@@ -201,6 +212,7 @@ def audit(output_dir: Path) -> dict[str, Any]:
         solver_rows = _read_csv(output_dir / "solver_history.csv", errors)
         accepted_positive_dt = 0
         rejected = 0
+        attempted_positive_dt = 0
         for row in solver_rows:
             accepted = str(row.get("accepted", "")).lower() == "true"
             succeeded = str(row.get("solver_succeeded", "")).lower()
@@ -211,11 +223,20 @@ def audit(output_dir: Path) -> dict[str, Any]:
                 accepted_positive_dt += 1
             if not accepted:
                 rejected += 1
+                start_s = _float(row.get("time_start_s"))
+                end_s = _float(row.get("time_end_s"))
+                if start_s is not None and end_s is not None and start_s != end_s:
+                    errors.append("rejected solver attempt advanced accepted time")
+            if dt_s is not None and dt_s > 0:
+                attempted_positive_dt += 1
         metrics["solver_history_rows"] = len(solver_rows)
         if diagnostics.get("number_of_accepted_steps") != accepted_positive_dt:
             errors.append("accepted-step count disagrees with solver_history")
         if diagnostics.get("number_of_rejected_steps") != rejected:
             errors.append("rejected-step count disagrees with solver_history")
+        reported_attempts = diagnostics.get("number_of_internal_attempts")
+        if reported_attempts is not None and reported_attempts != attempted_positive_dt:
+            errors.append("internal-attempt count disagrees with solver_history")
 
     if "kinec_rate_validation.csv" in actual:
         rows = _read_csv(output_dir / "kinec_rate_validation.csv", errors)
@@ -280,8 +301,8 @@ def _self_test() -> bool:
             "run_finished_at": "2026-01-01T00:00:01+00:00",
             "simulation_completed": True,
             "result_rows": 1,
-            "final_time_reached_s": 0.0,
-            "number_of_accepted_steps": 0,
+            "final_time_reached_s": 1.0,
+            "number_of_accepted_steps": 1,
             "number_of_rejected_steps": 0,
         }
         manifest = {
@@ -297,6 +318,12 @@ def _self_test() -> bool:
             }
             | {"output_schema_version": SCHEMA_VERSION},
             "traceability": {},
+            "time_semantics": {
+                "output_schedule": {
+                    "include_final": False,
+                    "resolved_times_s": [0.0],
+                }
+            },
             "output_configuration": {
                 "manifest": {"enabled": True},
                 "diagnostics": {"enabled": True},
@@ -318,7 +345,7 @@ def _self_test() -> bool:
         )
         (root / "solver_history.csv").write_text(
             "step_index,time_start_s,time_end_s,dt_s,stage,accepted,solver_succeeded\n"
-            "0,0.0,0.0,0.0,initial_equilibrium,True,True\n",
+            "0,0.0,1.0,1.0,kinetic_step,True,True\n",
             encoding="utf-8",
         )
         return audit(root)["ok"]

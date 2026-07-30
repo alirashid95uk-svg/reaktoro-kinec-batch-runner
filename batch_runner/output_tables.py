@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ TIMESERIES_CORE_COLUMNS = [
 TIMESERIES_SOLVER_COLUMNS = ["solver_succeeded", "solver_iterations", "dt_s"]
 SOLVER_HISTORY_COLUMNS = [
     "step_index",
+    "attempt_index",
     "time_start_s",
     "time_end_s",
     "dt_s",
@@ -30,6 +32,17 @@ SOLVER_HISTORY_COLUMNS = [
     "iterations",
     "wall_time_s",
     "failure_reason",
+    "acceptance_reason",
+    "next_dt_s",
+    "delta_pH",
+    "max_delta_saturation_index",
+    "max_selected_species_fraction_change",
+    "max_mineral_fraction_change",
+    "minimum_species_amount_mol",
+    "max_element_balance_error_mol",
+    "max_element_balance_error_ratio",
+    "worst_element",
+    "trial_charge_mol",
 ]
 MINERAL_SUMMARY_COLUMNS = [
     "mineral",
@@ -84,14 +97,15 @@ def timeseries_columns(case: ResolvedCase) -> list[str]:
     return columns
 
 
-def timeseries_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+def timeseries_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     columns = timeseries_columns(case)
-    return [{column: row[column] for column in columns} for row in result.rows]
+    for row in result.iter_rows():
+        yield {column: row[column] for column in columns}
 
 
 def mineral_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    initial = result.rows[0]
-    final = result.rows[-1]
+    initial = result.initial_row
+    final = result.final_row
     rows = []
     for name in case.config.postprocessing.requested_minerals:
         initial_amount = initial[f"mineral_amount_mol::{name}"]
@@ -116,8 +130,8 @@ def mineral_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[d
 
 
 def aqueous_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    initial = result.rows[0]
-    final = result.rows[-1]
+    initial = result.initial_row
+    final = result.final_row
     rows = []
     for name in case.config.postprocessing.requested_species:
         initial_amount = initial[f"species_amount_mol::{name}"]
@@ -141,7 +155,7 @@ def aqueous_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[d
     return rows
 
 
-def write_csv(path: Path, columns: list[str], rows: list[dict[str, Any]]) -> None:
+def write_csv(path: Path, columns: list[str], rows: Iterable[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
