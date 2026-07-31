@@ -234,8 +234,10 @@ def test_missing_surface_area_and_kinetic_record_fail(tmp_path: Path) -> None:
     raw = _source_case_with_output(tmp_path / "record-output")
     raw["minerals"][0]["name"] = "Afwillite"
     raw["postprocessing"]["requested_minerals"] = ["Afwillite"]
-    with pytest.raises(ValueError, match="missing Kinec YAML record"):
-        run_simulation(load_case(_write_case(tmp_path, raw)))
+    result = run_simulation(load_case(_write_case(tmp_path, raw)))
+    assert result.diagnostics["simulation_completed"] is False
+    assert result.diagnostics["failed_stage"] == "mapping"
+    assert "missing Kinec YAML record" in result.diagnostics["error_message"]
 
 
 def test_mapping_report_location_and_output_toggle(tmp_path: Path) -> None:
@@ -390,7 +392,8 @@ def test_base_output_package_and_disabled_plot_behavior(tmp_path: Path) -> None:
         "configured_adaptive_dt_min_s": None,
         "configured_adaptive_dt_max_s": None,
         "base_internal_steps": case.base_internal_step_count,
-        "resolved_internal_steps": case.internal_step_count,
+            "resolved_internal_steps": case.internal_step_count,
+            "minimum_possible_accepted_steps": case.minimum_accepted_steps,
         "solver_target_rule": (
             "absolute fixed-grid targets split at requested output and checkpoint timestamps"
         ),
@@ -492,7 +495,7 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
             Path(path).write_text("test state", encoding="utf-8")
 
     diagnostics = {
-        "output_schema_version": "objective1_audit_v2",
+        "output_schema_version": "objective1_audit_v3",
         "run_started_at": "2026-06-14T00:00:00+00:00",
         "run_finished_at": "2026-06-14T00:00:01+00:00",
         "simulation_completed": True,

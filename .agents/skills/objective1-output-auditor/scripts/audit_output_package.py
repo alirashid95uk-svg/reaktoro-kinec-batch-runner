@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "objective1_audit_v2"
+SCHEMA_VERSION = "objective1_audit_v3"
 SUMMARY_FILES = {
     "mineral_summary": "mineral_summary.csv",
     "aqueous_summary": "aqueous_summary.csv",
@@ -42,6 +42,36 @@ DEBUG_FILES = {
     "resolved_config": "debug/resolved_config.yaml",
     "final_state": "debug/final_state.txt",
 }
+SOLVER_HISTORY_COLUMNS = [
+    "step_index",
+    "attempt_index",
+    "time_start_s",
+    "time_end_s",
+    "dt_s",
+    "stage",
+    "accepted",
+    "solver_succeeded",
+    "iterations",
+    "wall_time_s",
+    "failure_reason",
+    "acceptance_reason",
+    "next_dt_s",
+    "delta_pH",
+    "max_delta_saturation_index",
+    "max_selected_species_change_mol",
+    "max_selected_species_tolerance_ratio",
+    "worst_selected_species",
+    "max_mineral_change_mol",
+    "max_mineral_tolerance_ratio",
+    "worst_mineral",
+    "minimum_species_amount_mol",
+    "tolerated_negative_species_count",
+    "most_negative_tolerated_amount_mol",
+    "max_element_balance_error_mol",
+    "max_element_balance_error_ratio",
+    "worst_element",
+    "trial_charge_mol",
+]
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -159,6 +189,11 @@ def audit(output_dir: Path) -> dict[str, Any]:
         for key in ("case_name", "run_started_at", "run_finished_at", "simulation_completed"):
             if identity.get(key) != diagnostics.get(key):
                 errors.append(f"manifest and diagnostics disagree on {key}")
+        completeness = diagnostics.get("output_completeness", {})
+        if completeness.get("status") != "complete":
+            errors.append("diagnostics does not record complete output writing")
+        if set(completeness.get("files_written", [])) != actual:
+            errors.append("diagnostics output_completeness disagrees with files present")
 
     traceability = manifest.get("traceability", {})
     for prefix in ("source_config", "database", "kinetic_yaml"):
@@ -209,6 +244,10 @@ def audit(output_dir: Path) -> dict[str, Any]:
             errors.append("timeseries contains a failed solver result")
 
     if "solver_history.csv" in actual:
+        with (output_dir / "solver_history.csv").open(newline="", encoding="utf-8") as stream:
+            columns = csv.DictReader(stream).fieldnames or []
+        if columns != SOLVER_HISTORY_COLUMNS:
+            errors.append("solver_history columns or ordering disagree with schema v3")
         solver_rows = _read_csv(output_dir / "solver_history.csv", errors)
         accepted_positive_dt = 0
         rejected = 0
@@ -304,6 +343,7 @@ def _self_test() -> bool:
             "final_time_reached_s": 1.0,
             "number_of_accepted_steps": 1,
             "number_of_rejected_steps": 0,
+            "output_completeness": {"status": "complete", "files_written": files},
         }
         manifest = {
             "output_schema_version": SCHEMA_VERSION,
@@ -343,11 +383,21 @@ def _self_test() -> bool:
             "time_s,time_days,stage,solver_succeeded\n0.0,0.0,initial_state,\n",
             encoding="utf-8",
         )
-        (root / "solver_history.csv").write_text(
-            "step_index,time_start_s,time_end_s,dt_s,stage,accepted,solver_succeeded\n"
-            "0,0.0,1.0,1.0,kinetic_step,True,True\n",
-            encoding="utf-8",
-        )
+        with (root / "solver_history.csv").open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=SOLVER_HISTORY_COLUMNS)
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "step_index": 0,
+                    "attempt_index": 1,
+                    "time_start_s": 0.0,
+                    "time_end_s": 1.0,
+                    "dt_s": 1.0,
+                    "stage": "kinetic_step",
+                    "accepted": True,
+                    "solver_succeeded": True,
+                }
+            )
         return audit(root)["ok"]
 
 

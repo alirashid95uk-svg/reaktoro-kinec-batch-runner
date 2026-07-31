@@ -12,6 +12,9 @@ surrogate-dataset export, validation ledger, and porosity/permeability
 inference status. Adaptive and adaptive-long-horizon control are implemented;
 automatic restart and smart solvers remain disabled.
 
+The active output contract is `objective1_audit_v3`. Version 2 packages are
+rejected by the auditor because manifest and solver-history fields changed.
+
 ## 1. Purpose
 
 This file defines the simulation-output design for the Reaktoro batch runner.
@@ -354,9 +357,9 @@ second, resolved duration, mode-specific timestep bounds, output-state rule,
 resolved output schedule, independent checkpoint schedule, and disabled
 restart configuration.
 Explicit/logarithmic/hybrid schedules list their sorted unique timestamps in
-seconds. The compatibility `every_internal_step` schedule is recorded as a
-lazy fixed-grid rule plus its resolved count rather than expanded into a large
-manifest array.
+seconds. The compatibility `every_internal_step` schedule is recorded as every
+actual accepted solver step, including target-split steps, rather than expanded
+into a large manifest array.
 
 ### 8.7 Rules
 
@@ -390,6 +393,7 @@ number_of_rejected_steps
 number_of_result_rows
 requested_internal_steps
 max_internal_steps
+minimum_possible_accepted_steps
 estimated_solver_calls
 estimated_result_rows
 partial_run
@@ -411,6 +415,8 @@ co2_runtime_workflow
 redox_enabled_runtime
 redox_apply_during_runtime
 warnings
+exception_type
+output_completeness
 ```
 
 If conservation diagnostics are enabled:
@@ -430,6 +436,15 @@ Do not repeat the full input snapshot.
 Include failure stage and error message whenever possible.
 Keep machine-readable JSON.
 ```
+
+Lifecycle failures use the exact stage names `database_loading`,
+`kinetics_loading`, `mapping`, `system_construction`, `state_construction`,
+`solver_execution`, and `output_writing`. Diagnostics retain the exception
+type/message, last accepted time, and an `output_completeness` object listing
+the files actually written.
+If output writing also fails after an earlier simulation failure, the primary
+`failed_stage` is retained and the secondary failure is stored in
+`output_failure`.
 
 For an incomplete fixed or adaptive run, write diagnostics plus configured partial
 timeseries and solver history from accepted states. Record the failed trial in
@@ -621,9 +636,15 @@ acceptance_reason
 next_dt_s
 delta_pH
 max_delta_saturation_index
-max_selected_species_fraction_change
-max_mineral_fraction_change
+max_selected_species_change_mol
+max_selected_species_tolerance_ratio
+worst_selected_species
+max_mineral_change_mol
+max_mineral_tolerance_ratio
+worst_mineral
 minimum_species_amount_mol
+tolerated_negative_species_count
+most_negative_tolerated_amount_mol
 max_element_balance_error_mol
 max_element_balance_error_ratio
 worst_element
@@ -657,8 +678,8 @@ reason
 solver_succeeded
 delta_pH
 max_delta_SI
-max_mineral_fraction_change
-max_selected_species_fraction_change
+max_mineral_tolerance_ratio
+max_selected_species_tolerance_ratio
 wall_time_s
 next_dt_s
 ```

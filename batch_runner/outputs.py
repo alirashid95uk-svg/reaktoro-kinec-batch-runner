@@ -75,6 +75,64 @@ def write_kinetic_mapping(case: ResolvedCase, mapping: list[dict]) -> Path:
 
 
 def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
+    try:
+        output_dir = _write_outputs(case, result)
+    except Exception as error:
+        output_dir = case.output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        prior_failure = result.diagnostics.get("failed_stage")
+        if prior_failure is None:
+            result.diagnostics.update(
+                {
+                    "failed_stage": "output_writing",
+                    "exception_type": type(error).__name__,
+                    "error_message": str(error),
+                    "termination_reason": "lifecycle_exception",
+                }
+            )
+        else:
+            result.diagnostics["output_failure"] = {
+                "failed_stage": "output_writing",
+                "exception_type": type(error).__name__,
+                "error_message": str(error),
+            }
+        result.diagnostics.update(
+            {
+                "simulation_completed": False,
+                "partial_outputs_written": True,
+                "scientific_outputs_omitted": True,
+            }
+        )
+        result.diagnostics["warnings"].append(
+            "output package writing failed; inspect output_completeness"
+        )
+        result.diagnostics["output_completeness"] = {
+            "status": "partial",
+            "files_written": _present_files(output_dir, include_manifest=False),
+        }
+        _write_json(output_dir / "diagnostics.json", result.diagnostics)
+        result.diagnostics["output_completeness"]["files_written"] = _present_files(
+            output_dir, include_manifest=False
+        )
+        _write_json(output_dir / "diagnostics.json", result.diagnostics)
+        return output_dir
+
+    status = "complete" if result.diagnostics["simulation_completed"] else "partial"
+    result.diagnostics["output_completeness"] = {
+        "status": status,
+        "files_written": _present_files(output_dir),
+    }
+    if case.config.outputs.diagnostics.enabled:
+        _write_json(output_dir / "diagnostics.json", result.diagnostics)
+    if case.config.outputs.manifest.enabled:
+        _write_json(
+            output_dir / "manifest.json",
+            build_manifest(case, result, _present_files(output_dir)),
+        )
+    return output_dir
+
+
+def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     if (output_dir / "results.csv").exists():
@@ -175,7 +233,7 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
             with path.open("w", encoding="utf-8") as stream:
                 yaml.safe_dump(case.as_dict(), stream, sort_keys=False)
             written.append(path)
-        if debug.final_state:
+        if debug.final_state and result.final_state is not None:
             path = debug_dir / "final_state.txt"
             result.final_state.output(str(path))
             written.append(path)
@@ -194,6 +252,15 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
         _write_json(path, build_manifest(case, result, relative_files))
         written.append(path)
     return output_dir
+
+
+def _present_files(output_dir: Path, *, include_manifest: bool = True) -> list[str]:
+    files = sorted(
+        path.relative_to(output_dir).as_posix()
+        for path in output_dir.rglob("*")
+        if path.is_file() and (include_manifest or path.name != "manifest.json")
+    )
+    return files
 
 
 def _write_json(path: Path, data: dict) -> None:

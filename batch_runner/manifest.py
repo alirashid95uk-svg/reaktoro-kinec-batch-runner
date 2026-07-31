@@ -9,12 +9,10 @@ from typing import Any
 
 import reaktoro as rkt
 
+from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import ResolvedCase
 from batch_runner.simulation import SimulationResult
 from batch_runner.simulator.mapping import _kinetic_name, _thermo_name
-
-OUTPUT_SCHEMA_VERSION = "objective1_audit_v2"
-
 
 def build_manifest(
     case: ResolvedCase,
@@ -100,6 +98,7 @@ def build_manifest(
             "resolved_internal_steps": (
                 case.internal_step_count if config.solver.timestep.mode == "fixed" else None
             ),
+            "minimum_possible_accepted_steps": case.minimum_accepted_steps,
             "solver_target_rule": (
                 "absolute fixed-grid targets split at requested output and checkpoint timestamps"
                 if config.solver.timestep.mode == "fixed"

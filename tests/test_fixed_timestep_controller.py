@@ -1,5 +1,6 @@
 import csv
 import json
+import runpy
 from copy import deepcopy
 from itertools import islice
 from pathlib import Path
@@ -9,9 +10,12 @@ import reaktoro as rkt
 import yaml
 from pydantic import ValidationError
 
+from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import CaseConfig, load_case
+from batch_runner import outputs as outputs_module
 from batch_runner.outputs import write_outputs
 from batch_runner import simulation as simulation_module
+from batch_runner.output_tables import SOLVER_HISTORY_COLUMNS
 from batch_runner.simulator import solver as solver_module
 from batch_runner.simulator.state_snapshot import snapshot_state
 
@@ -517,6 +521,33 @@ def test_checkpoint_target_splits_solver_step_without_creating_timeseries_row(
     assert progress["checkpoint_count"] == 1
 
 
+def test_every_internal_step_includes_checkpoint_split_steps(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    raw = _raw_case(tmp_path, duration_value=1.0, dt_value=0.5)
+    raw["solver"]["timestep"]["checkpoint_schedule"] = {
+        "enabled": True,
+        "times": [{"value": 0.25, "unit": "second"}],
+    }
+    case = _load_raw_case(tmp_path, raw)
+    _install_solver_spy(monkeypatch, [True] * case.internal_step_count)
+    rows = []
+
+    solver_module.execute_solver(
+        case,
+        object(),
+        _FakeState(),
+        row_ready=rows.append,
+    )
+
+    assert [row["time_s"] for row in rows] == [0.0, 0.25, 0.5, 1.0]
+    assert case.requested_output_row_count == 4
+    assert case.output_schedule_summary()["representation"] == (
+        "every actual accepted solver step, including schedule-split steps"
+    )
+
+
 def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, monkeypatch) -> None:
     raw = _raw_case(tmp_path, duration_value=1.0, dt_value=0.5)
     raw["solver"]["timestep"]["checkpoint_schedule"] = {
@@ -588,6 +619,18 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
     manifest = json.loads((case.output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["time_semantics"]["checkpoint_schedule"]["resolved_times_s"] == [0.5]
     assert "checkpoints/index.jsonl" in manifest["output_files"]
+    auditor = runpy.run_path(
+        str(
+            PROJECT_ROOT
+            / ".agents"
+            / "skills"
+            / "objective1-output-auditor"
+            / "scripts"
+            / "audit_output_package.py"
+        )
+    )
+    audit = auditor["audit"]
+    assert audit(case.output_dir)["ok"] is True
 
 
 def test_failed_solve_does_not_publish_attempted_time(tmp_path: Path, monkeypatch) -> None:
@@ -770,3 +813,229 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
         assert [float(row["time_s"]) for row in csv.DictReader(stream)] == [0.0, 0.3]
     assert not (case.output_dir / "mineral_summary.csv").exists()
     assert not result.row_stream_path.exists()
+
+
+class _LifecycleSystem:
+    def elements(self):
+        return []
+
+    species = phases = reactions = surfaces = elements
+
+
+def _install_lifecycle_stubs(monkeypatch) -> None:
+    monkeypatch.setattr(simulation_module, "load_database", lambda _case: object())
+    monkeypatch.setattr(
+        simulation_module.KinecParams,
+        "local",
+        staticmethod(lambda _path: object()),
+    )
+    monkeypatch.setattr(simulation_module, "build_kinetic_mapping", lambda *_args: [])
+    monkeypatch.setattr(simulation_module, "require_valid_kinetic_mapping", lambda _mapping: None)
+    monkeypatch.setattr(
+        simulation_module,
+        "build_chemical_system",
+        lambda *_args: _LifecycleSystem(),
+    )
+    monkeypatch.setattr(simulation_module, "build_chemical_state", lambda *_args: _FakeState())
+
+
+@pytest.mark.parametrize(
+    "failed_stage",
+    [
+        "database_loading",
+        "kinetics_loading",
+        "mapping",
+        "system_construction",
+        "state_construction",
+    ],
+)
+def test_setup_failures_produce_complete_machine_readable_diagnostics(
+    tmp_path: Path,
+    monkeypatch,
+    failed_stage: str,
+) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=1.0)
+    _install_lifecycle_stubs(monkeypatch)
+
+    def fail(*_args):
+        raise LookupError(f"forced {failed_stage} failure")
+
+    targets = {
+        "database_loading": (simulation_module, "load_database", fail),
+        "kinetics_loading": (simulation_module.KinecParams, "local", staticmethod(fail)),
+        "mapping": (simulation_module, "build_kinetic_mapping", fail),
+        "system_construction": (simulation_module, "build_chemical_system", fail),
+        "state_construction": (simulation_module, "build_chemical_state", fail),
+    }
+    monkeypatch.setattr(*targets[failed_stage])
+
+    result = simulation_module.run_simulation(case)
+    write_outputs(case, result)
+    diagnostics = json.loads((case.output_dir / "diagnostics.json").read_text(encoding="utf-8"))
+
+    assert diagnostics["failed_stage"] == failed_stage
+    assert diagnostics["exception_type"] == "LookupError"
+    assert diagnostics["error_message"] == f"forced {failed_stage} failure"
+    assert diagnostics["final_time_reached_s"] == 0.0
+    assert diagnostics["output_completeness"]["status"] == "partial"
+    assert "diagnostics.json" in diagnostics["output_completeness"]["files_written"]
+
+
+def test_unexpected_solver_exception_preserves_last_accepted_time(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=0.5)
+    _install_lifecycle_stubs(monkeypatch)
+
+    def fail_after_acceptance(
+        _case,
+        _system,
+        _state,
+        _params,
+        *,
+        row_ready,
+        solver_record_ready,
+        boundary_row_ready,
+        checkpoint_ready,
+    ):
+        del row_ready, boundary_row_ready, checkpoint_ready
+        solver_record_ready(
+            {
+                "step_index": 0,
+                "attempt_index": 1,
+                "time_start_s": 0.0,
+                "time_end_s": 0.5,
+                "dt_s": 0.5,
+                "stage": "kinetic_step",
+                "accepted": True,
+                "solver_succeeded": True,
+            }
+        )
+        raise ArithmeticError("forced solver lifecycle failure")
+
+    monkeypatch.setattr(simulation_module, "execute_solver", fail_after_acceptance)
+    result = simulation_module.run_simulation(case)
+
+    assert result.diagnostics["failed_stage"] == "solver_execution"
+    assert result.diagnostics["exception_type"] == "ArithmeticError"
+    assert result.diagnostics["final_time_reached_s"] == 0.5
+    assert result.diagnostics["number_of_accepted_steps"] == 1
+
+
+def test_output_failure_preserves_simulation_status_and_file_completeness(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=1.0)
+    _install_lifecycle_stubs(monkeypatch)
+
+    def fake_execute(*_args, **_kwargs):
+        return _FakeState(), {
+            "simulation_completed": True,
+            "failed_stage": None,
+            "exception_type": None,
+            "error_message": None,
+            "termination_reason": "completed",
+            "final_time_reached_s": 1.0,
+            "number_of_accepted_steps": 1,
+            "number_of_rejected_steps": 0,
+            "number_of_failed_steps": 0,
+            "smallest_dt_s": 1.0,
+            "largest_dt_s": 1.0,
+            "average_dt_s": 1.0,
+            "kinetic_precondition_applied": False,
+            "failed_attempt_target_time_s": None,
+            "failed_attempt_dt_s": None,
+            "accepted_state_restored": None,
+            "checkpoint_count": 0,
+            "number_of_internal_attempts": 1,
+            "number_of_solver_failed_attempts": 0,
+            "retries_at_final_accepted_time": 0,
+            "rejection_reason_counts": {},
+        }
+
+    monkeypatch.setattr(simulation_module, "execute_solver", fake_execute)
+    result = simulation_module.run_simulation(case)
+
+    def fail_csv(*_args, **_kwargs):
+        raise OSError("forced CSV failure")
+
+    monkeypatch.setattr(outputs_module, "write_csv", fail_csv)
+    write_outputs(case, result)
+    diagnostics = json.loads((case.output_dir / "diagnostics.json").read_text(encoding="utf-8"))
+
+    assert diagnostics["failed_stage"] == "output_writing"
+    assert diagnostics["exception_type"] == "OSError"
+    assert diagnostics["error_message"] == "forced CSV failure"
+    assert diagnostics["final_time_reached_s"] == 1.0
+    assert diagnostics["output_completeness"]["status"] == "partial"
+
+
+def test_output_failure_does_not_overwrite_primary_failure(tmp_path: Path, monkeypatch) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=1.0)
+    _install_lifecycle_stubs(monkeypatch)
+
+    def fail_mapping(*_args):
+        raise LookupError("primary mapping failure")
+
+    monkeypatch.setattr(simulation_module, "build_kinetic_mapping", fail_mapping)
+    result = simulation_module.run_simulation(case)
+
+    def fail_csv(*_args, **_kwargs):
+        raise OSError("secondary output failure")
+
+    monkeypatch.setattr(outputs_module, "write_csv", fail_csv)
+    write_outputs(case, result)
+    diagnostics = json.loads((case.output_dir / "diagnostics.json").read_text(encoding="utf-8"))
+
+    assert diagnostics["failed_stage"] == "mapping"
+    assert diagnostics["error_message"] == "primary mapping failure"
+    assert diagnostics["output_failure"] == {
+        "failed_stage": "output_writing",
+        "exception_type": "OSError",
+        "error_message": "secondary output failure",
+    }
+
+
+def test_output_auditor_rejects_previous_schema_version(tmp_path: Path) -> None:
+    output_dir = tmp_path / "old_schema"
+    output_dir.mkdir()
+    manifest = {
+        "output_schema_version": "objective1_audit_v2",
+        "run_identity": {
+            "case_name": "old",
+            "output_schema_version": "objective1_audit_v2",
+            "simulation_completed": True,
+        },
+        "traceability": {},
+        "output_configuration": {
+            "manifest": {"enabled": True},
+            "diagnostics": {"enabled": False},
+            "timeseries": {"enabled": False},
+            "solver_history": {"enabled": False},
+            "summaries": {},
+            "plots": {"enabled": False},
+            "debug": {"enabled": False},
+        },
+        "output_files": ["manifest.json"],
+    }
+    (output_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    auditor = runpy.run_path(
+        str(
+            PROJECT_ROOT
+            / ".agents"
+            / "skills"
+            / "objective1-output-auditor"
+            / "scripts"
+            / "audit_output_package.py"
+        )
+    )
+    audit = auditor["audit"]
+
+    observed = audit(output_dir)
+
+    assert OUTPUT_SCHEMA_VERSION == "objective1_audit_v3"
+    assert auditor["SOLVER_HISTORY_COLUMNS"] == SOLVER_HISTORY_COLUMNS
+    assert observed["ok"] is False
+    assert any("output_schema_version" in error for error in observed["errors"])

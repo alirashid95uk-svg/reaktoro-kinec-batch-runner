@@ -36,7 +36,7 @@ def execute_solver(
     checkpoint_times = iter(case.checkpoint_times_s)
     next_checkpoint_time = next(checkpoint_times, None)
     output_every_accepted_step = (
-        timestep.mode != "fixed" and timestep.output_schedule.mode == "every_internal_step"
+        timestep.output_schedule.mode == "every_internal_step"
     )
     step_index = 0
     time_s = 0.0
@@ -76,6 +76,7 @@ def execute_solver(
         termination_reason: str | None = None,
         failed_stage: str | None = None,
         error_message: str | None = None,
+        exception_type: str | None = None,
         failed_attempt_target_time_s: float | None = None,
         failed_attempt_dt_s: float | None = None,
         accepted_state_restored: bool | None = None,
@@ -84,6 +85,7 @@ def execute_solver(
             "simulation_completed": completed,
             "failed_stage": failed_stage,
             "error_message": error_message,
+            "exception_type": exception_type,
             "termination_reason": termination_reason or ("completed" if completed else "solver_failure"),
             "final_time_reached_s": time_s,
             "number_of_accepted_steps": accepted_steps,
@@ -129,6 +131,7 @@ def execute_solver(
                 completed=False,
                 failed_stage="initial_equilibrium",
                 error_message=failure_reason,
+                exception_type=type(error).__name__ if error is not None else None,
                 failed_attempt_target_time_s=0.0,
                 failed_attempt_dt_s=0.0,
                 accepted_state_restored=True,
@@ -175,6 +178,7 @@ def execute_solver(
                 completed=False,
                 failed_stage="kinetics_precondition",
                 error_message=failure_reason,
+                exception_type=type(error).__name__ if error is not None else None,
                 failed_attempt_target_time_s=0.0,
                 failed_attempt_dt_s=0.0,
                 accepted_state_restored=True,
@@ -229,6 +233,7 @@ def execute_solver(
                     completed=False,
                     failed_stage="kinetic_step",
                     error_message=failure_reason,
+                    exception_type=type(error).__name__ if error is not None else None,
                     failed_attempt_target_time_s=target_time_s,
                     failed_attempt_dt_s=dt_s,
                     accepted_state_restored=True,
@@ -303,12 +308,15 @@ def execute_solver(
             f"adaptive kinetic attempt ending at {target_time_s} s",
         )
         acceptance = _empty_acceptance("solver_failure" if solver_reason else "accepted")
+        acceptance_error = None
         if solver_reason is None:
             try:
                 acceptance = evaluate_trial(case, system, accepted_state, state)
-            except Exception as error:
+            except Exception as acceptance_exception:
+                acceptance_error = acceptance_exception
                 acceptance = _empty_acceptance(
-                    f"acceptance_evaluation_error:{type(error).__name__}:{error}"
+                    "acceptance_evaluation_error:"
+                    f"{type(acceptance_exception).__name__}:{acceptance_exception}"
                 )
 
         rejection_reason = solver_reason or (
@@ -350,6 +358,11 @@ def execute_solver(
                     ),
                     failed_stage="adaptive_kinetic_attempt",
                     error_message=rejection_reason,
+                    exception_type=(
+                        type(error).__name__
+                        if error is not None
+                        else type(acceptance_error).__name__ if acceptance_error is not None else None
+                    ),
                     failed_attempt_target_time_s=target_time_s,
                     failed_attempt_dt_s=dt_s,
                     accepted_state_restored=True,
@@ -425,9 +438,15 @@ def _empty_acceptance(reason: str) -> dict[str, Any]:
         "acceptance_reason": reason,
         "delta_pH": None,
         "max_delta_saturation_index": None,
-        "max_selected_species_fraction_change": None,
-        "max_mineral_fraction_change": None,
+        "max_selected_species_change_mol": None,
+        "max_selected_species_tolerance_ratio": None,
+        "worst_selected_species": None,
+        "max_mineral_change_mol": None,
+        "max_mineral_tolerance_ratio": None,
+        "worst_mineral": None,
         "minimum_species_amount_mol": None,
+        "tolerated_negative_species_count": None,
+        "most_negative_tolerated_amount_mol": None,
         "max_element_balance_error_mol": None,
         "max_element_balance_error_ratio": None,
         "worst_element": None,
@@ -502,9 +521,15 @@ def _solver_record(
     acceptance_reason: str = "",
     delta_pH: float | None = None,
     max_delta_saturation_index: float | None = None,
-    max_selected_species_fraction_change: float | None = None,
-    max_mineral_fraction_change: float | None = None,
+    max_selected_species_change_mol: float | None = None,
+    max_selected_species_tolerance_ratio: float | None = None,
+    worst_selected_species: str | None = None,
+    max_mineral_change_mol: float | None = None,
+    max_mineral_tolerance_ratio: float | None = None,
+    worst_mineral: str | None = None,
     minimum_species_amount_mol: float | None = None,
+    tolerated_negative_species_count: int | None = None,
+    most_negative_tolerated_amount_mol: float | None = None,
     max_element_balance_error_mol: float | None = None,
     max_element_balance_error_ratio: float | None = None,
     worst_element: str | None = None,
@@ -526,9 +551,15 @@ def _solver_record(
         "next_dt_s": next_dt_s,
         "delta_pH": delta_pH,
         "max_delta_saturation_index": max_delta_saturation_index,
-        "max_selected_species_fraction_change": max_selected_species_fraction_change,
-        "max_mineral_fraction_change": max_mineral_fraction_change,
+        "max_selected_species_change_mol": max_selected_species_change_mol,
+        "max_selected_species_tolerance_ratio": max_selected_species_tolerance_ratio,
+        "worst_selected_species": worst_selected_species,
+        "max_mineral_change_mol": max_mineral_change_mol,
+        "max_mineral_tolerance_ratio": max_mineral_tolerance_ratio,
+        "worst_mineral": worst_mineral,
         "minimum_species_amount_mol": minimum_species_amount_mol,
+        "tolerated_negative_species_count": tolerated_negative_species_count,
+        "most_negative_tolerated_amount_mol": most_negative_tolerated_amount_mol,
         "max_element_balance_error_mol": max_element_balance_error_mol,
         "max_element_balance_error_ratio": max_element_balance_error_ratio,
         "worst_element": worst_element,
@@ -553,9 +584,15 @@ def _unsolved_record(step_index: int, stage: str, time_s: float) -> dict[str, An
         "next_dt_s": None,
         "delta_pH": None,
         "max_delta_saturation_index": None,
-        "max_selected_species_fraction_change": None,
-        "max_mineral_fraction_change": None,
+        "max_selected_species_change_mol": None,
+        "max_selected_species_tolerance_ratio": None,
+        "worst_selected_species": None,
+        "max_mineral_change_mol": None,
+        "max_mineral_tolerance_ratio": None,
+        "worst_mineral": None,
         "minimum_species_amount_mol": None,
+        "tolerated_negative_species_count": None,
+        "most_negative_tolerated_amount_mol": None,
         "max_element_balance_error_mol": None,
         "max_element_balance_error_ratio": None,
         "worst_element": None,

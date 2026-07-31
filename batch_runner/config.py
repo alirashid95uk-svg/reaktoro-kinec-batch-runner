@@ -245,16 +245,20 @@ class ElementConservationConfig(StrictModel):
         return self
 
 
+class AmountChangeToleranceConfig(StrictModel):
+    absolute_tolerance_mol: float = Field(ge=0, allow_inf_nan=False)
+    relative_tolerance: float = Field(ge=0, allow_inf_nan=False)
+    reference_floor_mol: float = Field(gt=0, allow_inf_nan=False)
+
+
 class AdaptiveAcceptanceConfig(StrictModel):
     enabled: bool
     fail_on_non_finite: bool
-    fail_on_negative_amounts: bool
+    negative_amount_tolerance_mol: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     max_delta_pH: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     max_delta_saturation_index: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    max_selected_species_fraction_change: float | None = Field(
-        default=None, ge=0, allow_inf_nan=False
-    )
-    max_mineral_fraction_change: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    selected_species_change: AmountChangeToleranceConfig | None = None
+    mineral_change: AmountChangeToleranceConfig | None = None
     element_conservation: ElementConservationConfig
     max_relative_rate_change: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
@@ -266,11 +270,11 @@ class AdaptiveAcceptanceConfig(StrictModel):
             raise ValueError("rate-based adaptive acceptance is not verified and must remain null")
         checks = (
             self.fail_on_non_finite,
-            self.fail_on_negative_amounts,
+            self.negative_amount_tolerance_mol is not None,
             self.max_delta_pH is not None,
             self.max_delta_saturation_index is not None,
-            self.max_selected_species_fraction_change is not None,
-            self.max_mineral_fraction_change is not None,
+            self.selected_species_change is not None,
+            self.mineral_change is not None,
             self.element_conservation.enabled,
         )
         if not any(checks):
@@ -639,7 +643,7 @@ class CaseConfig(StrictModel):
         if isinstance(timestep, AdaptiveTimestepConfig):
             acceptance = timestep.acceptance
             if (
-                acceptance.max_selected_species_fraction_change is not None
+                acceptance.selected_species_change is not None
                 and not self.postprocessing.requested_species
             ):
                 raise ValueError("selected-species acceptance requires requested_species")
@@ -747,6 +751,7 @@ class ResolvedCase:
     resolved_output_times_s: tuple[float, ...] | None
     checkpoint_times_s: tuple[float, ...]
     extra_solver_targets_s: tuple[float, ...]
+    minimum_accepted_steps: int
 
     @property
     def base_internal_step_count(self) -> int:
@@ -770,7 +775,7 @@ class ResolvedCase:
         schedule = self.config.solver.timestep.output_schedule
         if self.config.solver.timestep.mode != "fixed":
             return None
-        return self.base_internal_step_count + int(schedule.include_initial) - int(
+        return self.internal_step_count + int(schedule.include_initial) - int(
             not schedule.include_final
         )
 
@@ -826,9 +831,9 @@ class ResolvedCase:
             ),
             "representation": (
                 (
-                    "generated from accepted adaptive steps"
-                    if self.config.solver.timestep.mode != "fixed"
-                    else "generated lazily from fixed-step targets"
+                    "every actual accepted solver step, including schedule-split steps"
+                    if schedule.mode == "every_internal_step"
+                    else "generated from accepted adaptive steps"
                 )
                 if self.resolved_output_times_s is None
                 else "sorted unique absolute timestamps"
@@ -863,6 +868,9 @@ class ResolvedCase:
             data["solver"]["timestep"]["derived_dt_min_s"] = self.dt_min_s
             data["solver"]["timestep"]["derived_dt_max_s"] = self.dt_max_s
         data["solver"]["timestep"]["estimated_result_rows"] = self.requested_output_row_count
+        data["solver"]["timestep"]["minimum_possible_accepted_steps"] = (
+            self.minimum_accepted_steps
+        )
         data["solver"]["timestep"]["resolved_output_schedule"] = self.output_schedule_summary()
         data["solver"]["timestep"]["resolved_checkpoint_schedule"] = (
             self.checkpoint_schedule_summary()
@@ -914,6 +922,7 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
     resolved_output_times_s = None
     checkpoint_times_s: tuple[float, ...] = ()
     extra_solver_targets_s: tuple[float, ...] = ()
+    minimum_accepted_steps = 0
     if config.kinetics.enabled:
         timestep = config.solver.timestep
         year_days = timestep.time.year_definition_days
@@ -960,6 +969,7 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
             )
             base_internal_steps = full_steps + int(final_step_s > 0)
             internal_steps = base_internal_steps + len(extra_solver_targets_s)
+            minimum_accepted_steps = internal_steps
             if internal_steps > timestep.max_internal_steps:
                 raise ValueError(
                     "fixed timestep preflight rejected case: "
@@ -987,11 +997,20 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
                 forced_targets.update(resolved_output_times_s)
             forced_targets.add(duration_s)
             forced_targets.discard(0.0)
-            if len(forced_targets) > timestep.max_internal_steps:
+            previous = Decimal("0")
+            minimum_accepted_steps = 0
+            for target_s in sorted(forced_targets):
+                interval = Decimal(str(target_s)) - previous
+                full, remainder = divmod(interval, dt_max)
+                minimum_accepted_steps += int(full) + int(remainder > 0)
+                previous = Decimal(str(target_s))
+            if minimum_accepted_steps > timestep.max_internal_steps:
                 raise ValueError(
                     "adaptive timestep preflight rejected case: "
-                    f"minimum_forced_steps={len(forced_targets)}, "
-                    f"max_internal_steps={timestep.max_internal_steps}"
+                    f"minimum_possible_accepted_steps={minimum_accepted_steps}, "
+                    f"max_internal_steps={timestep.max_internal_steps}, "
+                    f"forced_interval_count={len(forced_targets)}, "
+                    f"duration_s={duration_s}, dt_max_s={dt_max_s}"
                 )
 
     return ResolvedCase(
@@ -1010,6 +1029,7 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
         resolved_output_times_s=resolved_output_times_s,
         checkpoint_times_s=checkpoint_times_s,
         extra_solver_targets_s=extra_solver_targets_s,
+        minimum_accepted_steps=minimum_accepted_steps,
     )
 
 

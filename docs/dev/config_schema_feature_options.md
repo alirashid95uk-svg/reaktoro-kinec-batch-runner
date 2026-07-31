@@ -334,7 +334,7 @@ requires step_size.dt
 max_internal_steps must be a positive integer; default 100000
 duration, dt, converted seconds, and year_definition_days must be finite
 output_schedule.mode is every_internal_step, explicit, logarithmic, or hybrid
-every_internal_step is the compatibility default and is generated lazily
+every_internal_step is the compatibility default and emits every accepted solver step
 explicit uses explicit_times; logarithmic uses logarithmic; hybrid requires both
 include_initial and include_final add those boundary rows when true
 all resolved output timestamps must be within duration; duplicates are removed
@@ -348,8 +348,9 @@ forbids long-horizon-only fields
 
 Canonical runtime time is seconds. All schedule values use the same configured
 `year_definition_days` and Decimal-based conversion as duration and `dt`.
-Existing fixed-step YAML without `output_schedule` retains one row per fixed
-step plus the initial row through the documented `every_internal_step` default.
+Existing fixed-step YAML without `output_schedule` retains one row per actual
+accepted step, including checkpoint-split steps, plus the initial row through
+the documented `every_internal_step` default.
 
 ### 9.2 Adaptive Timestep Schema
 
@@ -370,11 +371,17 @@ solver:
     acceptance:
       enabled: true
       fail_on_non_finite: true
-      fail_on_negative_amounts: true
+      negative_amount_tolerance_mol: TBD_SOURCE_REQUIRED
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
-      max_mineral_fraction_change: 0.05
-      max_selected_species_fraction_change: 0.10
+      selected_species_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
+      mineral_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
       element_conservation:
         enabled: false
         relative_tolerance: null
@@ -404,9 +411,15 @@ forbids fixed step_size.dt
 requires at least one active acceptance check
 requires dt_min <= dt_initial <= dt_max
 growth_factor must exceed 1; shrink_factor must be between 0 and 1
+amount-change limits use absolute + relative * max(abs(accepted), reference_floor)
+negative amounts below -negative_amount_tolerance_mol are rejected; smaller noise is recorded
 max_relative_rate_change must remain null because runtime rate acceptance is unverified
 element conservation is forbidden for fixed-fugacity kinetic steps
 ```
+
+Adaptive preflight partitions the duration at every resolved output and
+checkpoint target, sums `ceil(interval / dt_max)`, and rejects the case when
+this minimum possible accepted-step count exceeds `max_internal_steps`.
 
 ### 9.3 Adaptive Long-Horizon Timestep Schema
 
@@ -428,11 +441,17 @@ solver:
     acceptance:
       enabled: true
       fail_on_non_finite: true
-      fail_on_negative_amounts: true
+      negative_amount_tolerance_mol: TBD_SOURCE_REQUIRED
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
-      max_mineral_fraction_change: 0.02
-      max_selected_species_fraction_change: 0.10
+      selected_species_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
+      mineral_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
       element_conservation:
         enabled: false
         relative_tolerance: null

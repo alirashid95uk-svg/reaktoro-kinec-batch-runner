@@ -51,11 +51,11 @@ def _raw_adaptive_case(
         "acceptance": {
             "enabled": True,
             "fail_on_non_finite": True,
-            "fail_on_negative_amounts": True,
+            "negative_amount_tolerance_mol": 0.0,
             "max_delta_pH": None,
             "max_delta_saturation_index": None,
-            "max_selected_species_fraction_change": None,
-            "max_mineral_fraction_change": None,
+            "selected_species_change": None,
+            "mineral_change": None,
             "element_conservation": {
                 "enabled": False,
                 "relative_tolerance": None,
@@ -245,18 +245,18 @@ def test_max_internal_steps_counts_attempts_and_preserves_partial_state(
         tmp_path,
         dt_initial_s=0.2,
         dt_min_s=0.1,
-        dt_max_s=0.2,
+        dt_max_s=1.0,
         max_internal_steps=2,
     )
     case = _load_adaptive_case(tmp_path, raw)
     state, calls, rows, _history, _checkpoints, progress = _run_fake(monkeypatch, case)
 
-    assert calls == [0.2, 0.2]
-    assert state.value == pytest.approx(0.4)
+    assert calls == [0.2, 0.4]
+    assert state.value == pytest.approx(0.6)
     assert [row["time_s"] for row in rows] == [0.0]
     assert progress["termination_reason"] == "max_internal_steps_exceeded"
     assert progress["number_of_internal_attempts"] == 2
-    assert progress["final_time_reached_s"] == 0.4
+    assert progress["final_time_reached_s"] == pytest.approx(0.6)
 
 
 def test_controlled_timestep_refinement_reduces_forward_euler_error(
@@ -311,6 +311,44 @@ def test_unverified_rate_criterion_and_restart_are_rejected(tmp_path: Path) -> N
     raw["solver"]["restart"] = {"enabled": True, "from_checkpoint": "state.txt"}
     with pytest.raises(ValidationError, match="automatic restart is not implemented or validated"):
         CaseConfig.model_validate(raw)
+
+
+def test_adaptive_preflight_uses_dt_max_and_forced_intervals(tmp_path: Path) -> None:
+    raw = _raw_adaptive_case(
+        tmp_path,
+        duration_s=10.0,
+        dt_initial_s=3.0,
+        dt_min_s=0.1,
+        dt_max_s=3.0,
+        max_internal_steps=3,
+    )
+    with pytest.raises(ValueError, match="minimum_possible_accepted_steps=4"):
+        _load_adaptive_case(tmp_path, raw)
+
+    raw = _raw_adaptive_case(
+        tmp_path,
+        duration_s=10.0,
+        dt_initial_s=6.0,
+        dt_min_s=0.1,
+        dt_max_s=6.0,
+        max_internal_steps=2,
+    )
+    raw["solver"]["timestep"]["output_schedule"]["explicit_times"] = [
+        {"value": 4.0, "unit": "seconds"}
+    ]
+    raw["solver"]["timestep"]["checkpoint_schedule"] = {
+        "enabled": True,
+        "times": [{"value": 8.0, "unit": "seconds"}],
+    }
+    with pytest.raises(
+        ValueError,
+        match=r"minimum_possible_accepted_steps=3.*forced_interval_count=3",
+    ):
+        _load_adaptive_case(tmp_path, raw)
+
+    raw["solver"]["timestep"]["max_internal_steps"] = 3
+    case = _load_adaptive_case(tmp_path, raw)
+    assert case.minimum_accepted_steps == 3
 
 
 class _AcceptanceState:
@@ -373,8 +411,16 @@ def test_acceptance_checks_reject_solver_success_on_configured_state_changes(
         {
             "max_delta_pH": 0.1,
             "max_delta_saturation_index": 0.1,
-            "max_selected_species_fraction_change": 0.1,
-            "max_mineral_fraction_change": 0.1,
+            "selected_species_change": {
+                "absolute_tolerance_mol": 0.0,
+                "relative_tolerance": 0.1,
+                "reference_floor_mol": 1.0e-12,
+            },
+            "mineral_change": {
+                "absolute_tolerance_mol": 0.0,
+                "relative_tolerance": 0.1,
+                "reference_floor_mol": 1.0e-12,
+            },
             "element_conservation": {
                 "enabled": True,
                 "relative_tolerance": 1.0e-6,
@@ -403,11 +449,11 @@ def test_acceptance_checks_reject_solver_success_on_configured_state_changes(
 
     assert observed["accepted"] is False
     assert set(observed["acceptance_reason"].split(";")) == {
-        "negative_species_amount",
+        "negative_species_amount_below_tolerance",
         "max_delta_pH",
         "max_delta_saturation_index",
-        "max_selected_species_fraction_change",
-        "max_mineral_fraction_change",
+        "selected_species_change_tolerance",
+        "mineral_change_tolerance",
         "element_conservation",
     }
 
@@ -426,6 +472,66 @@ def test_non_finite_trial_state_is_rejected(tmp_path: Path, monkeypatch) -> None
 
     assert observed["accepted"] is False
     assert observed["acceptance_reason"] == "non_finite_state_value"
+
+
+def test_combined_tolerances_allow_zero_to_positive_species_and_minerals(
+    tmp_path: Path, monkeypatch
+) -> None:
+    raw = _raw_adaptive_case(tmp_path)
+    tolerance = {
+        "absolute_tolerance_mol": 1.0e-12,
+        "relative_tolerance": 0.1,
+        "reference_floor_mol": 1.0e-12,
+    }
+    raw["solver"]["timestep"]["acceptance"]["selected_species_change"] = tolerance
+    raw["solver"]["timestep"]["acceptance"]["mineral_change"] = tolerance
+    case = _load_adaptive_case(tmp_path, raw)
+    accepted = _AcceptanceState(
+        species=[0.0],
+        named={"H+": 0.0, "HCO3-": 0.0, "CO3-2": 0.0, "Calcite": 0.0},
+        elements=[],
+        pH=7.0,
+        si={"Calcite": 0.0},
+    )
+    trial = _AcceptanceState(
+        species=[5.0e-13],
+        named={"H+": 5.0e-13, "HCO3-": 0.0, "CO3-2": 0.0, "Calcite": 5.0e-13},
+        elements=[],
+        pH=7.0,
+        si={"Calcite": 0.0},
+    )
+    monkeypatch.setattr(acceptance_module.rkt, "AqueousProps", _AqueousProps)
+
+    observed = evaluate_trial(case, object(), accepted, trial)
+
+    assert observed["accepted"] is True
+    assert observed["max_selected_species_tolerance_ratio"] < 1.0
+    assert observed["max_mineral_tolerance_ratio"] < 1.0
+
+
+def test_negative_tolerance_records_noise_without_clamping(tmp_path: Path, monkeypatch) -> None:
+    raw = _raw_adaptive_case(tmp_path)
+    raw["solver"]["timestep"]["acceptance"]["negative_amount_tolerance_mol"] = 1.0e-12
+    case = _load_adaptive_case(tmp_path, raw)
+    accepted = _AcceptanceState(
+        species=[0.0], named={}, elements=[], pH=7.0, si={"Calcite": 0.0}
+    )
+    trial = _AcceptanceState(
+        species=[-5.0e-13], named={}, elements=[], pH=7.0, si={"Calcite": 0.0}
+    )
+    monkeypatch.setattr(acceptance_module.rkt, "AqueousProps", _AqueousProps)
+
+    tolerated = evaluate_trial(case, object(), accepted, trial)
+    assert tolerated["accepted"] is True
+    assert tolerated["tolerated_negative_species_count"] == 1
+    assert tolerated["most_negative_tolerated_amount_mol"] == -5.0e-13
+    assert trial.species == [-5.0e-13]
+
+    trial.species = [-2.0e-12]
+    rejected = evaluate_trial(case, object(), accepted, trial)
+    assert rejected["accepted"] is False
+    assert rejected["acceptance_reason"] == "negative_species_amount_below_tolerance"
+    assert trial.species == [-2.0e-12]
 
 
 def test_reaktoro_copy_assign_reconstruction_and_substep_consistency() -> None:
@@ -454,6 +560,13 @@ two = rkt.ChemicalState(state)
 one_result = rkt.KineticsSolver(system).solve(one, 1.0)
 two_solver = rkt.KineticsSolver(system)
 two_results = [two_solver.solve(two, 0.5).succeeded(), two_solver.solve(two, 0.5).succeeded()]
+reused_state = rkt.ChemicalState(snapshot)
+reused_solver = rkt.KineticsSolver(system)
+rejected_result = reused_solver.solve(reused_state, 1.0)
+reused_state.assign(snapshot)
+retry_reused_result = reused_solver.solve(reused_state, 0.5)
+fresh_state = rkt.ChemicalState(snapshot)
+retry_fresh_result = rkt.KineticsSolver(system).solve(fresh_state, 0.5)
 state.set("Calcite", 0.5, "mol")
 state.assign(snapshot)
 reconstructed = rkt.ChemicalState(system)
@@ -467,6 +580,10 @@ print(json.dumps({
     "reconstruction_max_species_difference": max(abs(float(a) - float(b)) for a, b in zip(snapshot.speciesAmounts(), reconstructed.speciesAmounts())),
     "reconstruction_max_element_difference": max(abs(float(a) - float(b)) for a, b in zip(snapshot.elementAmounts(), reconstructed.elementAmounts())),
     "one_substep_calcite_difference_mol": abs(float(one.speciesAmount("Calcite")) - float(two.speciesAmount("Calcite"))),
+    "rollback_results_succeeded": rejected_result.succeeded() and retry_reused_result.succeeded() and retry_fresh_result.succeeded(),
+    "rollback_reused_fresh_max_species_difference_mol": max(abs(float(a) - float(b)) for a, b in zip(reused_state.speciesAmounts(), fresh_state.speciesAmounts())),
+    "rollback_reused_fresh_max_element_difference_mol": max(abs(float(a) - float(b)) for a, b in zip(reused_state.elementAmounts(), fresh_state.elementAmounts())),
+    "rollback_retry_iterations": [retry_reused_result.iterations(), retry_fresh_result.iterations()],
 }), flush=True)
 os._exit(0)
 """
@@ -485,3 +602,7 @@ os._exit(0)
     assert observed["reconstruction_max_species_difference"] == 0.0
     assert observed["reconstruction_max_element_difference"] == 0.0
     assert observed["one_substep_calcite_difference_mol"] < 1.0e-12
+    assert observed["rollback_results_succeeded"] is True
+    assert observed["rollback_reused_fresh_max_species_difference_mol"] == 0.0
+    assert observed["rollback_reused_fresh_max_element_difference_mol"] == 0.0
+    assert observed["rollback_retry_iterations"][0] == observed["rollback_retry_iterations"][1]

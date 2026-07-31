@@ -464,11 +464,17 @@ solver:
     acceptance:
       enabled: true
       fail_on_non_finite: true
-      fail_on_negative_amounts: true
+      negative_amount_tolerance_mol: TBD_SOURCE_REQUIRED
       max_delta_pH: 0.10
       max_delta_saturation_index: 0.25
-      max_mineral_fraction_change: 0.05
-      max_selected_species_fraction_change: 0.10
+      selected_species_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
+      mineral_change:
+        absolute_tolerance_mol: TBD_SOURCE_REQUIRED
+        relative_tolerance: TBD_SOURCE_REQUIRED
+        reference_floor_mol: TBD_SOURCE_REQUIRED
       element_conservation:
         enabled: false
         relative_tolerance: null
@@ -514,6 +520,17 @@ written to `solver_history.csv`; rejected rows retain
 capped at the next output, checkpoint, or final time. A target-shortened step
 may be smaller than `dt_min`; `dt_min` governs retry shrinkage, while exact event
 landing takes precedence.
+
+A real Reaktoro 2.13 rejection/retry probe demonstrated exact species and
+element-total equivalence, with equal retry iteration counts, between the
+reused solver and a newly constructed solver after native state restoration.
+The controller therefore reuses the solver; reconstruction is not justified by
+the observed runtime behaviour.
+
+Before solver construction, adaptive preflight computes the lower bound on
+accepted steps by splitting the duration at all forced output/checkpoint times
+and summing `ceil(interval / dt_max)`. A case whose lower bound exceeds
+`max_internal_steps` cannot complete and is rejected.
 
 ### 9.3 Adaptive Long-Horizon Timestep
 

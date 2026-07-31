@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import reaktoro as rkt
 
-from batch_runner.config import AdaptiveTimestepConfig, ResolvedCase
+from batch_runner.config import AdaptiveTimestepConfig, AmountChangeToleranceConfig, ResolvedCase
 from batch_runner.simulator.mapping import _thermo_name
 
 
@@ -25,9 +25,15 @@ def evaluate_trial(
     metrics: dict[str, Any] = {
         "delta_pH": None,
         "max_delta_saturation_index": None,
-        "max_selected_species_fraction_change": None,
-        "max_mineral_fraction_change": None,
+        "max_selected_species_change_mol": None,
+        "max_selected_species_tolerance_ratio": None,
+        "worst_selected_species": None,
+        "max_mineral_change_mol": None,
+        "max_mineral_tolerance_ratio": None,
+        "worst_mineral": None,
         "minimum_species_amount_mol": None,
+        "tolerated_negative_species_count": 0,
+        "most_negative_tolerated_amount_mol": None,
         "max_element_balance_error_mol": None,
         "max_element_balance_error_ratio": None,
         "worst_element": None,
@@ -36,8 +42,15 @@ def evaluate_trial(
 
     trial_amounts = [float(value) for value in trial_state.speciesAmounts()]
     metrics["minimum_species_amount_mol"] = min(trial_amounts, default=None)
-    if config.fail_on_negative_amounts and any(value < 0.0 for value in trial_amounts):
-        reasons.append("negative_species_amount")
+    if config.negative_amount_tolerance_mol is not None:
+        tolerance = config.negative_amount_tolerance_mol
+        tolerated_negatives = [value for value in trial_amounts if -tolerance <= value < 0.0]
+        metrics["tolerated_negative_species_count"] = len(tolerated_negatives)
+        metrics["most_negative_tolerated_amount_mol"] = min(
+            tolerated_negatives, default=None
+        )
+        if any(value < -tolerance for value in trial_amounts):
+            reasons.append("negative_species_amount_below_tolerance")
 
     accepted_aqueous = rkt.AqueousProps(accepted_state)
     trial_aqueous = rkt.AqueousProps(trial_state)
@@ -69,29 +82,34 @@ def evaluate_trial(
         ):
             reasons.append("max_delta_saturation_index")
 
-    if config.max_selected_species_fraction_change is not None:
-        metrics["max_selected_species_fraction_change"] = _max_fractional_change(
+    if config.selected_species_change is not None:
+        change = _max_change_ratio(
             case.config.postprocessing.requested_species,
             lambda state, name: float(state.speciesAmount(name)),
             accepted_state,
             trial_state,
+            config.selected_species_change,
         )
-        if (
-            metrics["max_selected_species_fraction_change"]
-            > config.max_selected_species_fraction_change
-        ):
-            reasons.append("max_selected_species_fraction_change")
+        metrics["max_selected_species_change_mol"] = change["max_change_mol"]
+        metrics["max_selected_species_tolerance_ratio"] = change["max_ratio"]
+        metrics["worst_selected_species"] = change["worst_name"]
+        if change["max_ratio"] > 1.0:
+            reasons.append("selected_species_change_tolerance")
 
-    if config.max_mineral_fraction_change is not None:
+    if config.mineral_change is not None:
         minerals = {mineral.name: _thermo_name(mineral) for mineral in case.config.minerals}
-        metrics["max_mineral_fraction_change"] = _max_fractional_change(
+        change = _max_change_ratio(
             list(minerals),
             lambda state, name: float(state.speciesAmount(minerals[name])),
             accepted_state,
             trial_state,
+            config.mineral_change,
         )
-        if metrics["max_mineral_fraction_change"] > config.max_mineral_fraction_change:
-            reasons.append("max_mineral_fraction_change")
+        metrics["max_mineral_change_mol"] = change["max_change_mol"]
+        metrics["max_mineral_tolerance_ratio"] = change["max_ratio"]
+        metrics["worst_mineral"] = change["worst_name"]
+        if change["max_ratio"] > 1.0:
+            reasons.append("mineral_change_tolerance")
 
     if config.element_conservation.enabled:
         before = [float(value) for value in accepted_state.elementAmounts()]
@@ -125,16 +143,28 @@ def evaluate_trial(
     }
 
 
-def _max_fractional_change(
+def _max_change_ratio(
     names: list[str],
     amount: Callable[[Any, str], float],
     accepted_state: Any,
     trial_state: Any,
-) -> float:
-    changes = []
+    tolerance: AmountChangeToleranceConfig,
+) -> dict[str, Any]:
+    changes: list[tuple[float, float, str]] = []
     for name in names:
         before = amount(accepted_state, name)
         after = amount(trial_state, name)
-        scale = max(abs(before), abs(after))
-        changes.append(abs(after - before) / scale if scale else 0.0)
-    return max(changes, default=0.0)
+        delta = abs(after - before)
+        allowed = tolerance.absolute_tolerance_mol + tolerance.relative_tolerance * max(
+            abs(before), tolerance.reference_floor_mol
+        )
+        ratio = delta / allowed if allowed > 0.0 else (0.0 if delta == 0.0 else inf)
+        changes.append((ratio, delta, name))
+    if not changes:
+        return {"max_ratio": 0.0, "max_change_mol": 0.0, "worst_name": None}
+    worst = max(changes, key=lambda item: item[0])
+    return {
+        "max_ratio": worst[0],
+        "max_change_mol": max(item[1] for item in changes),
+        "worst_name": worst[2],
+    }

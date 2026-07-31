@@ -72,7 +72,10 @@ solver:
 
 # For adaptive or adaptive_long_horizon, replace step_size.dt with
 # dt_initial/dt_min/dt_max, growth_factor, shrink_factor, and
-# max_retries_per_step; add acceptance with explicit enabled checks.
+# max_retries_per_step. The acceptance block uses fail_on_non_finite,
+# negative_amount_tolerance_mol, optional pH/SI limits, and optional
+# selected_species_change/mineral_change blocks, each with
+# absolute_tolerance_mol, relative_tolerance, and reference_floor_mol.
 # adaptive_long_horizon also requires sparse output, include_final: true,
 # and an enabled checkpoint_schedule.
 
