@@ -50,7 +50,6 @@ def ReactionRateModelKinec(
     params: KinecParams | Mapping[str, Any],
     mineral: str,
     *,
-    thermo_name: str | None = None,
     hco3_species: str = "HCO3-",
     co3_species: str = "CO3-2",
 ):
@@ -64,12 +63,11 @@ def ReactionRateModelKinec(
     from reaktoro import ChemicalProps, ReactionRate, ReactionRateModel
 
     record = params[mineral] if isinstance(params, KinecParams) else params
-    reaktoro_mineral = thermo_name or mineral
 
     def rate(props: ChemicalProps) -> ReactionRate:
         diagnostic = evaluate_kinec_rate(
             record,
-            reaktoro_mineral,
+            mineral,
             props,
             hco3_species=hco3_species,
             co3_species=co3_species,
@@ -87,7 +85,7 @@ def evaluate_kinec_rate(
     hco3_species: str = "HCO3-",
     co3_species: str = "CO3-2",
 ) -> dict[str, float]:
-    """Recompute the Kinec rate used by the Reaktoro callback for diagnostics."""
+    """Evaluate the custom Kinec equation used by the Reaktoro callback."""
     from reaktoro import AqueousProps
 
     family = record["family"]

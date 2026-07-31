@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_FLOOR, localcontext
@@ -33,6 +34,11 @@ WorkflowMode = Literal[
     "fixed_fugacity_initial_equilibrium_then_closed_kinetics",
     "fixed_fugacity_during_kinetic_steps",
 ]
+KineticModel = Literal["palandri_kharaka", "kinec"]
+DEFAULT_KINETIC_PATHS = {
+    "palandri_kharaka": "data/kinetics/PalandriKharaka_local.yaml",
+    "kinec": "data/kinetics/kinec_rates_minimal.yaml",
+}
 
 
 class StrictModel(BaseModel):
@@ -124,21 +130,21 @@ class RedoxConfig(StrictModel):
 
 class KineticsConfig(StrictModel):
     enabled: bool
+    model: KineticModel | None = None
     path: str | None = None
 
     @model_validator(mode="after")
     def validate_kinetics(self) -> "KineticsConfig":
-        if self.enabled and not self.path:
-            raise ValueError("enabled kinetics requires path")
-        if not self.enabled and self.path is not None:
-            raise ValueError("disabled kinetics forbids path")
+        if self.enabled:
+            self.model = self.model or "palandri_kharaka"
+            self.path = self.path or DEFAULT_KINETIC_PATHS[self.model]
+        elif self.model is not None or self.path is not None:
+            raise ValueError("disabled kinetics forbids model and path")
         return self
 
 
 class MineralConfig(StrictModel):
     name: str = Field(min_length=1)
-    thermo_name: str | None = Field(default=None, min_length=1)
-    kinetic_name: str | None = Field(default=None, min_length=1)
     role: Literal["equilibrium", "kinetic"]
     initial_amount: Amount | None = None
     surface_area: SurfaceArea | None = None
@@ -148,8 +154,6 @@ class MineralConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_role(self) -> "MineralConfig":
-        if (self.thermo_name is None) != (self.kinetic_name is None):
-            raise ValueError("explicit mineral alias requires both thermo_name and kinetic_name")
         if self.role == "kinetic" and (self.initial_amount is None or self.surface_area is None):
             raise ValueError("kinetic mineral requires initial_amount and surface_area")
         if self.role == "equilibrium" and self.surface_area is not None:
@@ -544,7 +548,7 @@ class SummaryOutputsConfig(StrictModel):
     mineral_summary: bool
     aqueous_summary: bool
     reaction_rates: bool
-    kinec_rate_validation: bool
+    reaction_rate_validation: bool
     carbon_inventory: bool
     element_budget: bool
     mineral_volume_change: bool
@@ -621,9 +625,6 @@ class CaseConfig(StrictModel):
         names = [mineral.name for mineral in self.minerals]
         if len(names) != len(set(names)):
             raise ValueError("mineral names must be unique")
-        thermo_names = [mineral.thermo_name or mineral.name for mineral in self.minerals]
-        if len(thermo_names) != len(set(thermo_names)):
-            raise ValueError("resolved thermodynamic mineral names must be unique")
 
         kinetic_count = sum(mineral.role == "kinetic" for mineral in self.minerals)
         workflow = self.solver.workflow
@@ -694,8 +695,10 @@ class CaseConfig(StrictModel):
         post = self.postprocessing
         if summaries.reaction_rates and not post.reaction_rates:
             raise ValueError("reaction_rates output requires postprocessing.reaction_rates: true")
-        if summaries.kinec_rate_validation and not post.reaction_rates:
-            raise ValueError("kinec_rate_validation output requires postprocessing.reaction_rates: true")
+        if summaries.reaction_rate_validation and not post.reaction_rates:
+            raise ValueError(
+                "reaction_rate_validation output requires postprocessing.reaction_rates: true"
+            )
         if summaries.carbon_inventory and not post.carbon_inventory.enabled:
             raise ValueError("carbon_inventory output requires postprocessing.carbon_inventory.enabled: true")
         if summaries.element_budget and not post.element_budget.enabled:
@@ -847,6 +850,10 @@ class ResolvedCase:
             "resolved_times_s": list(self.checkpoint_times_s),
         }
 
+    @property
+    def kinetic_parameter_sha256(self) -> str | None:
+        return _sha256(self.kinetics_path) if self.kinetics_path is not None else None
+
     def as_dict(self) -> dict[str, Any]:
         data = self.config.model_dump(mode="json")
         data["paths"]["output_dir"] = str(self.output_dir)
@@ -854,6 +861,7 @@ class ResolvedCase:
             data["database"]["path"] = str(self.database_path)
         if self.kinetics_path is not None:
             data["kinetics"]["path"] = str(self.kinetics_path)
+            data["kinetics"]["sha256"] = self.kinetic_parameter_sha256
         data["solver"]["timestep"]["derived_duration_s"] = self.duration_s
         if self.config.solver.timestep.mode == "fixed":
             data["solver"]["timestep"]["derived_dt_s"] = self.dt_s
@@ -910,7 +918,7 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
     if config.kinetics.enabled:
         kinetics_path = _resolve_project_path(config.kinetics.path)
         if not kinetics_path.is_file():
-            raise FileNotFoundError(f"Kinec kinetic YAML does not exist: {kinetics_path}")
+            raise FileNotFoundError(f"kinetic parameter file does not exist: {kinetics_path}")
 
     duration_s = 0.0
     dt_s = 0.0
@@ -1170,6 +1178,14 @@ def _time_to_seconds_decimal(
 def _resolve_project_path(value: str) -> Path:
     path = Path(value)
     return path.resolve() if path.is_absolute() else (PROJECT_ROOT / path).resolve()
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _species_outputs_enabled(outputs: OutputsConfig) -> bool:

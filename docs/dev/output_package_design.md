@@ -5,15 +5,16 @@
 The active runner schema implements the base V1 output package, streamed
 scheduled timeseries/solver-history staging, explicit accepted-state
 checkpoints, machine-readable fixed/adaptive failure diagnostics, and optional
-Objective 1 audit outputs for reaction rates, Kinec sign checks, carbon
+Objective 1 audit outputs for reaction rates, reaction-rate sign checks, carbon
 inventory, element budgets, mineral-volume change, regime classification,
 surface-area audit, workflow comparison, secondary-mineral assemblage,
 surrogate-dataset export, validation ledger, and porosity/permeability
 inference status. Adaptive and adaptive-long-horizon control are implemented;
 automatic restart and smart solvers remain disabled.
 
-The active output contract is `objective1_audit_v3`. Version 2 packages are
-rejected by the auditor because manifest and solver-history fields changed.
+The active output contract is `objective1_audit_v4`. Earlier packages are
+rejected because the kinetic model, parameter provenance, and mineral-name
+contracts changed.
 
 ## 1. Purpose
 
@@ -294,8 +295,9 @@ source_config_path
 source_config_sha256
 database_path
 database_sha256
-kinetic_yaml_path
-kinetic_yaml_sha256
+kinetic_model
+kinetic_parameter_path
+kinetic_parameter_sha256
 code_version or git commit, if available
 ```
 
@@ -720,8 +722,9 @@ rate_evaluation_status
 
 ```text
 Only write if postprocessing.reaction_rates: true.
-Rates must be recomputed from the same Kinec formula or otherwise verified.
-Do not rely only on mutable callback state.
+Read total rates from `ChemicalProps.reactionRate(mineral.name)` in mol/s.
+Normalize only by the live `ChemicalProps.surfaceArea(mineral.name)` in m².
+Do not independently recompute either kinetic model's equations.
 Plots should be generated from reaction_rates.csv.
 If rate extraction is unavailable, fail validation or disable rate outputs explicitly.
 ```
@@ -797,19 +800,19 @@ Do not write this file by default.
 
 ### 18.1 Purpose
 
-Record runtime validation of mineral naming and kinetic attachment.
+Record runtime validation of exact mineral naming and kinetic attachment.
 
-This file supports debugging of explicit aliases, thermodynamic minerals, Kinec YAML records, and surface-area availability.
+This file supports debugging of thermodynamic minerals, selected-model
+parameter records, and surface-area availability.
 
 ### 18.2 Recommended Columns
 
 ```text
 mineral_name
-thermo_name
-kinetic_name
 role
+kinetic_model
 thermodynamic_mineral_found
-kinec_yaml_record_found
+kinetic_parameter_record_found
 surface_area_present
 status
 reason
@@ -819,8 +822,8 @@ reason
 
 ```text
 Debug/validation output, not a scientific result table.
-Identify missing thermodynamic phases, missing Kinec records, missing surface areas.
-Preserve explicit alias information.
+Identify missing thermodynamic phases, parameter records, and surface areas.
+Configured mineral names must exactly match thermodynamic species names.
 Use only supported mineral roles.
 ```
 

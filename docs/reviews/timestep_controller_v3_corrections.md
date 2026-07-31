@@ -1,5 +1,8 @@
 # Timestep Controller V3 Corrections
 
+> Historical review: this records the former v3 output contract. The active
+> contract is `objective1_audit_v4`.
+
 ## Implemented decisions
 
 Seven controller/output defects were corrected without changing Reaktoro,
@@ -36,7 +39,7 @@ disabled restart/rate-acceptance policies.
    and `output_writing`. Diagnostics preserve exception type/message, last
    accepted time, attempt counts, and an `output_completeness` list. The CLI
    still exits unsuccessfully after writing the available partial package.
-7. The output contract is now `objective1_audit_v3`. Solver-history columns,
+7. The output contract at the time was `objective1_audit_v3`. Solver-history columns,
    manifest time metadata, diagnostics completeness, tests, and the package
    auditor were updated together. The auditor rejects version 2 packages
    rather than silently interpreting their older fields.

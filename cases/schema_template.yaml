@@ -36,7 +36,8 @@ redox:
 
 kinetics:
   enabled: REQUIRED
-  path: REQUIRED_IF_KINETICS_ENABLED
+  model: OPTIONAL  # palandri_kharaka (default) | kinec
+  path: OPTIONAL  # defaults to the selected model's project parameter file
 
 minerals:
   - name: REQUIRED

@@ -1,7 +1,9 @@
-# Reaktoro Kinec Batch Runner
+# Reaktoro Batch Runner
 
 A simple Reaktoro batch simulation runner for explicit YAML-defined
-equilibrium and Kinec kinetic cases.
+equilibrium and kinetic cases. Reaktoro's native Palandri-Kharaka model uses
+the corrected local parameter file by default; the custom Kinec model is an
+explicit option.
 
 ## Run a Case
 
@@ -15,7 +17,7 @@ Or create a separate environment:
 
 ```powershell
 conda env create -f environment.yml
-conda run -n reaktoro-kinec-batch-runner python runner.py path\to\case_input.yaml
+conda run -n reaktoro-batch-runner python runner.py path\to\case_input.yaml
 ```
 
 The output directory must not already exist. Output files are controlled by
@@ -40,7 +42,7 @@ YAML:
 
 ```text
 reaction_rates.csv
-kinec_rate_validation.csv
+reaction_rate_validation.csv
 carbon_inventory.csv
 element_budget.csv
 mineral_volume_change.csv
@@ -56,8 +58,9 @@ porosity_permeability.csv
 ## Inputs
 
 - Thermodynamic database: `data/thermo/Kinec_v3_4.dat`
-- Runtime kinetic parameters: `data/kinetics/kinec_rates_minimal.yaml`
-- Kinec adapter:
+- Default native kinetic parameters: `data/kinetics/PalandriKharaka_local.yaml`
+- Optional custom Kinec parameters: `data/kinetics/kinec_rates_minimal.yaml`
+- Optional Kinec adapter:
   `batch_runner/Kinect_Custom_Rates.py`
 
 Copy `cases/schema_template.yaml` to create a case input. The template is
@@ -77,18 +80,16 @@ Transport is not implemented.
 and finite-CO2 case copied from the values in the older user-supplied Kinec
 notebook. It is not a calibrated experiment.
 
-`cases/jayasekara_kinec_only_software_test.yaml` explicitly aliases three
-legacy mineral names to approved Kinec names. It intentionally excludes
-Goethite and Pyrite to remain Kinec-YAML-only and is not a full legacy
-experiment reproduction.
+`cases/jayasekara_kinec_only_software_test.yaml` uses exact local-database
+species names and explicitly selects Kinec. It intentionally excludes
+Goethite and Pyrite and is not a full legacy experiment reproduction.
 
 `cases/calcite_quartz_illite_development.yaml` is the small source-supported
 development case for fixed-fugacity initial equilibrium followed by closed
-kinetics. Its one-second kinetic step currently takes several minutes in the
-locally verified Reaktoro 2.13 environment.
+kinetics using the native Palandri-Kharaka default.
 
-On Windows, completed kinetic CLI runs exit immediately after all outputs are
-closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
+On Windows, completed custom-Kinec CLI runs exit immediately after all outputs
+are closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
 
 ## Case Rules
 
@@ -96,19 +97,24 @@ closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
 - `co2.mode` is `disabled`, `finite`, or `fixed_fugacity`.
 - `redox.apply_during` explicitly controls pE staging when redox is enabled.
 - Mineral role `equilibrium` creates an equilibrium phase.
-- Mineral role `kinetic` requires an initial amount, surface area, and Kinec
-  YAML record.
-- `kinetics` owns only kinetic enablement and the Kinec YAML path.
+- Mineral `name` is the exact thermodynamic database species name.
+- Mineral role `kinetic` requires an initial amount, surface area, and a
+  matching selected-model parameter record.
+- `kinetics.model` is `palandri_kharaka` by default or explicitly `kinec`.
+- `kinetics.path` may override the selected model's project parameter file.
+- Native Palandri-Kharaka matching uses the parameter file's `Mineral` and
+  `OtherNames` fields; case-level mineral aliases are not supported.
 - `solver.workflow` explicitly controls equilibrium and kinetic constraint
   staging.
 - `solver.timestep` owns duration and timestep control.
-- Fixed timestep execution is implemented. Adaptive timesteps, long-horizon
-  checkpoints/restart and smart solver backends live only in `docs/dev` until
-  implemented; they are not active case-YAML fields in V1.
+- Fixed, adaptive, and adaptive-long-horizon timesteps are implemented with
+  standard solvers. Checkpoint writing is implemented; automatic restart and
+  smart solver backends remain unavailable.
 - Objective 1 audit outputs are active case-YAML fields. Budgets and
   inventories use only explicitly configured species/mineral stoichiometry.
-  Reaction-rate diagnostics recompute the Kinec rate formula for accepted
-  states. Mineral volume, porosity, permeability, and capillary-entry-pressure
+  Reaction-rate diagnostics use Reaktoro's attached runtime rates and live
+  total surface areas for accepted states. Mineral volume, porosity,
+  permeability, and capillary-entry-pressure
   outputs report `not_evaluated` unless their required source-supported inputs
   or update laws are explicitly configured.
 

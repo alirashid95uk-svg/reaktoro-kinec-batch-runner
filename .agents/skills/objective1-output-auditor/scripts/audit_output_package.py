@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "objective1_audit_v3"
+SCHEMA_VERSION = "objective1_audit_v4"
 SUMMARY_FILES = {
     "mineral_summary": "mineral_summary.csv",
     "aqueous_summary": "aqueous_summary.csv",
     "reaction_rates": "reaction_rates.csv",
-    "kinec_rate_validation": "kinec_rate_validation.csv",
+    "reaction_rate_validation": "reaction_rate_validation.csv",
     "carbon_inventory": "carbon_inventory.csv",
     "element_budget": "element_budget.csv",
     "mineral_volume_change": "mineral_volume_change.csv",
@@ -196,7 +196,10 @@ def audit(output_dir: Path) -> dict[str, Any]:
             errors.append("diagnostics output_completeness disagrees with files present")
 
     traceability = manifest.get("traceability", {})
-    for prefix in ("source_config", "database", "kinetic_yaml"):
+    for key in ("kinetic_model", "kinetic_parameter_path", "kinetic_parameter_sha256"):
+        if diagnostics and diagnostics.get(key) != traceability.get(key):
+            errors.append(f"manifest and diagnostics disagree on {key}")
+    for prefix in ("source_config", "database", "kinetic_parameter"):
         expected = traceability.get(f"{prefix}_sha256")
         value = traceability.get(f"{prefix}_path")
         if expected is None:
@@ -247,7 +250,7 @@ def audit(output_dir: Path) -> dict[str, Any]:
         with (output_dir / "solver_history.csv").open(newline="", encoding="utf-8") as stream:
             columns = csv.DictReader(stream).fieldnames or []
         if columns != SOLVER_HISTORY_COLUMNS:
-            errors.append("solver_history columns or ordering disagree with schema v3")
+            errors.append("solver_history columns or ordering disagree with schema v4")
         solver_rows = _read_csv(output_dir / "solver_history.csv", errors)
         accepted_positive_dt = 0
         rejected = 0
@@ -277,12 +280,12 @@ def audit(output_dir: Path) -> dict[str, Any]:
         if reported_attempts is not None and reported_attempts != attempted_positive_dt:
             errors.append("internal-attempt count disagrees with solver_history")
 
-    if "kinec_rate_validation.csv" in actual:
-        rows = _read_csv(output_dir / "kinec_rate_validation.csv", errors)
+    if "reaction_rate_validation.csv" in actual:
+        rows = _read_csv(output_dir / "reaction_rate_validation.csv", errors)
         failed = sum(row.get("sign_check") != "passed" for row in rows)
-        metrics["kinec_sign_failures"] = failed
+        metrics["reaction_rate_sign_failures"] = failed
         if failed:
-            errors.append(f"Kinec rate-sign validation failed for {failed} rows")
+            errors.append(f"reaction-rate sign validation failed for {failed} rows")
 
     for filename, column, metric in (
         (

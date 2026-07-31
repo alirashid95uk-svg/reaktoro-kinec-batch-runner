@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import re
 import subprocess
@@ -17,11 +18,17 @@ from batch_runner.config import CaseConfig, load_case
 from batch_runner.output_tables import mineral_summary_rows, timeseries_columns
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.simulation import SimulationResult, build_kinetic_mapping, load_database, run_simulation
+from batch_runner.simulator.extract import collect_row
+from batch_runner.simulator.kinetics import load_kinetic_parameters
+from batch_runner.simulator.mapping import require_valid_kinetic_mapping
+from batch_runner.simulator.state_builder import build_chemical_state
+from batch_runner.simulator.system_builder import build_chemical_system
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATABASE_PATH = PROJECT_ROOT / "data" / "thermo" / "Kinec_v3_4.dat"
 KINETICS_PATH = PROJECT_ROOT / "data" / "kinetics" / "kinec_rates_minimal.yaml"
+PALANDRI_PATH = PROJECT_ROOT / "data" / "kinetics" / "PalandriKharaka_local.yaml"
 TEMPLATE_PATH = PROJECT_ROOT / "cases" / "schema_template.yaml"
 SOURCE_CASE_PATH = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
 DEVELOPMENT_CASE_PATH = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
@@ -69,6 +76,42 @@ def test_project_relative_path_resolves_from_project_root(tmp_path: Path) -> Non
     resolved = load_case(_write_case(tmp_path, raw))
     assert resolved.database_path == DATABASE_PATH.resolve()
     assert resolved.full_steps == 0
+
+
+def test_kinetic_model_defaults_and_resolved_provenance(tmp_path: Path) -> None:
+    raw = _read_yaml(DEVELOPMENT_CASE_PATH)
+    raw["paths"]["output_dir"] = str(tmp_path / "palandri")
+    resolved = load_case(_write_case(tmp_path, raw))
+    assert resolved.config.kinetics.model == "palandri_kharaka"
+    assert resolved.kinetics_path == PALANDRI_PATH.resolve()
+    assert resolved.as_dict()["kinetics"] == {
+        "enabled": True,
+        "model": "palandri_kharaka",
+        "path": str(PALANDRI_PATH.resolve()),
+        "sha256": hashlib.sha256(PALANDRI_PATH.read_bytes()).hexdigest(),
+    }
+
+    kinec_raw = _source_case_with_output(tmp_path / "kinec")
+    kinec_default = CaseConfig.model_validate(kinec_raw)
+    assert kinec_default.kinetics.model == "kinec"
+    assert kinec_default.kinetics.path == "data/kinetics/kinec_rates_minimal.yaml"
+    kinec_raw["kinetics"]["path"] = str(KINETICS_PATH)
+    kinec = load_case(_write_case(tmp_path, kinec_raw))
+    assert kinec.config.kinetics.model == "kinec"
+    assert kinec.kinetics_path == KINETICS_PATH.resolve()
+
+    disabled = _equilibrium_case(tmp_path / "disabled")
+    disabled["kinetics"]["model"] = "kinec"
+    with pytest.raises(ValidationError, match="forbids model and path"):
+        CaseConfig.model_validate(disabled)
+
+
+def test_removed_mineral_alias_fields_are_unknown(tmp_path: Path) -> None:
+    raw = _source_case_with_output(tmp_path / "outputs")
+    raw["minerals"][0]["thermo" + "_name"] = "Calcite"
+    raw["minerals"][0]["kinetic" + "_name"] = "Calcite"
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        CaseConfig.model_validate(raw)
 
 
 def test_missing_local_path_reports_exact_resolved_path(tmp_path: Path) -> None:
@@ -138,7 +181,7 @@ def test_equilibrium_mineral_mapping_does_not_require_kinec_record(tmp_path: Pat
     case = load_case(_write_case(tmp_path, _equilibrium_case(tmp_path / "outputs")))
     mapping = build_kinetic_mapping(case, load_database(case), None)
     assert mapping[0]["status"] == "active"
-    assert mapping[0]["kinec_yaml_record_found"] is False
+    assert mapping[0]["kinetic_parameter_record_found"] is False
     assert mapping[0]["reason"] == "equilibrium mineral; no kinetic record required"
 
 
@@ -163,6 +206,75 @@ def test_local_database_loads_and_kinec_adapter_attaches() -> None:
     )
     assert len(system.reactions()) == 1
     assert len(system.surfaces()) == 1
+
+
+def test_native_palandri_uses_mineral_and_other_names_and_kinec_is_explicit(
+    tmp_path: Path,
+) -> None:
+    for index, name in enumerate(("Calcite", "K-Feldspar")):
+        raw = _source_case_with_output(tmp_path / f"palandri-{index}")
+        raw["kinetics"] = {"enabled": True}
+        raw["brine"]["aqueous_elements"] = ["H", "O", "Na", "Cl", "C", "Ca", "K", "Al", "Si"]
+        raw["minerals"][0]["name"] = name
+        raw["postprocessing"]["requested_minerals"] = [name]
+        case = load_case(_write_case(tmp_path, raw))
+        params = load_kinetic_parameters(case)
+        mapping = build_kinetic_mapping(case, load_database(case), params)
+        require_valid_kinetic_mapping(mapping)
+        system = build_chemical_system(case, load_database(case), params)
+        assert system.reactions()[0].name() == name
+
+    raw = _source_case_with_output(tmp_path / "missing-palandri")
+    raw["kinetics"] = {"enabled": True}
+    raw["minerals"][0]["name"] = "Montmor-Ca"
+    raw["postprocessing"]["requested_minerals"] = ["Montmor-Ca"]
+    case = load_case(_write_case(tmp_path, raw))
+    mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
+    with pytest.raises(ValueError, match="missing palandri_kharaka parameter record"):
+        require_valid_kinetic_mapping(mapping)
+
+    raw["paths"]["output_dir"] = str(tmp_path / "kinec-montmor")
+    raw["kinetics"] = {"enabled": True, "model": "kinec"}
+    case = load_case(_write_case(tmp_path, raw))
+    mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
+    require_valid_kinetic_mapping(mapping)
+
+
+def test_runtime_reaction_rate_diagnostics_use_chemical_props(tmp_path: Path) -> None:
+    raw = _source_case_with_output(tmp_path / "runtime-rates")
+    raw["kinetics"] = {"enabled": True}
+    raw["postprocessing"]["reaction_rates"] = True
+    case = load_case(_write_case(tmp_path, raw))
+    database = load_database(case)
+    params = load_kinetic_parameters(case)
+    system = build_chemical_system(case, database, params)
+    state = build_chemical_state(case, system)
+    result = rkt.KineticsSolver(system).precondition(state)
+    assert result.succeeded()
+    initial_state = rkt.ChemicalState(state)
+    record = {
+        "time_end_s": 0.0,
+        "stage": "initial_state",
+        "solver_succeeded": None,
+        "iterations": None,
+        "dt_s": 0.0,
+    }
+    row = collect_row(case, state, record, initial_state)
+    props = rkt.ChemicalProps(state)
+    rate = float(props.reactionRate("Calcite"))
+    area = float(props.surfaceArea("Calcite"))
+    assert rate == pytest.approx(float(props.reactionRate(0)))
+    assert row["saturation_index::Calcite"] < 0.0
+    assert rate > 0.0
+    assert row["reaction_rate_mol_s::Calcite"] == pytest.approx(rate)
+    assert row["reaction_rate_surface_area_m2::Calcite"] == pytest.approx(area)
+    assert row["reaction_rate_mol_m2_s::Calcite"] == pytest.approx(rate / area)
+
+    state.set("Calcite", 0.0, "mol")
+    zero_row = collect_row(case, state, record, rkt.ChemicalState(state))
+    assert zero_row["reaction_rate_surface_area_m2::Calcite"] == 0.0
+    assert zero_row["reaction_rate_mol_m2_s::Calcite"] is None
+    assert zero_row["reaction_rate_status::Calcite"] == "zero_live_surface_area"
 
 
 def test_general_reaction_rate_contract_positive_mol_per_second_dissolves() -> None:
@@ -237,13 +349,25 @@ def test_missing_surface_area_and_kinetic_record_fail(tmp_path: Path) -> None:
     result = run_simulation(load_case(_write_case(tmp_path, raw)))
     assert result.diagnostics["simulation_completed"] is False
     assert result.diagnostics["failed_stage"] == "mapping"
-    assert "missing Kinec YAML record" in result.diagnostics["error_message"]
+    assert "missing kinec parameter record" in result.diagnostics["error_message"]
+    assert result.diagnostics["kinetic_model"] == "kinec"
+    assert result.diagnostics["kinetic_parameter_path"] == str(KINETICS_PATH.resolve())
+    assert result.diagnostics["kinetic_parameter_sha256"] == hashlib.sha256(
+        KINETICS_PATH.read_bytes()
+    ).hexdigest()
+
+    raw = _source_case_with_output(tmp_path / "thermodynamic-output")
+    raw["minerals"][0]["name"] = "Not-A-Thermodynamic-Mineral"
+    raw["postprocessing"]["requested_minerals"] = ["Not-A-Thermodynamic-Mineral"]
+    result = run_simulation(load_case(_write_case(tmp_path, raw)))
+    assert result.diagnostics["failed_stage"] == "mapping"
+    assert "missing thermodynamic mineral" in result.diagnostics["error_message"]
 
 
 def test_mapping_report_location_and_output_toggle(tmp_path: Path) -> None:
     raw = _source_case_with_output(tmp_path / "mapping-output")
     case = load_case(_write_case(tmp_path, raw))
-    mapping = build_kinetic_mapping(case, load_database(case), KinecParams.local(case.kinetics_path))
+    mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
     output_dir = write_kinetic_mapping(case, mapping)
     with (output_dir / "debug" / "mineral_connection.csv").open(newline="", encoding="utf-8") as stream:
         assert list(csv.DictReader(stream))[0]["status"] == "active"
@@ -309,7 +433,7 @@ def test_base_output_package_and_disabled_plot_behavior(tmp_path: Path) -> None:
         }
     )
     case = load_case(_write_case(tmp_path, raw))
-    mapping = build_kinetic_mapping(case, load_database(case), KinecParams.local(case.kinetics_path))
+    mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
     write_kinetic_mapping(case, mapping)
 
     row = {
@@ -440,7 +564,7 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
     raw["outputs"]["summaries"].update(
         {
             "reaction_rates": True,
-            "kinec_rate_validation": True,
+            "reaction_rate_validation": True,
             "carbon_inventory": True,
             "element_budget": True,
             "regime_classification": True,
@@ -450,7 +574,7 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
         }
     )
     case = load_case(_write_case(tmp_path, raw))
-    mapping = build_kinetic_mapping(case, load_database(case), KinecParams.local(case.kinetics_path))
+    mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
     write_kinetic_mapping(case, mapping)
 
     row = {
@@ -470,8 +594,9 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
         "mineral_delta_mol::Calcite": 0.0,
         "saturation_index::Calcite": -1.0,
         "reaction_rate_mol_s::Calcite": 0.25,
-        "reaction_rate_surface_normalized::Calcite": 0.5,
+        "reaction_rate_mol_m2_s::Calcite": 0.5,
         "reaction_rate_saturation_ratio::Calcite": 0.1,
+        "reaction_rate_surface_area_m2::Calcite": 0.5,
         "reaction_rate_status::Calcite": "evaluated",
         "solver_succeeded": None,
         "solver_iterations": None,
@@ -495,7 +620,7 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
             Path(path).write_text("test state", encoding="utf-8")
 
     diagnostics = {
-        "output_schema_version": "objective1_audit_v3",
+        "output_schema_version": "objective1_audit_v4",
         "run_started_at": "2026-06-14T00:00:00+00:00",
         "run_finished_at": "2026-06-14T00:00:01+00:00",
         "simulation_completed": True,
@@ -513,7 +638,7 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
 
     for name in [
         "reaction_rates.csv",
-        "kinec_rate_validation.csv",
+        "reaction_rate_validation.csv",
         "carbon_inventory.csv",
         "element_budget.csv",
         "regime_classification.csv",

@@ -12,7 +12,6 @@ import reaktoro as rkt
 from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import ResolvedCase
 from batch_runner.simulation import SimulationResult
-from batch_runner.simulator.mapping import _kinetic_name, _thermo_name
 
 def build_manifest(
     case: ResolvedCase,
@@ -31,8 +30,6 @@ def build_manifest(
             "mineral_setup": [
                 {
                     "name": mineral.name,
-                    "thermo_name": _thermo_name(mineral),
-                    "kinetic_name": _kinetic_name(mineral),
                     "role": mineral.role,
                     "initial_amount": (
                         mineral.initial_amount.model_dump(mode="json")
@@ -65,8 +62,9 @@ def build_manifest(
             "source_config_sha256": _sha256(case.config_path),
             "database_path": str(case.database_path or config.database.name),
             "database_sha256": _sha256(case.database_path),
-            "kinetic_yaml_path": str(case.kinetics_path) if case.kinetics_path else None,
-            "kinetic_yaml_sha256": _sha256(case.kinetics_path),
+            "kinetic_model": config.kinetics.model,
+            "kinetic_parameter_path": str(case.kinetics_path) if case.kinetics_path else None,
+            "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
         },
         "input_snapshot": input_snapshot,
         "solver_configuration": {

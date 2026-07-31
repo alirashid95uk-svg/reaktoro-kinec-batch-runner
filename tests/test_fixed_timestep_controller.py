@@ -412,7 +412,7 @@ def _install_solver_spy(monkeypatch, results: list[bool]):
     monkeypatch.setattr(solver_module, "build_conditions", lambda *_args: (None, None))
     monkeypatch.setattr(solver_module, "snapshot_state", deepcopy)
 
-    def collect_row(_case, _state, record, _initial_state, _params):
+    def collect_row(_case, _state, record, _initial_state):
         return {"time_s": record["time_end_s"], "state_value": _state.value}
 
     monkeypatch.setattr(solver_module, "collect_row", collect_row)
@@ -571,7 +571,6 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
         _case,
         _system,
         state,
-        _params,
         *,
         row_ready,
         solver_record_ready,
@@ -599,7 +598,7 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
             "checkpoint_count": 1,
         }
 
-    monkeypatch.setattr(simulation_module.KinecParams, "local", staticmethod(lambda _path: object()))
+    monkeypatch.setattr(simulation_module, "load_kinetic_parameters", lambda _case: object())
     monkeypatch.setattr(simulation_module, "load_database", lambda _case: object())
     monkeypatch.setattr(simulation_module, "build_kinetic_mapping", lambda *_args: [])
     monkeypatch.setattr(simulation_module, "require_valid_kinetic_mapping", lambda _mapping: None)
@@ -708,7 +707,6 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
         _case,
         _system,
         state,
-        _params,
         *,
         row_ready,
         solver_record_ready,
@@ -784,7 +782,7 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
             "accepted_state_restored": True,
         }
 
-    monkeypatch.setattr(simulation_module.KinecParams, "local", staticmethod(lambda _path: object()))
+    monkeypatch.setattr(simulation_module, "load_kinetic_parameters", lambda _case: object())
     monkeypatch.setattr(simulation_module, "load_database", lambda _case: object())
     monkeypatch.setattr(simulation_module, "build_kinetic_mapping", lambda *_args: [])
     monkeypatch.setattr(simulation_module, "require_valid_kinetic_mapping", lambda _mapping: None)
@@ -824,11 +822,7 @@ class _LifecycleSystem:
 
 def _install_lifecycle_stubs(monkeypatch) -> None:
     monkeypatch.setattr(simulation_module, "load_database", lambda _case: object())
-    monkeypatch.setattr(
-        simulation_module.KinecParams,
-        "local",
-        staticmethod(lambda _path: object()),
-    )
+    monkeypatch.setattr(simulation_module, "load_kinetic_parameters", lambda _case: object())
     monkeypatch.setattr(simulation_module, "build_kinetic_mapping", lambda *_args: [])
     monkeypatch.setattr(simulation_module, "require_valid_kinetic_mapping", lambda _mapping: None)
     monkeypatch.setattr(
@@ -862,7 +856,7 @@ def test_setup_failures_produce_complete_machine_readable_diagnostics(
 
     targets = {
         "database_loading": (simulation_module, "load_database", fail),
-        "kinetics_loading": (simulation_module.KinecParams, "local", staticmethod(fail)),
+        "kinetics_loading": (simulation_module, "load_kinetic_parameters", fail),
         "mapping": (simulation_module, "build_kinetic_mapping", fail),
         "system_construction": (simulation_module, "build_chemical_system", fail),
         "state_construction": (simulation_module, "build_chemical_state", fail),
@@ -892,7 +886,6 @@ def test_unexpected_solver_exception_preserves_last_accepted_time(
         _case,
         _system,
         _state,
-        _params,
         *,
         row_ready,
         solver_record_ready,
@@ -1002,10 +995,10 @@ def test_output_auditor_rejects_previous_schema_version(tmp_path: Path) -> None:
     output_dir = tmp_path / "old_schema"
     output_dir.mkdir()
     manifest = {
-        "output_schema_version": "objective1_audit_v2",
+        "output_schema_version": "objective1_audit_v3",
         "run_identity": {
             "case_name": "old",
-            "output_schema_version": "objective1_audit_v2",
+            "output_schema_version": "objective1_audit_v3",
             "simulation_completed": True,
         },
         "traceability": {},
@@ -1035,7 +1028,7 @@ def test_output_auditor_rejects_previous_schema_version(tmp_path: Path) -> None:
 
     observed = audit(output_dir)
 
-    assert OUTPUT_SCHEMA_VERSION == "objective1_audit_v3"
+    assert OUTPUT_SCHEMA_VERSION == "objective1_audit_v4"
     assert auditor["SOLVER_HISTORY_COLUMNS"] == SOLVER_HISTORY_COLUMNS
     assert observed["ok"] is False
     assert any("output_schema_version" in error for error in observed["errors"])

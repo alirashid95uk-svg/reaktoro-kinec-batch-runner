@@ -127,7 +127,7 @@ def _run_fake(
     monkeypatch.setattr(
         solver_module,
         "collect_row",
-        lambda _case, state, record, _initial, _params: {
+        lambda _case, state, record, _initial: {
             "time_s": record["time_end_s"],
             "state_value": state.value,
         },

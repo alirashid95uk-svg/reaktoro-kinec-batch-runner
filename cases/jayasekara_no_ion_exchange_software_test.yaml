@@ -1,14 +1,15 @@
 # Source values: legacy_sources/FYPR Preliminary Results Code.zip
 # Entry: FYPR Preliminary Results Code/configs/cases/BaseCase_Redx_IonEx.yaml
 #
-# Purpose: a no-ion-exchange software-validation batch kinetic case derived
-# from the old config. It is not a full experiment reproduction.
+# Purpose: an expected-failure mineral-mapping audit derived from the old
+# no-ion-exchange config. Its exact embedded-database species names do not all
+# have custom Kinec records. It is not a runnable experiment reproduction.
 #
 # The source cation_exchange block is intentionally excluded. Cation exchange
 # is not implemented by this runner and is not silently ignored.
 #
-# Legacy controls retained as provenance but not executed by the V1 fixed-step
-# runner: dt_initial_s=1.0, dt_min_s=1.0e-4, growth_factor=1.05,
+# Legacy controls retained as provenance but not selected by this fixed-step
+# case: dt_initial_s=1.0, dt_min_s=1.0e-4, growth_factor=1.05,
 # max_consecutive_rejected=30, progress_every=250, time_tolerance_s=1.0e-7,
 # output weeks=[2, 5, 9, 18, 37], warning codes=[906, 548].
 #
@@ -74,7 +75,7 @@ redox:
 
 kinetics:
   enabled: true
-  path: data/kinetics/kinec_rates_minimal.yaml
+  model: kinec
 
 minerals:
   - name: Quartz
@@ -162,7 +163,7 @@ outputs:
   manifest: {enabled: true, include_input_snapshot: true}
   diagnostics: {enabled: true}
   timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
-  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: false, kinec_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: false, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
+  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: false, reaction_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: false, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
   solver_history: {enabled: true}
   plots: {enabled: false, pH: false, mineral_change: false, saturation_index: false, solver_dt: false, solver_iterations: false}
   debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}

@@ -75,7 +75,8 @@ outputs:
 
 ### 4.1 Purpose
 
-Define whether kinetic reactions exist and where kinetic parameters come from.
+Define whether kinetic reactions exist, which rate model is selected, and where
+its parameters come from.
 
 Do **not** define duration or timestep here.
 
@@ -84,17 +85,26 @@ Do **not** define duration or timestep here.
 ```yaml
 kinetics:
   enabled: true
-  path: data/kinetics/kinec_rates_minimal.yaml
+  model: palandri_kharaka  # optional; default
+  path: data/kinetics/PalandriKharaka_local.yaml  # optional override
 ```
 
 ### 4.3 Validation
 
 ```text
 kinetics.enabled: true
-→ requires path
+→ defaults model to palandri_kharaka
+→ defaults path from the selected model
+
+kinetics.model: kinec
+→ defaults path to data/kinetics/kinec_rates_minimal.yaml
 
 kinetics.enabled: false
-→ forbids path
+→ forbids model and path
+
+model selection
+→ must be explicit; never infer it from the filename
+→ no fallback between parameter files
 
 duration and dt fields
 → forbidden under kinetics
@@ -797,16 +807,19 @@ Validation:
 kinetic mineral
 → requires initial_amount
 → requires surface_area
-→ requires kinetic YAML record
+→ requires a matching record in the selected parameter file
 → requires thermodynamic mineral
 
 equilibrium mineral
 → requires thermodynamic mineral
 → does not require surface_area
-→ does not require kinetic YAML record
+→ does not require a kinetic parameter record
 ```
 
-Missing kinetic record, missing surface area, and missing thermodynamic mineral remain hard failures.
+For Palandri-Kharaka, Reaktoro matches the exact configured thermodynamic species
+against `Mineral` and `OtherNames`. For Kinec, the exact configured name must be
+a YAML record key. Missing records, surfaces, or thermodynamic minerals are hard
+failures; aliases are not supported.
 
 ---
 

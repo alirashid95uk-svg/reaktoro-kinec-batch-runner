@@ -357,7 +357,8 @@ Recommended:
 ```yaml
 kinetics:
   enabled: true
-  path: data/kinetics/kinec_rates_minimal.yaml
+  model: palandri_kharaka  # optional; default
+  path: data/kinetics/PalandriKharaka_local.yaml  # optional override
 
 solver:
   timestep:
@@ -869,19 +870,15 @@ These may be diagnostics only at first. If used as acceptance criteria later, th
 
 Reaction-rate plots and rate-based acceptance are useful but must not be assumed available automatically.
 
-Allowed strategies:
+Use Reaktoro's accepted-state runtime properties for both supported models:
 
 ```text
-A. Recompute diagnostic rates after each accepted state using the same Kinec formula.
-B. Instrument the Kinec adapter to expose diagnostic rate calculations safely.
-C. Disable rate-based acceptance unless rate extraction is verified.
+ChemicalProps.reactionRate(mineral.name) → total rate in mol/s
+ChemicalProps.surfaceArea(mineral.name) → live area in m²
 ```
 
-Recommended first implementation:
-
-```text
-Recompute diagnostic rates after each accepted state using the same Kinec formula.
-```
+Only divide by the live surface area when it is nonzero. Do not independently
+recompute either kinetic model's equations for standard diagnostics.
 
 Rules:
 
@@ -951,7 +948,7 @@ avoids eight-mineral stiffness during feature development
 This case should exercise:
 
 ```text
-Kinec YAML loading
+selected kinetic-parameter loading
 mineral mapping
 fixed-fugacity initial equilibrium
 redox apply_during validation, if redox enabled

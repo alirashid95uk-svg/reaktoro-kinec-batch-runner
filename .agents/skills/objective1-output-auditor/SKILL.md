@@ -27,7 +27,7 @@ project or benchmark decision.
 ## Interpretation
 
 - Treat hash mismatches, undeclared files, schema disagreement, incomplete
-  runs, time mismatches, failed accepted steps, and Kinec sign failures as
+  runs, time mismatches, failed accepted steps, and reaction-rate sign failures as
   blocking findings.
 - Treat validation targets outside uncertainty as failed scientific checks,
   not reasons to tune inputs automatically.

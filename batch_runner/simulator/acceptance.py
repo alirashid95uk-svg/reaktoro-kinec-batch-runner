@@ -8,7 +8,6 @@ from typing import Any, Callable
 import reaktoro as rkt
 
 from batch_runner.config import AdaptiveTimestepConfig, AmountChangeToleranceConfig, ResolvedCase
-from batch_runner.simulator.mapping import _thermo_name
 
 
 def evaluate_trial(
@@ -70,9 +69,8 @@ def evaluate_trial(
     if config.max_delta_saturation_index is not None or config.fail_on_non_finite:
         saturation_changes = []
         for mineral in case.config.minerals:
-            thermo_name = _thermo_name(mineral)
-            accepted_si = float(accepted_aqueous.saturationIndex(thermo_name))
-            trial_si = float(trial_aqueous.saturationIndex(thermo_name))
+            accepted_si = float(accepted_aqueous.saturationIndex(mineral.name))
+            trial_si = float(trial_aqueous.saturationIndex(mineral.name))
             saturation_changes.append(abs(trial_si - accepted_si))
             values_to_check.append(trial_si)
         metrics["max_delta_saturation_index"] = max(saturation_changes, default=0.0)
@@ -97,7 +95,7 @@ def evaluate_trial(
             reasons.append("selected_species_change_tolerance")
 
     if config.mineral_change is not None:
-        minerals = {mineral.name: _thermo_name(mineral) for mineral in case.config.minerals}
+        minerals = {mineral.name: mineral.name for mineral in case.config.minerals}
         change = _max_change_ratio(
             list(minerals),
             lambda state, name: float(state.speciesAmount(minerals[name])),

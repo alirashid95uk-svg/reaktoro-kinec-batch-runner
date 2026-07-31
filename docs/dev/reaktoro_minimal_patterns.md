@@ -107,10 +107,21 @@ Fixed fugacity and other constraints require explicit equilibrium conditions.
 Treat their exact setup as a separate feature and verify the official
 constraint API before implementation.
 
-## 6. Attach Kinec Kinetics
+## 6. Attach Mineral Kinetics
 
-`KinecParams` and `ReactionRateModelKinec` are provided by the user-supplied
-adapter, not by Reaktoro:
+The default path uses Reaktoro's native Palandri-Kharaka model. Reaktoro
+matches the reaction's exact mineral species name through the local YAML
+record's `Mineral` and `OtherNames` fields:
+
+```python
+params = Params.local(config.kinetics.path)
+reaction = MineralReaction(mineral_name)
+reaction.setRateModel(ReactionRateModelPalandriKharaka(params))
+surface = MineralSurface(mineral_name, surface_value, surface_unit)
+```
+
+When `model: kinec` is explicitly selected, `KinecParams` and
+`ReactionRateModelKinec` are provided by the user-supplied adapter:
 
 ```python
 from reaktoro import MineralReaction, MineralSurface
@@ -123,10 +134,10 @@ reaction.setRateModel(ReactionRateModelKinec(params, mineral_name))
 surface = MineralSurface(mineral_name, surface_value, surface_unit)
 ```
 
-Before a scientific run, validate the adapter's rate units and
-dissolution/precipitation sign against the selected Reaktoro rate-model
-interface. A missing kinetic record, kinetic-mineral surface area, or
-thermodynamic mineral is a hard failure. No silent skipping.
+Before a scientific run, validate the selected rate model, units, and
+dissolution/precipitation sign against the selected Reaktoro interface. A
+missing parameter record, kinetic-mineral surface area, or thermodynamic
+mineral is a hard failure. No silent skipping.
 
 ## 7. Run a Kinetic Step
 
@@ -157,13 +168,11 @@ mineral_amount_mol = state.speciesAmount(mineral_name)
 saturation_ratio = aqueous_props.saturationRatio(mineral_name)
 ```
 
-For configured reaction rates:
+For configured reaction rates, use the attached runtime model:
 
 ```python
-rates_mol_per_s = {
-    reaction.name(): reaction.rate(props)
-    for reaction in system.reactions()
-}
+rate_mol_s = props.reactionRate(mineral_name)
+live_surface_area_m2 = props.surfaceArea(mineral_name)
 ```
 
 Record units, solver status, and the resolved config with outputs.

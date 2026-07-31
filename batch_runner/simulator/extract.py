@@ -4,9 +4,7 @@ from typing import Any
 
 import reaktoro as rkt
 
-from batch_runner.Kinect_Custom_Rates import evaluate_kinec_rate
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.mapping import _kinetic_name, _thermo_name
 
 
 def collect_row(
@@ -14,7 +12,6 @@ def collect_row(
     state: Any,
     solver_record: dict[str, Any],
     initial_state: Any,
-    kinec_params: Any | None = None,
 ) -> dict[str, Any]:
     time_s = float(solver_record["time_end_s"])
     aqueous = rkt.AqueousProps(state)
@@ -35,31 +32,33 @@ def collect_row(
         row.setdefault(f"species_amount_mol::{species_name}", float(state.speciesAmount(species_name)))
 
     minerals = {mineral.name: mineral for mineral in case.config.minerals}
-    for display_name in _mineral_amount_names(case):
-        mineral = minerals[display_name]
-        thermo_name = _thermo_name(mineral)
-        amount = float(state.speciesAmount(thermo_name))
-        initial_amount = float(initial_state.speciesAmount(thermo_name))
-        row[f"mineral_amount_mol::{display_name}"] = amount
-        row[f"mineral_delta_mol::{display_name}"] = amount - initial_amount
-        row[f"saturation_index::{display_name}"] = float(aqueous.saturationIndex(thermo_name))
+    for name in _mineral_amount_names(case):
+        mineral = minerals[name]
+        amount = float(state.speciesAmount(mineral.name))
+        initial_amount = float(initial_state.speciesAmount(mineral.name))
+        row[f"mineral_amount_mol::{name}"] = amount
+        row[f"mineral_delta_mol::{name}"] = amount - initial_amount
+        row[f"saturation_index::{name}"] = float(aqueous.saturationIndex(mineral.name))
 
     if case.config.postprocessing.reaction_rates:
-        if kinec_params is None:
-            raise ValueError("reaction-rate diagnostics require loaded Kinec parameters")
         props = rkt.ChemicalProps(state)
         for mineral in case.config.minerals:
             if mineral.role != "kinetic":
                 continue
-            display_name = mineral.name
-            kinetic_name = _kinetic_name(mineral)
-            diagnostic = evaluate_kinec_rate(kinec_params[kinetic_name], _thermo_name(mineral), props)
-            row[f"reaction_rate_mol_s::{display_name}"] = diagnostic["rate_mol_s"]
-            row[f"reaction_rate_surface_normalized::{display_name}"] = diagnostic[
-                "surface_normalized_rate"
-            ]
-            row[f"reaction_rate_saturation_ratio::{display_name}"] = diagnostic["saturation_ratio"]
-            row[f"reaction_rate_status::{display_name}"] = "evaluated"
+            name = mineral.name
+            rate_mol_s = float(props.reactionRate(name))
+            surface_area_m2 = float(props.surfaceArea(name))
+            row[f"reaction_rate_mol_s::{name}"] = rate_mol_s
+            row[f"reaction_rate_mol_m2_s::{name}"] = (
+                rate_mol_s / surface_area_m2 if surface_area_m2 > 0.0 else None
+            )
+            row[f"reaction_rate_saturation_ratio::{name}"] = float(
+                aqueous.saturationRatio(name)
+            )
+            row[f"reaction_rate_surface_area_m2::{name}"] = surface_area_m2
+            row[f"reaction_rate_status::{name}"] = (
+                "evaluated" if surface_area_m2 > 0.0 else "zero_live_surface_area"
+            )
 
     row["solver_succeeded"] = solver_record["solver_succeeded"]
     row["solver_iterations"] = solver_record["iterations"]

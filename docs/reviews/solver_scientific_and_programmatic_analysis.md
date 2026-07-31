@@ -1,5 +1,9 @@
 # Solver Scientific and Programmatic Analysis
 
+> Historical review: this document assesses the earlier custom-Kinec default
+> architecture. The active runner now defaults to native Palandri-Kharaka;
+> retained Kinec findings apply only to explicit `model: kinec` runs.
+
 ## 1. Executive summary
 
 The current repository is a clear and deliberately small V1 Reaktoro batch runner. Its implemented execution chain is easy to trace, `runner.py` remains orchestration-only, configuration models reject unknown fields, PHREEQC database selection is explicit, and the cleaned Kinec YAML is correctly separated from the thermodynamic database. The two supported fixed-fugacity workflows are represented directly in code and protected by focused tests. These are important strengths and should be retained.

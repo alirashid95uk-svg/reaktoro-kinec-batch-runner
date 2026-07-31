@@ -8,6 +8,7 @@ import os
 from batch_runner.config import load_case
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.simulation import run_simulation
+from batch_runner.simulator.kinetics import uses_python_rate_callback
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
 
     # Reaktoro 2.13 can retain Python rate callbacks until faulty interpreter
     # finalization on Windows. All run outputs are closed before this point.
-    if case.config.kinetics.enabled:
+    if uses_python_rate_callback(case):
         os._exit(0 if completed else 1)
     if not completed:
         raise SystemExit(1)

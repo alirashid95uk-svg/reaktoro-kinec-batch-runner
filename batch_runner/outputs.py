@@ -23,20 +23,20 @@ from batch_runner.output_tables import (
 from batch_runner.scientific_reports import (
     CARBON_INVENTORY_COLUMNS,
     ELEMENT_BUDGET_COLUMNS,
-    KINEC_RATE_VALIDATION_COLUMNS,
     MINERAL_VOLUME_COLUMNS,
     POROSITY_PERMEABILITY_COLUMNS,
     REACTION_RATE_COLUMNS,
+    REACTION_RATE_VALIDATION_COLUMNS,
     REGIME_COLUMNS,
     SECONDARY_ASSEMBLAGE_COLUMNS,
     SURFACE_AREA_COLUMNS,
     VALIDATION_LEDGER_COLUMNS,
     carbon_inventory_rows,
     element_budget_rows,
-    kinec_rate_validation_rows,
     mineral_volume_rows,
     porosity_permeability_rows,
     reaction_rate_rows,
+    reaction_rate_validation_rows,
     regime_classification_rows,
     secondary_mineral_assemblage_rows,
     surface_area_audit_rows,
@@ -52,11 +52,10 @@ from batch_runner.simulation import SimulationResult
 MAPPING_COLUMNS = [
     "case_name",
     "mineral_name",
-    "thermo_name",
-    "kinetic_name",
-    "kinetic",
+    "role",
+    "kinetic_model",
     "thermodynamic_mineral_found",
-    "kinec_yaml_record_found",
+    "kinetic_parameter_record_found",
     "surface_area_present",
     "status",
     "reason",
@@ -165,9 +164,13 @@ def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
         path = output_dir / "reaction_rates.csv"
         write_csv(path, REACTION_RATE_COLUMNS, reaction_rate_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.kinec_rate_validation:
-        path = output_dir / "kinec_rate_validation.csv"
-        write_csv(path, KINEC_RATE_VALIDATION_COLUMNS, kinec_rate_validation_rows(case, result))
+    if completed and outputs.summaries.reaction_rate_validation:
+        path = output_dir / "reaction_rate_validation.csv"
+        write_csv(
+            path,
+            REACTION_RATE_VALIDATION_COLUMNS,
+            reaction_rate_validation_rows(case, result),
+        )
         written.append(path)
     if completed and outputs.summaries.carbon_inventory:
         path = output_dir / "carbon_inventory.csv"

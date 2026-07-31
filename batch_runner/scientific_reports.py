@@ -16,14 +16,14 @@ REACTION_RATE_COLUMNS = [
     "time_days",
     "mineral",
     "rate_mol_s",
-    "rate_surface_normalized",
+    "rate_mol_m2_s",
     "saturation_index",
     "saturation_ratio",
     "surface_area_value",
     "surface_area_unit",
     "rate_evaluation_status",
 ]
-KINEC_RATE_VALIDATION_COLUMNS = [
+REACTION_RATE_VALIDATION_COLUMNS = [
     "time_s",
     "time_days",
     "mineral",
@@ -86,7 +86,6 @@ SURFACE_AREA_COLUMNS = [
 ]
 SECONDARY_ASSEMBLAGE_COLUMNS = [
     "mineral",
-    "thermo_name",
     "initial_amount_mol",
     "selection_reason",
     "evaluation_status",
@@ -123,16 +122,18 @@ def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> Iterator
                 "time_days": row["time_days"],
                 "mineral": name,
                 "rate_mol_s": row[f"reaction_rate_mol_s::{name}"],
-                "rate_surface_normalized": row[f"reaction_rate_surface_normalized::{name}"],
+                "rate_mol_m2_s": row[f"reaction_rate_mol_m2_s::{name}"],
                 "saturation_index": row[f"saturation_index::{name}"],
                 "saturation_ratio": row[f"reaction_rate_saturation_ratio::{name}"],
-                "surface_area_value": mineral.surface_area.value,
-                "surface_area_unit": mineral.surface_area.unit,
+                "surface_area_value": row[f"reaction_rate_surface_area_m2::{name}"],
+                "surface_area_unit": "m2",
                 "rate_evaluation_status": row[f"reaction_rate_status::{name}"],
             }
 
 
-def kinec_rate_validation_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
+def reaction_rate_validation_rows(
+    case: ResolvedCase, result: SimulationResult
+) -> Iterator[dict[str, Any]]:
     for row in reaction_rate_rows(case, result):
         expected = _expected_rate_sign(row["saturation_index"])
         observed = _sign(row["rate_mol_s"])
@@ -332,7 +333,6 @@ def secondary_mineral_assemblage_rows(case: ResolvedCase) -> list[dict[str, Any]
         rows.append(
             {
                 "mineral": mineral.name,
-                "thermo_name": mineral.thermo_name or mineral.name,
                 "initial_amount_mol": mineral.initial_amount.value if mineral.initial_amount else None,
                 "selection_reason": mineral.selection_reason,
                 "evaluation_status": "documented" if mineral.selection_reason else "missing_selection_reason",
@@ -348,7 +348,8 @@ def surrogate_dataset_columns(case: ResolvedCase) -> list[str]:
         "database_source",
         "database_value",
         "database_sha256",
-        "kinetic_yaml_sha256",
+        "kinetic_model",
+        "kinetic_parameter_sha256",
         "workflow_mode",
         "co2_mode",
         "redox_enabled",
@@ -370,7 +371,8 @@ def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list
         "database_source": case.config.database.source,
         "database_value": str(case.database_path or case.config.database.name),
         "database_sha256": _sha256(case.database_path),
-        "kinetic_yaml_sha256": _sha256(case.kinetics_path),
+        "kinetic_model": case.config.kinetics.model,
+        "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
         "workflow_mode": case.config.solver.workflow.mode,
         "co2_mode": case.config.co2.mode,
         "redox_enabled": case.config.redox.enabled,

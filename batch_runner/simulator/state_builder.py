@@ -5,7 +5,6 @@ from typing import Any
 import reaktoro as rkt
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.mapping import _thermo_name
 from batch_runner.simulator.workflows import (
     ConstraintStage,
     constraints_apply,
@@ -25,9 +24,8 @@ def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
 
     for mineral in case.config.minerals:
         if mineral.initial_amount is not None:
-            thermo_name = _thermo_name(mineral)
-            _require_system_species(system, thermo_name)
-            state.set(thermo_name, mineral.initial_amount.value, mineral.initial_amount.unit)
+            _require_system_species(system, mineral.name)
+            state.set(mineral.name, mineral.initial_amount.value, mineral.initial_amount.unit)
 
     if case.config.co2.mode == "finite":
         species_name = case.config.co2.gas_species

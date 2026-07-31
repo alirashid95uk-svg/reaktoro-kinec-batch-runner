@@ -18,7 +18,7 @@ YAML config
 → PHREEQC database loading
 → chemical system construction
 → chemical state construction
-→ optional Kinec kinetic model attachment
+→ selected kinetic model attachment
 → solver execution
 → diagnostics/postprocessing
 ```
@@ -27,7 +27,7 @@ This is a design guide, not a reason to build complicated architecture.
 
 ## Thermodynamics and Kinetics
 
-The user supplied these three files. They are now in their active project
+The user supplied these scientific files. They are now in their active project
 locations. Do not delete them or modify their scientific content:
 
 ```text
@@ -35,7 +35,10 @@ data/thermo/Kinec_v3_4.dat
 = local PHREEQC-style thermodynamic database
 
 data/kinetics/kinec_rates_minimal.yaml
-= cleaned runtime kinetic-rate parameter file
+= optional custom Kinec kinetic-rate parameter file
+
+data/kinetics/PalandriKharaka_local.yaml
+= default native Palandri-Kharaka parameter file
 
 batch_runner/Kinect_Custom_Rates.py
 = Kinec YAML -> Reaktoro kinetic-rate adapter
@@ -48,7 +51,7 @@ Their scientific content must remain unchanged.
 Run one YAML-defined batch kinetic case using:
 
 - local PHREEQC-style thermodynamic database;
-- cleaned Kinec YAML kinetic parameters;
+- native local Palandri-Kharaka parameters by default, or explicit custom Kinec parameters;
 - explicit mineral amounts;
 - explicit surface areas;
 - standard outputs;

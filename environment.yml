@@ -1,4 +1,4 @@
-name: reaktoro-kinec-batch-runner
+name: reaktoro-batch-runner
 channels:
   - conda-forge
 dependencies:

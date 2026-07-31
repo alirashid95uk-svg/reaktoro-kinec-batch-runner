@@ -12,7 +12,8 @@ geochemistry take precedence over software abstraction.
 - Explicitly selected embedded PHREEQC databases, such as `phreeqc.dat`.
 - Explicitly selected local PHREEQC-style `.dat` databases.
 - Batch equilibrium simulations.
-- Batch kinetic simulations using cleaned Kinec YAML parameters.
+- Batch kinetic simulations using the native local Palandri-Kharaka model by default.
+- Optional custom Kinec kinetics when explicitly selected.
 - Optional fixed-fugacity CO2 or finite-amount CO2 setup.
 - Optional redox using pE.
 
@@ -22,10 +23,11 @@ Experiment validation is planned but not implemented in V1.
 ## Active V1 Baseline
 
 - Standard Reaktoro equilibrium and kinetics solvers.
-- Fixed timesteps only.
+- Fixed, adaptive, and adaptive-long-horizon timestep modes.
 - Base outputs and YAML-controlled Objective 1 audit outputs.
-- No adaptive stepping, rejected-step recovery, checkpoints, restart, cation
-  exchange, reactive transport, or experiment-validation workflow.
+- Rejected-step recovery and checkpoint writing.
+- No automatic restart, cation exchange, reactive transport, or
+  experiment-validation workflow.
 
 Use the verified environment:
 
@@ -33,14 +35,14 @@ Use the verified environment:
 conda run -n fypr-reaktoro python -m pytest -q
 ```
 
-The three-mineral development case is not a routine smoke test because one
-kinetic step can take several minutes.
+Use focused tests for routine smoke checks; the three-mineral development case
+executes the real staged chemistry workflow.
 
 ## Skill Routing
 
 - YAML case changes: `case-config-discipline`.
 - PHREEQC database loading: `phreeqc-database-only`.
-- Kinec parameters or attachment: `kinec-yaml-kinetics`.
+- Custom Kinec parameters or attachment: `kinec-yaml-kinetics`.
 - Reaktoro construction or solver code: `reaktoro-simple-syntax` and
   `reaktoro-runtime-validation`.
 - Any source-code change: `scientific-change-verification`.
@@ -66,6 +68,9 @@ data/thermo/Kinec_v3_4.dat
 
 data/kinetics/kinec_rates_minimal.yaml
 = cleaned runtime kinetic-rate parameter file
+
+data/kinetics/PalandriKharaka_local.yaml
+= corrected local parameters for Reaktoro's native Palandri-Kharaka model
 
 batch_runner/Kinect_Custom_Rates.py
 = Kinec YAML -> Reaktoro kinetic-rate adapter
@@ -100,7 +105,18 @@ thermodynamic database. It is not the runtime kinetic-rate input.
 
 ## Kinetic-Rate Rule
 
-Runtime Kinec kinetics use only:
+The default kinetic model is Reaktoro's native
+`ReactionRateModelPalandriKharaka` loaded from:
+
+```text
+data/kinetics/PalandriKharaka_local.yaml
+```
+
+Reaktoro matches each exact thermodynamic mineral species name through the
+parameter record's `Mineral` and `OtherNames` fields. Missing matches are hard
+failures. Case configuration must not add a separate mineral alias.
+
+The custom Kinec model is available only with explicit `model: kinec` and uses:
 
 ```text
 data/kinetics/kinec_rates_minimal.yaml
@@ -118,7 +134,8 @@ Do not parse PHREEQC `RATES` blocks at runtime. Do not use
 `ReactionRateModelKinec` is provided by the user-supplied adapter, not by
 Reaktoro. Its units and dissolution/precipitation sign must be validated
 against the exact Reaktoro reaction-rate interface used before scientific
-runs.
+runs. Standard diagnostics use Reaktoro's runtime `ChemicalProps.reactionRate`
+for either selected model.
 
 ## No-Random-Values Rule
 
@@ -159,7 +176,7 @@ YAML config
 → PHREEQC database loading
 → chemical system construction
 → chemical state construction
-→ optional Kinec kinetic model attachment
+→ selected kinetic model attachment
 → solver execution
 → diagnostics/postprocessing
 ```

@@ -8,13 +8,10 @@
 # Goethite and Pyrite excluded intentionally to keep this target case
 # Kinec-YAML-only.
 #
-# Approved explicit aliases:
-# Chlorite(14A) -> Clinochlore-14A
-# K-feldspar -> K-Feldspar
-# Ca-Montmorillonite -> Montmor-Ca
+# Mineral names below are the exact local thermodynamic-database species names.
 #
-# Legacy controls retained as provenance but not executed by the V1 fixed-step
-# runner: dt_initial_s=1.0, dt_min_s=1.0e-4, growth_factor=1.05,
+# Legacy controls retained as provenance but not selected by this fixed-step
+# case: dt_initial_s=1.0, dt_min_s=1.0e-4, growth_factor=1.05,
 # max_consecutive_rejected=30, progress_every=250, time_tolerance_s=1.0e-7,
 # output weeks=[2, 5, 9, 18, 37], warning codes=[906, 548].
 case:
@@ -54,7 +51,7 @@ redox:
 
 kinetics:
   enabled: true
-  path: data/kinetics/kinec_rates_minimal.yaml
+  model: kinec
 
 minerals:
   - name: Quartz
@@ -65,9 +62,7 @@ minerals:
     role: kinetic
     initial_amount: {value: 0.47, unit: mol}
     surface_area: {value: 0.461, unit: m2/g}
-  - name: Chlorite(14A)
-    thermo_name: Clinochlore-14A
-    kinetic_name: Clinochlore-14A
+  - name: Clinochlore-14A
     role: kinetic
     initial_amount: {value: 0.19, unit: mol}
     surface_area: {value: 1.140, unit: m2/g}
@@ -79,9 +74,7 @@ minerals:
     role: kinetic
     initial_amount: {value: 0.18, unit: mol}
     surface_area: {value: 0.036, unit: m2/g}
-  - name: K-feldspar
-    thermo_name: K-Feldspar
-    kinetic_name: K-Feldspar
+  - name: K-Feldspar
     role: kinetic
     initial_amount: {value: 0.26, unit: mol}
     surface_area: {value: 0.0373, unit: m2/g}
@@ -89,9 +82,7 @@ minerals:
     role: kinetic
     initial_amount: {value: 0.19, unit: mol}
     surface_area: {value: 1.160, unit: m2/g}
-  - name: Ca-Montmorillonite
-    thermo_name: Montmor-Ca
-    kinetic_name: Montmor-Ca
+  - name: Montmor-Ca
     role: kinetic
     initial_amount: {value: 0.02, unit: mol}
     surface_area: {value: 0.045, unit: m2/g}
@@ -109,7 +100,7 @@ solver:
 postprocessing:
   requested_species:
     - H2O
-  requested_minerals: [Quartz, Illite, Chlorite(14A), Anorthite, Albite, K-feldspar, Kaolinite, Ca-Montmorillonite]
+  requested_minerals: [Quartz, Illite, Clinochlore-14A, Anorthite, Albite, K-Feldspar, Kaolinite, Montmor-Ca]
   aqueous_molalities: true
   saturation_indices: true
   reaction_rates: false
@@ -131,7 +122,7 @@ outputs:
   manifest: {enabled: true, include_input_snapshot: true}
   diagnostics: {enabled: true}
   timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
-  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: false, kinec_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: false, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
+  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: false, reaction_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: false, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
   solver_history: {enabled: true}
   plots: {enabled: false, pH: false, mineral_change: false, saturation_index: false, solver_dt: false, solver_iterations: false}
   debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}

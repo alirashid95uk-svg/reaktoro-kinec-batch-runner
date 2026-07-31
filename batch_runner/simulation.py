@@ -12,9 +12,9 @@ from typing import Any, Callable
 import reaktoro as rkt
 
 from batch_runner import OUTPUT_SCHEMA_VERSION
-from batch_runner.Kinect_Custom_Rates import KinecParams
 from batch_runner.config import ResolvedCase
 from batch_runner.simulator.database import load_database
+from batch_runner.simulator.kinetics import load_kinetic_parameters
 from batch_runner.simulator.mapping import build_kinetic_mapping, require_valid_kinetic_mapping
 from batch_runner.simulator.solver import execute_solver
 from batch_runner.simulator.state_builder import build_chemical_state
@@ -79,7 +79,7 @@ def run_simulation(
     try:
         database = load_database(case)
         stage = "kinetics_loading"
-        params = KinecParams.local(case.kinetics_path) if case.config.kinetics.enabled else None
+        params = load_kinetic_parameters(case)
         stage = "mapping"
         kinetic_mapping = build_kinetic_mapping(case, database, params)
         if mapping_ready is not None:
@@ -189,7 +189,6 @@ def run_simulation(
                 case,
                 system,
                 state,
-                params,
                 row_ready=row_ready,
                 solver_record_ready=solver_record_ready,
                 boundary_row_ready=boundary_row_ready,
@@ -256,6 +255,9 @@ def _build_diagnostics(
         "reaktoro_version": rkt.__version__,
         "database_source": case.config.database.source,
         "database_value": str(case.database_path or case.config.database.name),
+        "kinetic_model": case.config.kinetics.model,
+        "kinetic_parameter_path": str(case.kinetics_path) if case.kinetics_path else None,
+        "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
         "system_counts": (
             {
                 "elements": len(system.elements()),

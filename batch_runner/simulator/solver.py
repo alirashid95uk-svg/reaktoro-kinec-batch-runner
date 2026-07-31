@@ -20,7 +20,6 @@ def execute_solver(
     case: ResolvedCase,
     system: Any,
     state: Any,
-    kinec_params: Any | None = None,
     row_ready: Callable[[dict[str, Any]], None] | None = None,
     solver_record_ready: Callable[[dict[str, Any]], None] | None = None,
     boundary_row_ready: Callable[[str, dict[str, Any]], None] | None = None,
@@ -140,7 +139,7 @@ def execute_solver(
 
     if case.config.solver.workflow.mode == "equilibrium_only":
         initial_state = snapshot_state(state)
-        row = collect_row(case, state, record, initial_state, kinec_params)
+        row = collect_row(case, state, record, initial_state)
         emit_boundary("initial", row)
         emit_boundary("final", row)
         if output_due(0.0):
@@ -188,7 +187,7 @@ def execute_solver(
 
     initial_state = snapshot_state(state)
     initial_record = _unsolved_record(step_index, "initial_state", 0.0)
-    initial_row = collect_row(case, state, initial_record, initial_state, kinec_params)
+    initial_row = collect_row(case, state, initial_record, initial_state)
     emit_boundary("initial", initial_row)
     if output_due(0.0):
         emit_row(initial_row)
@@ -258,7 +257,7 @@ def execute_solver(
             emit_record(record)
             row = None
             if output_due(time_s):
-                row = collect_row(case, state, record, initial_state, kinec_params)
+                row = collect_row(case, state, record, initial_state)
                 emit_row(row)
             if checkpoint_due(time_s):
                 checkpoint_count += 1
@@ -266,7 +265,7 @@ def execute_solver(
             if time_s == case.duration_s:
                 emit_boundary(
                     "final",
-                    row or collect_row(case, state, record, initial_state, kinec_params),
+                    row or collect_row(case, state, record, initial_state),
                 )
         return initial_state, progress(completed=True)
 
@@ -396,7 +395,7 @@ def execute_solver(
         emit_record(record)
         row = None
         if output_due(time_s):
-            row = collect_row(case, state, record, initial_state, kinec_params)
+            row = collect_row(case, state, record, initial_state)
             emit_row(row)
         if checkpoint_due(time_s):
             checkpoint_count += 1
@@ -404,7 +403,7 @@ def execute_solver(
         if time_s == case.duration_s:
             emit_boundary(
                 "final",
-                row or collect_row(case, state, record, initial_state, kinec_params),
+                row or collect_row(case, state, record, initial_state),
             )
         controller_dt_s = next_dt_s
 

@@ -50,7 +50,7 @@ redox:
 
 kinetics:
   enabled: true
-  path: data/kinetics/kinec_rates_minimal.yaml
+  model: kinec
 
 minerals:
   - name: Calcite
@@ -113,7 +113,7 @@ outputs:
     mineral_summary: true
     aqueous_summary: true
     reaction_rates: false
-    kinec_rate_validation: false
+    reaction_rate_validation: false
     carbon_inventory: false
     element_budget: false
     mineral_volume_change: false

@@ -19,10 +19,8 @@ description: Verify source-code, test, configuration, and documentation changes 
 7. Confirm protected scientific files did not change unexpectedly:
 
 ```powershell
-git diff --exit-code -- data/thermo/Kinec_v3_4.dat data/kinetics/kinec_rates_minimal.yaml batch_runner/Kinect_Custom_Rates.py
+git diff --exit-code -- data/thermo/Kinec_v3_4.dat data/kinetics/PalandriKharaka_local.yaml data/kinetics/kinec_rates_minimal.yaml
 ```
-
-Include the adapter in that command only when it was not intentionally edited.
 
 ## Completion Standard
 
