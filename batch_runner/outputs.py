@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from pathlib import Path
 
 import yaml
@@ -79,25 +80,18 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
     except Exception as error:
         output_dir = case.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-        prior_failure = result.diagnostics.get("failed_stage")
-        if prior_failure is None:
-            result.diagnostics.update(
-                {
-                    "failed_stage": "output_writing",
-                    "exception_type": type(error).__name__,
-                    "error_message": str(error),
-                    "termination_reason": "lifecycle_exception",
-                }
-            )
+        output_traceback = traceback.format_exc()
+        if result.exception_traceback:
+            result.exception_traceback += f"\nSecondary output traceback:\n{output_traceback}"
         else:
-            result.diagnostics["output_failure"] = {
-                "failed_stage": "output_writing",
-                "exception_type": type(error).__name__,
-                "error_message": str(error),
-            }
+            result.exception_traceback = output_traceback
+        result.diagnostics["output_failure"] = {
+            "failed_stage": "output_writing",
+            "exception_type": type(error).__name__,
+            "error_message": str(error),
+        }
         result.diagnostics.update(
             {
-                "simulation_completed": False,
                 "partial_outputs_written": True,
                 "scientific_outputs_omitted": True,
             }

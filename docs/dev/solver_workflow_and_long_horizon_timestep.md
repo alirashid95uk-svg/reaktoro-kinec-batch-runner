@@ -66,6 +66,24 @@ automatic scientific choices
 silent fallbacks
 ```
 
+### 2.1 Launcher Preflight
+
+Before enabling a user-launched run, execute the same preparation chain used
+by the simulation:
+
+```text
+configuration resolution
+→ database loading
+→ kinetic-parameter loading
+→ exact mineral mapping
+→ chemical-system construction
+→ initial-state construction
+```
+
+Preflight stops before equilibrium or kinetic solver execution and writes no
+scientific outputs. A blocked case must report the exact stage and mapping
+failures; it must not silently skip minerals or alter scientific settings.
+
 ---
 
 ## 3. Scientific Scope Warning

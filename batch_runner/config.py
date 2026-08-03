@@ -887,7 +887,11 @@ class ResolvedCase:
         return data
 
 
-def load_case(config_path: str | Path) -> ResolvedCase:
+def load_case(
+    config_path: str | Path,
+    *,
+    output_dir_override: str | Path | None = None,
+) -> ResolvedCase:
     path = Path(config_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"case config does not exist: {path}")
@@ -896,6 +900,8 @@ def load_case(config_path: str | Path) -> ResolvedCase:
         raw = yaml.safe_load(stream)
     if not isinstance(raw, dict):
         raise ValueError(f"case config must contain a YAML mapping: {path}")
+    if output_dir_override is not None:
+        raw["paths"]["output_dir"] = str(output_dir_override)
 
     config = CaseConfig.model_validate(raw)
     return resolve_case(config, path)

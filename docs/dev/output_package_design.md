@@ -444,9 +444,16 @@ Lifecycle failures use the exact stage names `database_loading`,
 `solver_execution`, and `output_writing`. Diagnostics retain the exception
 type/message, last accepted time, and an `output_completeness` object listing
 the files actually written.
-If output writing also fails after an earlier simulation failure, the primary
-`failed_stage` is retained and the secondary failure is stored in
-`output_failure`.
+`simulation_completed` describes chemistry preparation and solver completion;
+an output-writing failure must not change a completed simulation to false. Any
+output-writing failure is stored under `output_failure`, while the primary
+`failed_stage` and exception remain unchanged. `output_completeness` records
+whether the package is complete or partial.
+
+The Windows launcher writes `diagnosis.txt` beside the run YAML and launch log,
+outside the result package. It summarizes the existing diagnostics, mapping,
+child-process exit code, and safe next actions. Python and native crash stacks
+remain in `launch_log.txt`; they are not duplicated in scientific result files.
 
 For an incomplete fixed or adaptive run, write diagnostics plus configured partial
 timeseries and solver history from accepted states. Record the failed trial in

@@ -17,7 +17,13 @@ from batch_runner.Kinect_Custom_Rates import KinecParams, ReactionRateModelKinec
 from batch_runner.config import CaseConfig, load_case
 from batch_runner.output_tables import mineral_summary_rows, timeseries_columns
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
-from batch_runner.simulation import SimulationResult, build_kinetic_mapping, load_database, run_simulation
+from batch_runner.simulation import (
+    SimulationResult,
+    build_kinetic_mapping,
+    load_database,
+    preflight_case,
+    run_simulation,
+)
 from batch_runner.simulator.extract import collect_row
 from batch_runner.simulator.kinetics import load_kinetic_parameters
 from batch_runner.simulator.mapping import require_valid_kinetic_mapping
@@ -34,6 +40,7 @@ SOURCE_CASE_PATH = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
 DEVELOPMENT_CASE_PATH = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
 JAYASEKARA_KINEC_ONLY_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_kinec_only_software_test.yaml"
 JAYASEKARA_REDOX_OFF_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_kinec_only_redox_off_test.yaml"
+JAYASEKARA_NO_EXCHANGE_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_no_ion_exchange_software_test.yaml"
 
 
 def _read_yaml(path: Path) -> dict:
@@ -76,6 +83,24 @@ def test_project_relative_path_resolves_from_project_root(tmp_path: Path) -> Non
     resolved = load_case(_write_case(tmp_path, raw))
     assert resolved.database_path == DATABASE_PATH.resolve()
     assert resolved.full_steps == 0
+
+
+def test_preflight_blocks_missing_kinec_records_before_solver(tmp_path: Path) -> None:
+    case = load_case(
+        JAYASEKARA_NO_EXCHANGE_CASE_PATH,
+        output_dir_override=tmp_path / "preflight-results",
+    )
+
+    report = preflight_case(case)
+
+    assert report["ready"] is False
+    assert report["failed_stage"] == "mapping"
+    assert [
+        row["mineral_name"]
+        for row in report["kinetic_mapping"]
+        if row["status"] == "failed"
+    ] == ["Chlorite(14A)", "K-feldspar", "Goethite", "Pyrite", "Ca-Montmorillonite"]
+    assert not case.output_dir.exists()
 
 
 def test_kinetic_model_defaults_and_resolved_provenance(tmp_path: Path) -> None:

@@ -40,8 +40,8 @@ kinetics:
 minerals:
   - name: Calcite
     role: kinetic
-    initial_amount: {value: 10.0, unit: g}
-    surface_area: {value: 6.0, unit: cm2/cm3}
+    initial_amount: {value: 0.8, unit: mol}
+    surface_area: {value: 0.08, unit: m2/g}
   - name: Quartz
     role: kinetic
     initial_amount: {value: 4.26, unit: mol}
@@ -54,12 +54,12 @@ minerals:
 solver:
   workflow:
     mode: fixed_fugacity_initial_equilibrium_then_closed_kinetics
-    precondition_kinetics: true
+    precondition_kinetics: false
   timestep:
     mode: fixed
-    time: {duration_value: 1.0, duration_unit: seconds}
+    time: {duration_value: 60.0, duration_unit: seconds}
     step_size:
-      dt: {value: 1.0, unit: seconds}
+      dt: {value: 10.0, unit: seconds}
 
 postprocessing:
   requested_species: [H+, Ca+2, SiO2, Al+3]

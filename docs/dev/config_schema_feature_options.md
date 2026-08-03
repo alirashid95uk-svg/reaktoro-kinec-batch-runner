@@ -47,6 +47,11 @@ No hidden defaults for scientific behaviour.
 
 Use strict Pydantic models.
 
+Launcher preflight introduces no YAML option and no scientific default. It may
+override only `paths.output_dir` with a fresh temporary path while resolving a
+case, so an existing result directory cannot prevent read-only construction
+checks. The source YAML remains unchanged.
+
 ---
 
 ## 3. Top-Level Config Blocks

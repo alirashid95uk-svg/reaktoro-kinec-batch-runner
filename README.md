@@ -5,6 +5,32 @@ equilibrium and kinetic cases. Reaktoro's native Palandri-Kharaka model uses
 the corrected local parameter file by default; the custom Kinec model is an
 explicit option.
 
+## Easiest: One-Click Launcher
+
+Double-click `Simulation launcher/Run Simulations.cmd`. Select one or more cases, review their
+scientific settings, and choose **Validate**. Cases are labelled **READY**,
+**BLOCKED**, or **NOT CHECKED**; **Run selected** is enabled only after full
+preflight passes. The launcher:
+
+- starts the verified `fypr-reaktoro` environment;
+- validates the configuration, database, kinetic records, mineral mapping,
+  chemical system, and initial state before execution;
+- runs selected cases sequentially;
+- creates `runs/<case>/<timestamp>/run_case.yaml` as a traceable input snapshot;
+- changes only the snapshot's `paths.output_dir`;
+- writes results into a fresh `results/` folder and never overwrites an old run;
+- keeps terminal output in `launch_log.txt`; and
+- writes a plain-language `diagnosis.txt` with the true failure stage, last
+  accepted time, output completeness, and safe next actions;
+- captures Python/native crash stacks and the exact child-process exit code;
+- opens the latest run folder or its report from **Open last run** and
+  **Open diagnosis**.
+
+The original YAML case and all scientific settings remain unchanged. The run
+snapshot records the original case path and SHA-256 hash. The launcher improves
+setup and queue handling; it does not change Reaktoro solver performance or
+scientific settings.
+
 ## Run a Case
 
 Use the locally verified environment:

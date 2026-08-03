@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ class SimulationResult:
     solver_history_stream_path: Path | None = None
     first_row: dict[str, Any] | None = None
     last_row: dict[str, Any] | None = None
+    exception_traceback: str | None = None
 
     def iter_rows(self):
         if self.rows is not None:
@@ -67,11 +69,25 @@ class SimulationResult:
                 path.unlink(missing_ok=True)
 
 
-def run_simulation(
+@dataclass
+class PreparedSimulation:
+    kinetic_mapping: list[dict[str, Any]]
+    system: Any | None
+    state: Any | None
+    failed_stage: str | None = None
+    error: Exception | None = None
+    exception_traceback: str | None = None
+
+    @property
+    def ready(self) -> bool:
+        return self.error is None
+
+
+def prepare_simulation(
     case: ResolvedCase,
     mapping_ready: Callable[[list[dict[str, Any]]], None] | None = None,
-) -> SimulationResult:
-    run_started_at = datetime.now(timezone.utc).isoformat()
+) -> PreparedSimulation:
+    """Build and validate the configured chemistry without starting a solver."""
     kinetic_mapping: list[dict[str, Any]] = []
     system = None
     state = None
@@ -92,15 +108,51 @@ def run_simulation(
         stage = "state_construction"
         state = build_chemical_state(case, system)
     except Exception as error:
-        return _failed_result(
-            case,
-            run_started_at,
-            stage,
-            error,
+        return PreparedSimulation(
             kinetic_mapping=kinetic_mapping,
             system=system,
             state=state,
+            failed_stage=stage,
+            error=error,
+            exception_traceback=traceback.format_exc(),
         )
+    return PreparedSimulation(kinetic_mapping, system, state)
+
+
+def preflight_case(case: ResolvedCase) -> dict[str, Any]:
+    prepared = prepare_simulation(case)
+    return {
+        "ready": prepared.ready,
+        "case_name": case.config.case.name,
+        "failed_stage": prepared.failed_stage,
+        "exception_type": type(prepared.error).__name__ if prepared.error else None,
+        "error_message": str(prepared.error) if prepared.error else None,
+        "kinetic_mapping": prepared.kinetic_mapping,
+        "technical_traceback": prepared.exception_traceback,
+    }
+
+
+def run_simulation(
+    case: ResolvedCase,
+    mapping_ready: Callable[[list[dict[str, Any]]], None] | None = None,
+) -> SimulationResult:
+    run_started_at = datetime.now(timezone.utc).isoformat()
+    prepared = prepare_simulation(case, mapping_ready)
+    if not prepared.ready:
+        assert prepared.error is not None and prepared.failed_stage is not None
+        return _failed_result(
+            case,
+            run_started_at,
+            prepared.failed_stage,
+            prepared.error,
+            kinetic_mapping=prepared.kinetic_mapping,
+            system=prepared.system,
+            state=prepared.state,
+            exception_traceback=prepared.exception_traceback,
+        )
+    kinetic_mapping = prepared.kinetic_mapping
+    system = prepared.system
+    state = prepared.state
 
     row_stream_path = case.output_dir / ".timeseries.jsonl"
     solver_history_stream_path = case.output_dir / ".solver_history.jsonl"
@@ -114,6 +166,7 @@ def run_simulation(
     internal_attempts = 0
     solver_failed_attempts = 0
     initial_state = None
+    exception_traceback = None
 
     try:
         stage = "output_writing"
@@ -196,6 +249,7 @@ def run_simulation(
             )
             stage = "output_writing"
     except Exception as error:
+        exception_traceback = traceback.format_exc()
         solver_progress = _exception_progress(
             stage,
             error,
@@ -225,6 +279,7 @@ def run_simulation(
         solver_history_stream_path=solver_history_stream_path,
         first_row=first_row,
         last_row=last_row,
+        exception_traceback=exception_traceback,
     )
 
 
@@ -348,6 +403,7 @@ def _failed_result(
     kinetic_mapping: list[dict[str, Any]],
     system: Any | None,
     state: Any | None,
+    exception_traceback: str | None,
 ) -> SimulationResult:
     return SimulationResult(
         rows=[],
@@ -362,6 +418,7 @@ def _failed_result(
         ),
         initial_state=None,
         final_state=state,
+        exception_traceback=exception_traceback,
     )
 
 

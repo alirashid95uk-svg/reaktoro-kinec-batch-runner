@@ -958,11 +958,16 @@ def test_output_failure_preserves_simulation_status_and_file_completeness(
     write_outputs(case, result)
     diagnostics = json.loads((case.output_dir / "diagnostics.json").read_text(encoding="utf-8"))
 
-    assert diagnostics["failed_stage"] == "output_writing"
-    assert diagnostics["exception_type"] == "OSError"
-    assert diagnostics["error_message"] == "forced CSV failure"
+    assert diagnostics["simulation_completed"] is True
+    assert diagnostics["failed_stage"] is None
+    assert diagnostics["output_failure"] == {
+        "failed_stage": "output_writing",
+        "exception_type": "OSError",
+        "error_message": "forced CSV failure",
+    }
     assert diagnostics["final_time_reached_s"] == 1.0
     assert diagnostics["output_completeness"]["status"] == "partial"
+    assert "forced CSV failure" in result.exception_traceback
 
 
 def test_output_failure_does_not_overwrite_primary_failure(tmp_path: Path, monkeypatch) -> None:
@@ -989,6 +994,8 @@ def test_output_failure_does_not_overwrite_primary_failure(tmp_path: Path, monke
         "exception_type": "OSError",
         "error_message": "secondary output failure",
     }
+    assert "primary mapping failure" in result.exception_traceback
+    assert "secondary output failure" in result.exception_traceback
 
 
 def test_output_auditor_rejects_previous_schema_version(tmp_path: Path) -> None:
