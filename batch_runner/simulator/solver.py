@@ -227,7 +227,10 @@ def execute_solver(
     if output_due(0.0):
         emit_row(initial_row)
 
-    if timestep.mode == "fixed":
+    def _run_fixed_timesteps() -> tuple[Any, dict[str, Any]]:
+        nonlocal accepted_steps, checkpoint_count, dt_max_s, dt_min_s, dt_total_s
+        nonlocal failed_steps, kinetic_attempts, solver_failed_attempts, step_index, time_s
+
         for dt_s, target_time_s in case.fixed_steps_s():
             if is_cancelled():
                 return initial_state, cancelled("before_fixed_solver_attempt")
@@ -329,200 +332,209 @@ def execute_solver(
                 )
         return initial_state, progress(completed=True)
 
-    if not isinstance(timestep, AdaptiveTimestepConfig):
-        raise TypeError(f"unsupported timestep config: {type(timestep).__name__}")
-    controller_dt_s = case.dt_initial_s
-    while time_s < case.duration_s:
-        if is_cancelled():
-            return initial_state, cancelled("before_adaptive_solver_attempt")
-        if kinetic_attempts >= timestep.max_internal_steps:
-            return initial_state, progress(
-                completed=False,
-                termination_reason="max_internal_steps_exceeded",
-                failed_stage="timestep_controller",
-                error_message=(
-                    f"adaptive controller reached max_internal_steps={timestep.max_internal_steps}"
-                ),
-                accepted_state_restored=True,
-            )
+    def _run_adaptive_timesteps() -> tuple[Any, dict[str, Any]]:
+        nonlocal accepted_steps, checkpoint_count, dt_max_s, dt_min_s, dt_total_s
+        nonlocal failed_steps, kinetic_attempts, retries_at_current_time
+        nonlocal solver_failed_attempts, step_index, time_s
 
-        forced_target_s = _next_forced_target(
-            time_s,
-            case.duration_s,
-            next_output_time,
-            next_checkpoint_time,
-        )
-        target_time_s = _adaptive_target(time_s, controller_dt_s, forced_target_s)
-        dt_s = float(Decimal(str(target_time_s)) - Decimal(str(time_s)))
-        start_s = time_s
-        accepted_state = snapshot_state(state)
-        result, wall_time_s, error = _timed_solve(
-            kinetic_solver,
-            state,
-            dt_s=dt_s,
-            conditions=conditions,
-        )
-        cancel_after_attempt = is_cancelled()
-        kinetic_attempts += 1
-        solver_reason = _failure_reason(
-            result,
-            error,
-            f"adaptive kinetic attempt ending at {target_time_s} s",
-        )
-        if cancel_after_attempt:
-            state.assign(accepted_state)
-            failed_steps += 1
-            if solver_reason is not None:
-                solver_failed_attempts += 1
-            emit_record(
-                _solver_record(
-                    step_index=step_index,
-                    attempt_index=kinetic_attempts,
-                    stage="adaptive_kinetic_attempt",
-                    time_start_s=start_s,
-                    time_end_s=start_s,
-                    dt_s=dt_s,
-                    result=result,
-                    wall_time_s=wall_time_s,
-                    accepted=False,
-                    failure_reason=(
-                        solver_reason
-                        or "cooperative cancellation requested before trial acceptance"
-                    ),
-                    acceptance_reason=("solver_failure" if solver_reason else "cancelled_before_acceptance"),
-                )
-            )
-            if solver_reason is not None:
-                rejection_reason_counts["solver_failure"] = rejection_reason_counts.get("solver_failure", 0) + 1
+        controller_dt_s = case.dt_initial_s
+        while time_s < case.duration_s:
+            if is_cancelled():
+                return initial_state, cancelled("before_adaptive_solver_attempt")
+            if kinetic_attempts >= timestep.max_internal_steps:
                 return initial_state, progress(
                     completed=False,
-                    failed_stage="adaptive_kinetic_attempt",
-                    error_message=solver_reason,
-                    exception_type=type(error).__name__ if error is not None else None,
-                    failed_attempt_target_time_s=target_time_s,
-                    failed_attempt_dt_s=dt_s,
+                    termination_reason="max_internal_steps_exceeded",
+                    failed_stage="timestep_controller",
+                    error_message=(
+                        f"adaptive controller reached max_internal_steps={timestep.max_internal_steps}"
+                    ),
                     accepted_state_restored=True,
-                    cancellation_requested=True,
-                    cancellation_boundary="after_adaptive_solver_attempt",
-                )
-            return initial_state, cancelled("after_adaptive_solver_attempt")
-        acceptance = _empty_acceptance("solver_failure" if solver_reason else "accepted")
-        acceptance_error = None
-        if solver_reason is None:
-            try:
-                acceptance = evaluate_trial(case, system, accepted_state, state)
-            except Exception as acceptance_exception:
-                acceptance_error = acceptance_exception
-                acceptance = _empty_acceptance(
-                    "acceptance_evaluation_error:"
-                    f"{type(acceptance_exception).__name__}:{acceptance_exception}"
                 )
 
-        rejection_reason = solver_reason or (
-            None if acceptance["accepted"] else acceptance["acceptance_reason"]
-        )
-        if rejection_reason is not None:
-            state.assign(accepted_state)
-            failed_steps += 1
-            retries_at_current_time += 1
-            if solver_reason is not None:
-                solver_failed_attempts += 1
-            reason_key = "solver_failure" if solver_reason else acceptance["acceptance_reason"]
-            for reason in reason_key.split(";"):
-                rejection_reason_counts[reason] = rejection_reason_counts.get(reason, 0) + 1
-            next_dt_s = max(case.dt_min_s, dt_s * timestep.step_size.shrink_factor)
-            emit_record(
-                _solver_record(
-                    step_index=step_index,
-                    attempt_index=kinetic_attempts,
-                    stage="adaptive_kinetic_attempt",
-                    time_start_s=start_s,
-                    time_end_s=start_s,
-                    dt_s=dt_s,
-                    result=result,
-                    wall_time_s=wall_time_s,
-                    accepted=False,
-                    failure_reason=rejection_reason,
-                    next_dt_s=next_dt_s,
-                    **_record_acceptance(acceptance),
-                )
+            forced_target_s = _next_forced_target(
+                time_s,
+                case.duration_s,
+                next_output_time,
+                next_checkpoint_time,
             )
-            retry_limit_hit = retries_at_current_time > timestep.step_size.max_retries_per_step
-            minimum_hit = dt_s <= case.dt_min_s
-            if retry_limit_hit or minimum_hit:
-                return initial_state, progress(
-                    completed=False,
-                    termination_reason=(
-                        "retry_limit_exceeded" if retry_limit_hit else "minimum_timestep_rejected"
-                    ),
-                    failed_stage="adaptive_kinetic_attempt",
-                    error_message=rejection_reason,
-                    exception_type=(
-                        type(error).__name__
-                        if error is not None
-                        else type(acceptance_error).__name__ if acceptance_error is not None else None
-                    ),
-                    failed_attempt_target_time_s=target_time_s,
-                    failed_attempt_dt_s=dt_s,
-                    accepted_state_restored=True,
+            target_time_s = _adaptive_target(time_s, controller_dt_s, forced_target_s)
+            dt_s = float(Decimal(str(target_time_s)) - Decimal(str(time_s)))
+            start_s = time_s
+            accepted_state = snapshot_state(state)
+            result, wall_time_s, error = _timed_solve(
+                kinetic_solver,
+                state,
+                dt_s=dt_s,
+                conditions=conditions,
+            )
+            cancel_after_attempt = is_cancelled()
+            kinetic_attempts += 1
+            solver_reason = _failure_reason(
+                result,
+                error,
+                f"adaptive kinetic attempt ending at {target_time_s} s",
+            )
+            if cancel_after_attempt:
+                state.assign(accepted_state)
+                failed_steps += 1
+                if solver_reason is not None:
+                    solver_failed_attempts += 1
+                emit_record(
+                    _solver_record(
+                        step_index=step_index,
+                        attempt_index=kinetic_attempts,
+                        stage="adaptive_kinetic_attempt",
+                        time_start_s=start_s,
+                        time_end_s=start_s,
+                        dt_s=dt_s,
+                        result=result,
+                        wall_time_s=wall_time_s,
+                        accepted=False,
+                        failure_reason=(
+                            solver_reason
+                            or "cooperative cancellation requested before trial acceptance"
+                        ),
+                        acceptance_reason=("solver_failure" if solver_reason else "cancelled_before_acceptance"),
+                    )
+                )
+                if solver_reason is not None:
+                    rejection_reason_counts["solver_failure"] = rejection_reason_counts.get("solver_failure", 0) + 1
+                    return initial_state, progress(
+                        completed=False,
+                        failed_stage="adaptive_kinetic_attempt",
+                        error_message=solver_reason,
+                        exception_type=type(error).__name__ if error is not None else None,
+                        failed_attempt_target_time_s=target_time_s,
+                        failed_attempt_dt_s=dt_s,
+                        accepted_state_restored=True,
+                        cancellation_requested=True,
+                        cancellation_boundary="after_adaptive_solver_attempt",
+                    )
+                return initial_state, cancelled("after_adaptive_solver_attempt")
+            acceptance = _empty_acceptance("solver_failure" if solver_reason else "accepted")
+            acceptance_error = None
+            if solver_reason is None:
+                try:
+                    acceptance = evaluate_trial(case, system, accepted_state, state)
+                except Exception as acceptance_exception:
+                    acceptance_error = acceptance_exception
+                    acceptance = _empty_acceptance(
+                        "acceptance_evaluation_error:"
+                        f"{type(acceptance_exception).__name__}:{acceptance_exception}"
+                    )
+
+            rejection_reason = solver_reason or (
+                None if acceptance["accepted"] else acceptance["acceptance_reason"]
+            )
+            if rejection_reason is not None:
+                state.assign(accepted_state)
+                failed_steps += 1
+                retries_at_current_time += 1
+                if solver_reason is not None:
+                    solver_failed_attempts += 1
+                reason_key = "solver_failure" if solver_reason else acceptance["acceptance_reason"]
+                for reason in reason_key.split(";"):
+                    rejection_reason_counts[reason] = rejection_reason_counts.get(reason, 0) + 1
+                next_dt_s = max(case.dt_min_s, dt_s * timestep.step_size.shrink_factor)
+                emit_record(
+                    _solver_record(
+                        step_index=step_index,
+                        attempt_index=kinetic_attempts,
+                        stage="adaptive_kinetic_attempt",
+                        time_start_s=start_s,
+                        time_end_s=start_s,
+                        dt_s=dt_s,
+                        result=result,
+                        wall_time_s=wall_time_s,
+                        accepted=False,
+                        failure_reason=rejection_reason,
+                        next_dt_s=next_dt_s,
+                        **_record_acceptance(acceptance),
+                    )
+                )
+                retry_limit_hit = retries_at_current_time > timestep.step_size.max_retries_per_step
+                minimum_hit = dt_s <= case.dt_min_s
+                if retry_limit_hit or minimum_hit:
+                    return initial_state, progress(
+                        completed=False,
+                        termination_reason=(
+                            "retry_limit_exceeded" if retry_limit_hit else "minimum_timestep_rejected"
+                        ),
+                        failed_stage="adaptive_kinetic_attempt",
+                        error_message=rejection_reason,
+                        exception_type=(
+                            type(error).__name__
+                            if error is not None
+                            else type(acceptance_error).__name__ if acceptance_error is not None else None
+                        ),
+                        failed_attempt_target_time_s=target_time_s,
+                        failed_attempt_dt_s=dt_s,
+                        accepted_state_restored=True,
+                    )
+                controller_dt_s = next_dt_s
+                continue
+
+            time_s = target_time_s
+            next_dt_s = min(
+                case.dt_max_s,
+                max(case.dt_min_s, controller_dt_s * timestep.step_size.growth_factor),
+            )
+            record = _solver_record(
+                step_index=step_index,
+                attempt_index=kinetic_attempts,
+                stage="adaptive_kinetic_attempt",
+                time_start_s=start_s,
+                time_end_s=time_s,
+                dt_s=dt_s,
+                result=result,
+                wall_time_s=wall_time_s,
+                next_dt_s=next_dt_s,
+                **_record_acceptance(acceptance),
+            )
+            accepted_steps += 1
+            retries_at_current_time = 0
+            dt_min_s = dt_s if dt_min_s is None else min(dt_min_s, dt_s)
+            dt_max_s = dt_s if dt_max_s is None else max(dt_max_s, dt_s)
+            dt_total_s += dt_s
+            step_index += 1
+            emit_record(record)
+            row = None
+            if output_due(time_s):
+                if is_cancelled():
+                    return initial_state, cancelled(
+                        "before_adaptive_output_extraction",
+                        restored=False,
+                    )
+                row = collect_row(case, state, record, initial_state)
+                emit_row(row)
+            if checkpoint_due(time_s):
+                if is_cancelled():
+                    return initial_state, cancelled(
+                        "before_adaptive_checkpoint",
+                        restored=False,
+                    )
+                checkpoint_count += 1
+                emit_checkpoint(record, state)
+            if time_s == case.duration_s:
+                if row is None and is_cancelled():
+                    return initial_state, cancelled(
+                        "before_adaptive_final_output_extraction",
+                        restored=False,
+                    )
+                emit_boundary(
+                    "final",
+                    row or collect_row(case, state, record, initial_state),
                 )
             controller_dt_s = next_dt_s
-            continue
 
-        time_s = target_time_s
-        next_dt_s = min(
-            case.dt_max_s,
-            max(case.dt_min_s, controller_dt_s * timestep.step_size.growth_factor),
-        )
-        record = _solver_record(
-            step_index=step_index,
-            attempt_index=kinetic_attempts,
-            stage="adaptive_kinetic_attempt",
-            time_start_s=start_s,
-            time_end_s=time_s,
-            dt_s=dt_s,
-            result=result,
-            wall_time_s=wall_time_s,
-            next_dt_s=next_dt_s,
-            **_record_acceptance(acceptance),
-        )
-        accepted_steps += 1
-        retries_at_current_time = 0
-        dt_min_s = dt_s if dt_min_s is None else min(dt_min_s, dt_s)
-        dt_max_s = dt_s if dt_max_s is None else max(dt_max_s, dt_s)
-        dt_total_s += dt_s
-        step_index += 1
-        emit_record(record)
-        row = None
-        if output_due(time_s):
-            if is_cancelled():
-                return initial_state, cancelled(
-                    "before_adaptive_output_extraction",
-                    restored=False,
-                )
-            row = collect_row(case, state, record, initial_state)
-            emit_row(row)
-        if checkpoint_due(time_s):
-            if is_cancelled():
-                return initial_state, cancelled(
-                    "before_adaptive_checkpoint",
-                    restored=False,
-                )
-            checkpoint_count += 1
-            emit_checkpoint(record, state)
-        if time_s == case.duration_s:
-            if row is None and is_cancelled():
-                return initial_state, cancelled(
-                    "before_adaptive_final_output_extraction",
-                    restored=False,
-                )
-            emit_boundary(
-                "final",
-                row or collect_row(case, state, record, initial_state),
-            )
-        controller_dt_s = next_dt_s
+        return initial_state, progress(completed=True)
 
-    return initial_state, progress(completed=True)
+    if timestep.mode == "fixed":
+        return _run_fixed_timesteps()
+    if not isinstance(timestep, AdaptiveTimestepConfig):
+        raise TypeError(f"unsupported timestep config: {type(timestep).__name__}")
+    return _run_adaptive_timesteps()
 
 
 def _next_forced_target(

@@ -40,7 +40,7 @@ data/kinetics/kinec_rates_minimal.yaml
 data/kinetics/PalandriKharaka_local.yaml
 = default native Palandri-Kharaka parameter file
 
-batch_runner/Kinect_Custom_Rates.py
+batch_runner/simulator/kinec.py
 = Kinec YAML -> Reaktoro kinetic-rate adapter
 ```
 

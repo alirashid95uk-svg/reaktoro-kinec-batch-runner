@@ -113,7 +113,7 @@ porosity_permeability.csv
 - Default native kinetic parameters: `data/kinetics/PalandriKharaka_local.yaml`
 - Optional custom Kinec parameters: `data/kinetics/kinec_rates_minimal.yaml`
 - Optional Kinec adapter:
-  `batch_runner/Kinect_Custom_Rates.py`
+  `batch_runner/simulator/kinec.py`
 
 Copy `cases/schema_template.yaml` to create a case input. The template is
 intentionally not runnable: replace every required placeholder with a value

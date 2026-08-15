@@ -2464,7 +2464,7 @@ Display aggregation is not written back into scientific source files.
 |---|---|
 | `runner.py` | Preserve current CLI; add backward-compatible machine-event and cancellation options. |
 | `batch_runner/config.py` | Retain as authoritative runtime schema and preprocessing source. Add only justified metadata and tests. |
-| `batch_runner/simulation.py` | Retain orchestration; expose safe progress and cooperative-cancellation checks without Qt imports. |
+| `batch_runner/simulator/simulation.py` | Retain orchestration; expose safe progress and cooperative-cancellation checks without Qt imports. |
 | `batch_runner/simulator/*` | Retain scientific implementation and direct Reaktoro usage. |
 | `batch_runner/outputs.py` | Retain authoritative scientific output writing. |
 | `batch_runner/output_tables.py` | Retain table definitions and expose stable descriptors where practical. |

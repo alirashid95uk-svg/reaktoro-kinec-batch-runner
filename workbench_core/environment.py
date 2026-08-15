@@ -224,7 +224,7 @@ def _scientific_file_checks(root: Path) -> list[Check]:
         root / "data" / "thermo" / "Kinec_v3_4.dat",
         root / "data" / "kinetics" / "PalandriKharaka_local.yaml",
         root / "data" / "kinetics" / "kinec_rates_minimal.yaml",
-        root / "batch_runner" / "Kinect_Custom_Rates.py",
+        root / "batch_runner" / "simulator" / "kinec.py",
     ]
     return [Check(f"scientific_file:{path.name}", path.is_file(), str(path)) for path in paths]
 

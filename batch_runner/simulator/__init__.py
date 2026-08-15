@@ -1,1 +1,1 @@
-"""Focused functions used by batch_runner.simulation."""
+"""Scientific simulation construction and execution."""

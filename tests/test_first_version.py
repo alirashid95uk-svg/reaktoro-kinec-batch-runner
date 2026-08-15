@@ -13,11 +13,11 @@ import reaktoro as rkt
 import yaml
 from pydantic import ValidationError
 
-from batch_runner.Kinect_Custom_Rates import KinecParams, ReactionRateModelKinec
 from batch_runner.config import CaseConfig, load_case
 from batch_runner.output_tables import mineral_summary_rows, timeseries_columns
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
-from batch_runner.simulation import (
+from batch_runner.simulator.kinec import KinecParams, ReactionRateModelKinec
+from batch_runner.simulator.simulation import (
     SimulationResult,
     build_kinetic_mapping,
     load_database,

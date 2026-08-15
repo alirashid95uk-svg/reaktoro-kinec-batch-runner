@@ -9,7 +9,7 @@ import reaktoro as rkt
 
 from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import ResolvedCase
-from batch_runner.simulation import SimulationResult
+from batch_runner.simulator.simulation import SimulationResult
 
 def build_manifest(
     case: ResolvedCase,

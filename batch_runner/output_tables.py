@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulation import SimulationResult
+from batch_runner.simulator.simulation import SimulationResult
 
 
 TIMESERIES_CORE_COLUMNS = [

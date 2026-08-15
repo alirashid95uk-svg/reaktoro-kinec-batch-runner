@@ -48,7 +48,7 @@ from batch_runner.scientific_reports import (
     workflow_comparison_columns,
     workflow_comparison_rows,
 )
-from batch_runner.simulation import SimulationResult
+from batch_runner.simulator.simulation import SimulationResult
 
 
 MAPPING_COLUMNS = [

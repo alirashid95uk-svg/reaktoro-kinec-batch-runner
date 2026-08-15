@@ -12,7 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulation import SimulationResult
+from batch_runner.simulator.simulation import SimulationResult
 
 
 def write_plots(case: ResolvedCase, result: SimulationResult, plots_dir: Path) -> list[Path]:

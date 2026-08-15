@@ -19,7 +19,7 @@ import reaktoro as rkt
 from batch_runner.config import load_case
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.protocol_events import ProtocolEmitter, cancellation_requested
-from batch_runner.simulation import preflight_case, run_simulation
+from batch_runner.simulator.simulation import preflight_case, run_simulation
 from batch_runner.simulator.kinetics import uses_python_rate_callback
 
 
