@@ -83,7 +83,10 @@ strict schemas.
 
 ## Validation
 
+- Reject duplicate YAML mapping keys at every nesting level.
 - Reject unresolved required placeholders before preprocessing or execution.
+- A schema template may be opened only as a non-runnable, unsaved YAML
+  document until every sentinel is replaced explicitly.
 - Reject unsupported top-level features and database sources.
 - Reject contradictory feature settings.
 - If a local database path fails, stop and report the exact path.

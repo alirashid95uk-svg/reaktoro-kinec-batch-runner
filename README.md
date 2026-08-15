@@ -5,12 +5,38 @@ equilibrium and kinetic cases. Reaktoro's native Palandri-Kharaka model uses
 the corrected local parameter file by default; the custom Kinec model is an
 explicit option.
 
-## Easiest: One-Click Launcher
+## Recommended: Scientific Workbench
 
-Double-click `Simulation launcher/Run Simulations.cmd`. Select one or more cases, review their
-scientific settings, and choose **Validate**. Cases are labelled **READY**,
-**BLOCKED**, or **NOT CHECKED**; **Run selected** is enabled only after full
-preflight passes. The launcher:
+Create the pinned GUI environment once, then double-click `Run Workbench.cmd`:
+
+```powershell
+conda env create -f environment-workbench.yml
+.\Run Workbench.cmd
+```
+
+The PySide6 workbench keeps GUI-only packages outside the verified Reaktoro
+environment. It diagnoses both environments without silently installing or
+repairing either one. It provides the complete case editor, immutable
+preflight snapshots and receipts, sequential queue, process control and
+recovery, artifact-derived run history, result exploration, compatibility-
+gated comparisons, deterministic studies, leakage-safe dataset assembly, and
+reproducible reports. See [docs/workbench/README.md](docs/workbench/README.md).
+
+Every artifact-changing operation is also available through the Qt-free CLI:
+
+```powershell
+conda run -n reaktoro-workbench python workbench_cli.py --help
+```
+
+Set `REAKTORO_WORKBENCH_PREFIX` and `REAKTORO_SOLVER_PREFIX` before starting
+the bootstrap when either environment is stored outside the default Conda
+location.
+
+## Legacy Regression Launcher
+
+`Simulation launcher/Run Simulations.cmd` remains available as a preserved
+regression reference. It selects cases, performs the same scientific
+construction preflight, and runs them sequentially. The launcher:
 
 - starts the verified `fypr-reaktoro` environment;
 - validates the configuration, database, kinetic records, mineral mapping,

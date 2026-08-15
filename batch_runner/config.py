@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_FLOOR, localcontext
@@ -39,6 +40,39 @@ DEFAULT_KINETIC_PATHS = {
     "palandri_kharaka": "data/kinetics/PalandriKharaka_local.yaml",
     "kinec": "data/kinetics/kinec_rates_minimal.yaml",
 }
+_PLACEHOLDER = re.compile(
+    r"^(?:REQUIRED|OPTIONAL|TBD_SOURCE_REQUIRED|REQUIRED_IF_[A-Z0-9_]+)$"
+)
+
+
+class _UniqueKeyLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeyLoader, node: yaml.MappingNode, deep: bool = False
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as error:
+            raise ValueError(
+                f"YAML mapping key is not hashable at line {key_node.start_mark.line + 1}"
+            ) from error
+        if duplicate:
+            raise ValueError(
+                f"duplicate YAML key {key!r} at line {key_node.start_mark.line + 1}"
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
+)
 
 
 class StrictModel(BaseModel):
@@ -741,6 +775,7 @@ class CaseConfig(StrictModel):
 class ResolvedCase:
     config: CaseConfig
     config_path: Path
+    source_config_sha256: str | None
     output_dir: Path
     database_path: Path | None
     kinetics_path: Path | None
@@ -896,18 +931,43 @@ def load_case(
     if not path.is_file():
         raise FileNotFoundError(f"case config does not exist: {path}")
 
-    with path.open("r", encoding="utf-8") as stream:
-        raw = yaml.safe_load(stream)
+    source_bytes = path.read_bytes()
+    raw = yaml.load(source_bytes.decode("utf-8"), Loader=_UniqueKeyLoader)
     if not isinstance(raw, dict):
         raise ValueError(f"case config must contain a YAML mapping: {path}")
+    placeholders = list(_placeholder_paths(raw))
+    if placeholders:
+        raise ValueError(
+            "case config contains unresolved placeholder sentinel(s): "
+            + ", ".join(placeholders)
+        )
     if output_dir_override is not None:
         raw["paths"]["output_dir"] = str(output_dir_override)
 
     config = CaseConfig.model_validate(raw)
-    return resolve_case(config, path)
+    return resolve_case(config, path, source_config_sha256=hashlib.sha256(source_bytes).hexdigest())
 
 
-def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
+def _placeholder_paths(value: Any, path: str = "$") -> Iterator[str]:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            key_path = f"{path}.{key}"
+            if isinstance(key, str) and _PLACEHOLDER.fullmatch(key):
+                yield f"{key_path} (key)"
+            yield from _placeholder_paths(child, key_path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _placeholder_paths(child, f"{path}[{index}]")
+    elif isinstance(value, str) and _PLACEHOLDER.fullmatch(value):
+        yield path
+
+
+def resolve_case(
+    config: CaseConfig,
+    config_path: Path,
+    *,
+    source_config_sha256: str | None = None,
+) -> ResolvedCase:
     output_dir = _resolve_project_path(config.paths.output_dir)
     if output_dir.exists():
         raise FileExistsError(f"output directory already exists: {output_dir}")
@@ -1030,6 +1090,7 @@ def resolve_case(config: CaseConfig, config_path: Path) -> ResolvedCase:
     return ResolvedCase(
         config=config,
         config_path=config_path,
+        source_config_sha256=source_config_sha256,
         output_dir=output_dir,
         database_path=database_path,
         kinetics_path=kinetics_path,

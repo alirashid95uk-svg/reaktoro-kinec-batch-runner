@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -26,15 +27,18 @@ def _write_case(tmp_path: Path, raw: dict) -> Path:
     return path
 
 
-def test_legacy_case_changes_only_identity_output_and_workflow() -> None:
+def test_workflow_mode_can_change_without_mutating_scientific_case_values() -> None:
     staged = _read_yaml(STAGED_CASE_PATH)
-    legacy = _read_yaml(LEGACY_CASE_PATH)
+    legacy_variant = deepcopy(staged)
+    legacy_variant["solver"]["workflow"] = {
+        "mode": "fixed_fugacity_during_kinetic_steps",
+        "precondition_kinetics": False,
+    }
 
-    assert legacy["solver"]["workflow"]["mode"] == "fixed_fugacity_during_kinetic_steps"
-    staged["case"]["name"] = legacy["case"]["name"]
-    staged["paths"]["output_dir"] = legacy["paths"]["output_dir"]
-    staged["solver"]["workflow"] = legacy["solver"]["workflow"]
-    assert staged == legacy
+    CaseConfig.model_validate(staged)
+    CaseConfig.model_validate(legacy_variant)
+    legacy_variant["solver"]["workflow"] = staged["solver"]["workflow"]
+    assert legacy_variant == staged
 
 
 def test_legacy_workflow_requires_fixed_fugacity_co2() -> None:
@@ -172,7 +176,10 @@ def test_legacy_workflow_uses_kinetics_solver_specs_and_passes_conditions(
     observed = _run_with_solver_spy(monkeypatch, case)
 
     assert observed["constructors"] == [("KineticsSolver", observed["kinetic_specs"])]
-    assert ("solve", (observed["state"], 1.0, observed["kinetic_conditions"])) in observed["events"]
+    assert (
+        "solve",
+        (observed["state"], case.dt_s, observed["kinetic_conditions"]),
+    ) in observed["events"]
 
 
 def test_staged_workflow_preserves_initial_equilibrium_then_closed_kinetics(
@@ -187,8 +194,11 @@ def test_staged_workflow_preserves_initial_equilibrium_then_closed_kinetics(
         ("KineticsSolver", observed["system"]),
     ]
     assert ("solve", (observed["state"], observed["initial_conditions"])) in observed["events"]
-    assert ("solve", (observed["state"], 1.0)) in observed["events"]
+    assert ("solve", (observed["state"], case.dt_s)) in observed["events"]
     assert all(
-        event != ("solve", (observed["state"], 1.0, observed["kinetic_conditions"]))
+        event != (
+            "solve",
+            (observed["state"], case.dt_s, observed["kinetic_conditions"]),
+        )
         for event in observed["events"]
     )

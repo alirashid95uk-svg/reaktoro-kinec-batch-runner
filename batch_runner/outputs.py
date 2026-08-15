@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import traceback
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -74,9 +75,13 @@ def write_kinetic_mapping(case: ResolvedCase, mapping: list[dict]) -> Path:
     return output_dir
 
 
-def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
+def write_outputs(
+    case: ResolvedCase,
+    result: SimulationResult,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> Path:
     try:
-        output_dir = _write_outputs(case, result)
+        output_dir = _write_outputs(case, result, cancel_requested)
     except Exception as error:
         output_dir = case.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +104,8 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
         result.diagnostics["warnings"].append(
             "output package writing failed; inspect output_completeness"
         )
+        _discard_partial_surrogate(output_dir, result)
+        _preserve_or_clean_staging_streams(output_dir, result)
         result.diagnostics["output_completeness"] = {
             "status": "partial",
             "files_written": _present_files(output_dir, include_manifest=False),
@@ -110,7 +117,12 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
         _write_json(output_dir / "diagnostics.json", result.diagnostics)
         return output_dir
 
-    status = "complete" if result.diagnostics["simulation_completed"] else "partial"
+    status = (
+        "complete"
+        if result.diagnostics["simulation_completed"]
+        and result.diagnostics.get("termination_reason") != "interrupted_during_output"
+        else "partial"
+    )
     result.diagnostics["output_completeness"] = {
         "status": status,
         "files_written": _present_files(output_dir),
@@ -125,7 +137,11 @@ def write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
     return output_dir
 
 
-def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
+def _write_outputs(
+    case: ResolvedCase,
+    result: SimulationResult,
+    cancel_requested: Callable[[], bool] | None,
+) -> Path:
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     if (output_dir / "results.csv").exists():
@@ -135,6 +151,27 @@ def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
     written: list[Path] = []
     outputs = case.config.outputs
     completed = result.diagnostics["simulation_completed"]
+
+    def scientific_output_allowed() -> bool:
+        if not completed or result.diagnostics.get("termination_reason") == "interrupted_during_output":
+            return False
+        if cancel_requested is None or not cancel_requested():
+            return True
+        result.diagnostics.update(
+            {
+                "termination_reason": "interrupted_during_output",
+                "cancellation_requested": True,
+                "cancellation_boundary": "before_output_extraction",
+                "partial_outputs_written": True,
+                "scientific_outputs_omitted": True,
+            }
+        )
+        result.diagnostics["warnings"].append(
+            "cooperative cancellation requested before output extraction"
+        )
+        _discard_partial_surrogate(output_dir, result)
+        return False
+
     if not completed:
         result.diagnostics["partial_outputs_written"] = True
         result.diagnostics["scientific_outputs_omitted"] = True
@@ -146,19 +183,24 @@ def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
         path = output_dir / "timeseries.csv"
         write_csv(path, timeseries_columns(case), timeseries_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.mineral_summary:
+    if outputs.solver_history.enabled:
+        path = output_dir / "solver_history.csv"
+        write_csv(path, SOLVER_HISTORY_COLUMNS, result.iter_solver_history())
+        written.append(path)
+    scientific_output_allowed()
+    if outputs.summaries.mineral_summary and scientific_output_allowed():
         path = output_dir / "mineral_summary.csv"
         write_csv(path, MINERAL_SUMMARY_COLUMNS, mineral_summary_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.aqueous_summary:
+    if outputs.summaries.aqueous_summary and scientific_output_allowed():
         path = output_dir / "aqueous_summary.csv"
         write_csv(path, AQUEOUS_SUMMARY_COLUMNS, aqueous_summary_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.reaction_rates:
+    if outputs.summaries.reaction_rates and scientific_output_allowed():
         path = output_dir / "reaction_rates.csv"
         write_csv(path, REACTION_RATE_COLUMNS, reaction_rate_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.reaction_rate_validation:
+    if outputs.summaries.reaction_rate_validation and scientific_output_allowed():
         path = output_dir / "reaction_rate_validation.csv"
         write_csv(
             path,
@@ -166,57 +208,54 @@ def _write_outputs(case: ResolvedCase, result: SimulationResult) -> Path:
             reaction_rate_validation_rows(case, result),
         )
         written.append(path)
-    if completed and outputs.summaries.carbon_inventory:
+    if outputs.summaries.carbon_inventory and scientific_output_allowed():
         path = output_dir / "carbon_inventory.csv"
         write_csv(path, CARBON_INVENTORY_COLUMNS, carbon_inventory_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.element_budget:
+    if outputs.summaries.element_budget and scientific_output_allowed():
         path = output_dir / "element_budget.csv"
         write_csv(path, ELEMENT_BUDGET_COLUMNS, element_budget_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.mineral_volume_change:
+    if outputs.summaries.mineral_volume_change and scientific_output_allowed():
         path = output_dir / "mineral_volume_change.csv"
         write_csv(path, MINERAL_VOLUME_COLUMNS, mineral_volume_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.regime_classification:
+    if outputs.summaries.regime_classification and scientific_output_allowed():
         path = output_dir / "regime_classification.csv"
         write_csv(path, REGIME_COLUMNS, regime_classification_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.surface_area_audit:
+    if outputs.summaries.surface_area_audit and scientific_output_allowed():
         path = output_dir / "surface_area_audit.csv"
         write_csv(path, SURFACE_AREA_COLUMNS, surface_area_audit_rows(case))
         written.append(path)
-    if completed and outputs.summaries.workflow_comparison:
+    if outputs.summaries.workflow_comparison and scientific_output_allowed():
         path = output_dir / "workflow_comparison.csv"
         write_csv(path, workflow_comparison_columns(case), workflow_comparison_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.secondary_mineral_assemblage:
+    if outputs.summaries.secondary_mineral_assemblage and scientific_output_allowed():
         path = output_dir / "secondary_mineral_assemblage.csv"
         write_csv(path, SECONDARY_ASSEMBLAGE_COLUMNS, secondary_mineral_assemblage_rows(case))
         written.append(path)
-    if completed and outputs.summaries.surrogate_dataset:
+    if outputs.summaries.surrogate_dataset and scientific_output_allowed():
         path = output_dir / "surrogate_dataset.csv"
         write_csv(path, surrogate_dataset_columns(case), surrogate_dataset_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.validation_ledger:
+    if outputs.summaries.validation_ledger and scientific_output_allowed():
         path = output_dir / "validation_ledger.csv"
         write_csv(path, VALIDATION_LEDGER_COLUMNS, validation_ledger_rows(case, result))
         written.append(path)
-    if completed and outputs.summaries.porosity_permeability:
+    if outputs.summaries.porosity_permeability and scientific_output_allowed():
         path = output_dir / "porosity_permeability.csv"
         write_csv(path, POROSITY_PERMEABILITY_COLUMNS, porosity_permeability_rows(case, result))
-        written.append(path)
-    if outputs.solver_history.enabled:
-        path = output_dir / "solver_history.csv"
-        write_csv(path, SOLVER_HISTORY_COLUMNS, result.iter_solver_history())
         written.append(path)
     if outputs.diagnostics.enabled:
         path = output_dir / "diagnostics.json"
         _write_json(path, result.diagnostics)
         written.append(path)
 
-    if completed:
+    if scientific_output_allowed():
         written.extend(write_plots(case, result, output_dir / "plots"))
+    scientific_output_allowed()
 
     debug = outputs.debug
     if debug.enabled:
@@ -264,3 +303,35 @@ def _write_json(path: Path, data: dict) -> None:
     with path.open("w", encoding="utf-8") as stream:
         json.dump(data, stream, indent=2)
         stream.write("\n")
+
+
+def _discard_partial_surrogate(output_dir: Path, result: SimulationResult) -> None:
+    try:
+        (output_dir / "surrogate_dataset.csv").unlink(missing_ok=True)
+    except OSError as error:
+        result.diagnostics["warnings"].append(
+            f"could not remove partial surrogate_dataset.csv: {error}"
+        )
+
+
+def _preserve_or_clean_staging_streams(
+    output_dir: Path,
+    result: SimulationResult,
+) -> None:
+    streams = (
+        ("row_stream_path", "partial_timeseries.jsonl"),
+        ("solver_history_stream_path", "partial_solver_history.jsonl"),
+    )
+    for attribute, evidence_name in streams:
+        source = getattr(result, attribute)
+        if source is None or not source.is_file():
+            continue
+        try:
+            debug_dir = output_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            source.replace(debug_dir / evidence_name)
+            setattr(result, attribute, None)
+        except OSError as error:
+            result.diagnostics["warnings"].append(
+                f"could not classify staging stream {source.name}: {error}"
+            )

@@ -380,6 +380,11 @@ def test_missing_surface_area_and_kinetic_record_fail(tmp_path: Path) -> None:
     assert result.diagnostics["kinetic_parameter_sha256"] == hashlib.sha256(
         KINETICS_PATH.read_bytes()
     ).hexdigest()
+    assert result.diagnostics["database_sha256"] == hashlib.sha256(
+        DATABASE_PATH.read_bytes()
+    ).hexdigest()
+    assert result.database_sha256 == result.diagnostics["database_sha256"]
+    assert result.kinetic_parameter_sha256 == result.diagnostics["kinetic_parameter_sha256"]
 
     raw = _source_case_with_output(tmp_path / "thermodynamic-output")
     raw["minerals"][0]["name"] = "Not-A-Thermodynamic-Mineral"

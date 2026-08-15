@@ -38,6 +38,24 @@ conda run -n fypr-reaktoro python -m pytest -q
 Use focused tests for routine smoke checks; the three-mineral development case
 executes the real staged chemistry workflow.
 
+## Scientific Workbench Scope
+
+The approved PySide6 workbench expands only the user-facing orchestration,
+editing, process-control, artifact-reading, comparison, study, dataset, and
+reporting layers defined in `docs/dev/GUI_Upgrade_Fixed.md`.
+
+- `batch_runner` remains the authoritative Qt-free scientific execution path.
+- `workbench_core` remains Qt-free and operates on case and saved artifacts.
+- `workbench` contains presentation, accessibility, and `QProcess` ownership.
+- The command-line runner and legacy launcher remain operational until golden
+  replacement-equivalence and Windows acceptance checks pass.
+- Scientific values, databases, kinetic parameters, Reaktoro equations,
+  defaults, timestep acceptance, and output definitions do not change during
+  the GUI migration.
+- Saved or derived workbench artifacts must be reproducible headlessly.
+- Completed result packages remain immutable; legacy packages are indexed or
+  adapted read-only and are never migrated in place.
+
 ## Skill Routing
 
 - YAML case changes: `case-config-discipline`.
@@ -48,6 +66,11 @@ executes the real staged chemistry workflow.
 - Any source-code change: `scientific-change-verification`.
 - Output generation or package review: `objective1-output-auditor`; also read
   the three coordinated design files named below.
+- Workbench UX design or screenshot review: `design-critique` and
+  `qt-ui-design`.
+- Native Windows GUI interaction, accessibility, or scale acceptance:
+  `windows-desktop-e2e`.
+- Workbench plots and data-visualisation accessibility: `charts-graphs`.
 
 ## Scientific Interpretation Boundary
 

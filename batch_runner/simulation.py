@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import traceback
 from contextlib import ExitStack
@@ -36,6 +37,9 @@ class SimulationResult:
     first_row: dict[str, Any] | None = None
     last_row: dict[str, Any] | None = None
     exception_traceback: str | None = None
+    source_config_sha256: str | None = None
+    database_sha256: str | None = None
+    kinetic_parameter_sha256: str | None = None
 
     def iter_rows(self):
         if self.rows is not None:
@@ -77,6 +81,9 @@ class PreparedSimulation:
     failed_stage: str | None = None
     error: Exception | None = None
     exception_traceback: str | None = None
+    source_config_sha256: str | None = None
+    database_sha256: str | None = None
+    kinetic_parameter_sha256: str | None = None
 
     @property
     def ready(self) -> bool:
@@ -86,28 +93,54 @@ class PreparedSimulation:
 def prepare_simulation(
     case: ResolvedCase,
     mapping_ready: Callable[[list[dict[str, Any]]], None] | None = None,
+    event_ready: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> PreparedSimulation:
     """Build and validate the configured chemistry without starting a solver."""
     kinetic_mapping: list[dict[str, Any]] = []
     system = None
     state = None
+    database_sha256 = None
+    kinetic_parameter_sha256 = None
+    source_config_sha256 = case.source_config_sha256
     stage = "database_loading"
+    emit_event = event_ready or (lambda _event_type, _payload: None)
     try:
+        emit_event("stage_started", {"stage": stage})
+        database_sha256 = _sha256(case.database_path)
         database = load_database(case)
+        emit_event("stage_completed", {"stage": stage})
         stage = "kinetics_loading"
+        emit_event("stage_started", {"stage": stage})
+        kinetic_parameter_sha256 = _sha256(case.kinetics_path)
         params = load_kinetic_parameters(case)
+        emit_event("stage_completed", {"stage": stage})
         stage = "mapping"
+        emit_event("stage_started", {"stage": stage})
         kinetic_mapping = build_kinetic_mapping(case, database, params)
+        emit_event("mapping_result", {"mapping": kinetic_mapping})
         if mapping_ready is not None:
             stage = "output_writing"
             mapping_ready(kinetic_mapping)
             stage = "mapping"
         require_valid_kinetic_mapping(kinetic_mapping)
+        emit_event("stage_completed", {"stage": stage})
         stage = "system_construction"
+        emit_event("stage_started", {"stage": stage})
         system = build_chemical_system(case, database, params)
+        emit_event("stage_completed", {"stage": stage})
         stage = "state_construction"
+        emit_event("stage_started", {"stage": stage})
         state = build_chemical_state(case, system)
+        emit_event("stage_completed", {"stage": stage})
     except Exception as error:
+        emit_event(
+            "validation_issue",
+            {
+                "stage": stage,
+                "exception_type": type(error).__name__,
+                "error_message": str(error),
+            },
+        )
         return PreparedSimulation(
             kinetic_mapping=kinetic_mapping,
             system=system,
@@ -115,12 +148,25 @@ def prepare_simulation(
             failed_stage=stage,
             error=error,
             exception_traceback=traceback.format_exc(),
+            source_config_sha256=source_config_sha256,
+            database_sha256=database_sha256,
+            kinetic_parameter_sha256=kinetic_parameter_sha256,
         )
-    return PreparedSimulation(kinetic_mapping, system, state)
+    return PreparedSimulation(
+        kinetic_mapping,
+        system,
+        state,
+        source_config_sha256=source_config_sha256,
+        database_sha256=database_sha256,
+        kinetic_parameter_sha256=kinetic_parameter_sha256,
+    )
 
 
-def preflight_case(case: ResolvedCase) -> dict[str, Any]:
-    prepared = prepare_simulation(case)
+def preflight_case(
+    case: ResolvedCase,
+    event_ready: Callable[[str, dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    prepared = prepare_simulation(case, event_ready=event_ready)
     return {
         "ready": prepared.ready,
         "case_name": case.config.case.name,
@@ -128,6 +174,8 @@ def preflight_case(case: ResolvedCase) -> dict[str, Any]:
         "exception_type": type(prepared.error).__name__ if prepared.error else None,
         "error_message": str(prepared.error) if prepared.error else None,
         "kinetic_mapping": prepared.kinetic_mapping,
+        "database_sha256": prepared.database_sha256,
+        "kinetic_parameter_sha256": prepared.kinetic_parameter_sha256,
         "technical_traceback": prepared.exception_traceback,
     }
 
@@ -135,9 +183,12 @@ def preflight_case(case: ResolvedCase) -> dict[str, Any]:
 def run_simulation(
     case: ResolvedCase,
     mapping_ready: Callable[[list[dict[str, Any]]], None] | None = None,
+    event_ready: Callable[[str, dict[str, Any]], None] | None = None,
+    progress_ready: Callable[[dict[str, Any]], None] | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> SimulationResult:
     run_started_at = datetime.now(timezone.utc).isoformat()
-    prepared = prepare_simulation(case, mapping_ready)
+    prepared = prepare_simulation(case, mapping_ready, event_ready)
     if not prepared.ready:
         assert prepared.error is not None and prepared.failed_stage is not None
         return _failed_result(
@@ -149,6 +200,9 @@ def run_simulation(
             system=prepared.system,
             state=prepared.state,
             exception_traceback=prepared.exception_traceback,
+            source_config_sha256=prepared.source_config_sha256,
+            database_sha256=prepared.database_sha256,
+            kinetic_parameter_sha256=prepared.kinetic_parameter_sha256,
         )
     kinetic_mapping = prepared.kinetic_mapping
     system = prepared.system
@@ -189,6 +243,7 @@ def run_simulation(
                 stage = "output_writing"
                 json.dump(row, row_stream, separators=(",", ":"))
                 row_stream.write("\n")
+                row_stream.flush()
                 first_row = first_row or row
                 last_row = row
                 result_rows += 1
@@ -216,6 +271,25 @@ def run_simulation(
                 stage = "output_writing"
                 json.dump(record, solver_history_stream, separators=(",", ":"))
                 solver_history_stream.write("\n")
+                solver_history_stream.flush()
+                if progress_ready is not None:
+                    progress_ready(
+                        {
+                            "accepted_time_s": accepted_time_s,
+                            "requested_duration_s": case.duration_s,
+                            "current_dt_s": record["dt_s"],
+                            "accepted_attempts": accepted_steps,
+                            "rejected_attempts": rejected_steps,
+                            "latest_accepted": record["accepted"],
+                            "latest_reason": (
+                                record.get("acceptance_reason")
+                                or record.get("failure_reason")
+                                or None
+                            ),
+                            "solver_iterations": record.get("iterations"),
+                            "stage": record["stage"],
+                        }
+                    )
                 stage = "solver_execution"
 
             def checkpoint_ready(record: dict[str, Any], accepted_state: Any) -> None:
@@ -235,18 +309,39 @@ def run_simulation(
                     separators=(",", ":"),
                 )
                 checkpoint_stream.write("\n")
+                checkpoint_stream.flush()
+                if event_ready is not None:
+                    event_ready(
+                        "checkpoint_written",
+                        {
+                            "checkpoint_index": checkpoint_index,
+                            "time_s": record["time_end_s"],
+                            "state_file": str(checkpoint_dir / state_name),
+                        },
+                    )
                 stage = "solver_execution"
 
             stage = "solver_execution"
-            initial_state, solver_progress = execute_solver(
-                case,
-                system,
-                state,
-                row_ready=row_ready,
-                solver_record_ready=solver_record_ready,
-                boundary_row_ready=boundary_row_ready,
-                checkpoint_ready=checkpoint_ready,
-            )
+            if event_ready is not None:
+                event_ready("stage_started", {"stage": stage})
+            solver_kwargs = {
+                "row_ready": row_ready,
+                "solver_record_ready": solver_record_ready,
+                "boundary_row_ready": boundary_row_ready,
+                "checkpoint_ready": checkpoint_ready,
+            }
+            if cancel_requested is not None:
+                solver_kwargs["cancel_requested"] = cancel_requested
+            initial_state, solver_progress = execute_solver(case, system, state, **solver_kwargs)
+            if event_ready is not None:
+                event_ready(
+                    "stage_completed",
+                    {
+                        "stage": "solver_execution",
+                        "termination_reason": solver_progress["termination_reason"],
+                        "final_time_reached_s": solver_progress["final_time_reached_s"],
+                    },
+                )
             stage = "output_writing"
     except Exception as error:
         exception_traceback = traceback.format_exc()
@@ -267,6 +362,8 @@ def run_simulation(
         system,
         result_rows,
         solver_progress,
+        prepared.database_sha256,
+        prepared.kinetic_parameter_sha256,
     )
     return SimulationResult(
         rows=None,
@@ -280,6 +377,9 @@ def run_simulation(
         first_row=first_row,
         last_row=last_row,
         exception_traceback=exception_traceback,
+        source_config_sha256=prepared.source_config_sha256,
+        database_sha256=prepared.database_sha256,
+        kinetic_parameter_sha256=prepared.kinetic_parameter_sha256,
     )
 
 
@@ -289,6 +389,8 @@ def _build_diagnostics(
     system: Any | None,
     result_rows: int,
     solver_progress: dict[str, Any],
+    database_sha256: str | None,
+    kinetic_parameter_sha256: str | None,
 ) -> dict[str, Any]:
     estimated_solver_calls = (
         case.internal_step_count + int(requires_initial_equilibrium(case))
@@ -310,9 +412,10 @@ def _build_diagnostics(
         "reaktoro_version": rkt.__version__,
         "database_source": case.config.database.source,
         "database_value": str(case.database_path or case.config.database.name),
+        "database_sha256": database_sha256,
         "kinetic_model": case.config.kinetics.model,
         "kinetic_parameter_path": str(case.kinetics_path) if case.kinetics_path else None,
-        "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
+        "kinetic_parameter_sha256": kinetic_parameter_sha256,
         "system_counts": (
             {
                 "elements": len(system.elements()),
@@ -391,6 +494,8 @@ def _exception_progress(
         "number_of_solver_failed_attempts": solver_failed_attempts,
         "retries_at_final_accepted_time": None,
         "rejection_reason_counts": {},
+        "cancellation_requested": False,
+        "cancellation_boundary": None,
     }
 
 
@@ -404,6 +509,9 @@ def _failed_result(
     system: Any | None,
     state: Any | None,
     exception_traceback: str | None,
+    source_config_sha256: str | None,
+    database_sha256: str | None,
+    kinetic_parameter_sha256: str | None,
 ) -> SimulationResult:
     return SimulationResult(
         rows=[],
@@ -415,10 +523,15 @@ def _failed_result(
             system,
             0,
             _exception_progress(stage, error),
+            database_sha256,
+            kinetic_parameter_sha256,
         ),
         initial_state=None,
         final_state=state,
         exception_traceback=exception_traceback,
+        source_config_sha256=source_config_sha256,
+        database_sha256=database_sha256,
+        kinetic_parameter_sha256=kinetic_parameter_sha256,
     )
 
 
@@ -426,3 +539,13 @@ def _read_json_lines(path: Path):
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             yield json.loads(line)
+
+
+def _sha256(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

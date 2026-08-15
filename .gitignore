@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 outputs/
 runs/
+.workbench/
 
 # Generated local artifacts
 *.log

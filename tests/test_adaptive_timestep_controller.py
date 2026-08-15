@@ -108,6 +108,7 @@ def _run_fake(
     accept_results: list[bool] | None = None,
     solve=None,
     initial_value: float = 0.0,
+    cancel_after_solver_return: bool = False,
 ):
     calls: list[float] = []
     accepted = iter(accept_results) if accept_results is not None else None
@@ -154,6 +155,7 @@ def _run_fake(
         checkpoint_ready=lambda record, checkpoint_state: checkpoints.append(
             (record["time_end_s"], checkpoint_state.value)
         ),
+        cancel_requested=(lambda: bool(calls)) if cancel_after_solver_return else None,
     )
     return state, calls, rows, history, checkpoints, progress
 
@@ -177,6 +179,45 @@ def test_rejected_trial_restores_state_and_retries_from_accepted_time(
     assert progress["number_of_rejected_steps"] == 1
     assert progress["final_time_reached_s"] == case.duration_s
     assert progress["simulation_completed"] is True
+
+
+def test_adaptive_solver_cancels_and_restores_before_trial_acceptance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    case = _load_adaptive_case(tmp_path, _raw_adaptive_case(tmp_path))
+    state, calls, rows, history, _checkpoints, progress = _run_fake(
+        monkeypatch,
+        case,
+        cancel_after_solver_return=True,
+    )
+
+    assert calls == [1.0]
+    assert state.value == 0.0
+    assert [row["time_s"] for row in rows] == [0.0]
+    assert len(history) == 1 and history[0]["accepted"] is False
+    assert history[0]["acceptance_reason"] == "cancelled_before_acceptance"
+    assert progress["termination_reason"] == "cancelled_cleanly"
+    assert progress["cancellation_boundary"] == "after_adaptive_solver_attempt"
+    assert progress["final_time_reached_s"] == 0.0
+
+
+def test_adaptive_solver_failure_remains_primary_when_cancel_arrives(
+    tmp_path: Path, monkeypatch
+) -> None:
+    case = _load_adaptive_case(tmp_path, _raw_adaptive_case(tmp_path))
+    state, _calls, _rows, history, _checkpoints, progress = _run_fake(
+        monkeypatch,
+        case,
+        solve=lambda _state, _dt: (_ for _ in ()).throw(RuntimeError("solver failed")),
+        cancel_after_solver_return=True,
+    )
+
+    assert state.value == 0.0
+    assert history[0]["acceptance_reason"] == "solver_failure"
+    assert progress["termination_reason"] == "solver_failure"
+    assert progress["failed_stage"] == "adaptive_kinetic_attempt"
+    assert progress["cancellation_requested"] is True
 
 
 def test_adaptive_steps_land_exactly_on_output_and_checkpoint_targets(

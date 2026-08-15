@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 from batch_runner.config import ResolvedCase
@@ -370,9 +368,9 @@ def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list
         "output_schema_version": result.diagnostics["output_schema_version"],
         "database_source": case.config.database.source,
         "database_value": str(case.database_path or case.config.database.name),
-        "database_sha256": _sha256(case.database_path),
+        "database_sha256": result.database_sha256,
         "kinetic_model": case.config.kinetics.model,
-        "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
+        "kinetic_parameter_sha256": result.kinetic_parameter_sha256,
         "workflow_mode": case.config.solver.workflow.mode,
         "co2_mode": case.config.co2.mode,
         "redox_enabled": case.config.redox.enabled,
@@ -481,13 +479,3 @@ def _expected_rate_sign(saturation_index: float) -> str:
     if saturation_index > 0:
         return "negative"
     return "zero"
-
-
-def _sha256(path: Path | None) -> str | None:
-    if path is None:
-        return None
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()

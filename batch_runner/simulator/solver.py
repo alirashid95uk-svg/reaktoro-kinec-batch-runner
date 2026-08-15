@@ -24,12 +24,14 @@ def execute_solver(
     solver_record_ready: Callable[[dict[str, Any]], None] | None = None,
     boundary_row_ready: Callable[[str, dict[str, Any]], None] | None = None,
     checkpoint_ready: Callable[[dict[str, Any], Any], None] | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     timestep = case.config.solver.timestep
     emit_row = row_ready or (lambda _row: None)
     emit_record = solver_record_ready or (lambda _record: None)
     emit_boundary = boundary_row_ready or (lambda _which, _row: None)
     emit_checkpoint = checkpoint_ready or (lambda _record, _state: None)
+    is_cancelled = cancel_requested or (lambda: False)
     output_times = iter(case.output_times_s())
     next_output_time = next(output_times, None)
     checkpoint_times = iter(case.checkpoint_times_s)
@@ -79,6 +81,8 @@ def execute_solver(
         failed_attempt_target_time_s: float | None = None,
         failed_attempt_dt_s: float | None = None,
         accepted_state_restored: bool | None = None,
+        cancellation_requested: bool = False,
+        cancellation_boundary: str | None = None,
     ) -> dict[str, Any]:
         return {
             "simulation_completed": completed,
@@ -102,13 +106,27 @@ def execute_solver(
             "number_of_solver_failed_attempts": solver_failed_attempts,
             "retries_at_final_accepted_time": retries_at_current_time,
             "rejection_reason_counts": rejection_reason_counts,
+            "cancellation_requested": cancellation_requested,
+            "cancellation_boundary": cancellation_boundary,
         }
 
+    def cancelled(boundary: str, *, restored: bool | None = True) -> dict[str, Any]:
+        return progress(
+            completed=False,
+            termination_reason="cancelled_cleanly",
+            accepted_state_restored=restored,
+            cancellation_requested=True,
+            cancellation_boundary=boundary,
+        )
+
     if requires_initial_equilibrium(case):
+        if is_cancelled():
+            return snapshot_state(state), cancelled("before_initial_equilibrium")
         specs, conditions = build_conditions(case, system, state, "initial_equilibrium")
         solver = _equilibrium_solver(system, specs)
         accepted_state = snapshot_state(state)
         result, wall_time_s, error = _timed_solve(solver, state, conditions=conditions)
+        cancel_after_attempt = is_cancelled()
         failure_reason = _failure_reason(result, error, "initial equilibrium")
         if failure_reason:
             state.assign(accepted_state)
@@ -126,6 +144,7 @@ def execute_solver(
         emit_record(record)
         if failure_reason:
             failed_steps += 1
+        if failure_reason:
             return snapshot_state(state), progress(
                 completed=False,
                 failed_stage="initial_equilibrium",
@@ -134,11 +153,17 @@ def execute_solver(
                 failed_attempt_target_time_s=0.0,
                 failed_attempt_dt_s=0.0,
                 accepted_state_restored=True,
+                cancellation_requested=cancel_after_attempt,
+                cancellation_boundary=("after_initial_equilibrium" if cancel_after_attempt else None),
             )
+        if cancel_after_attempt:
+            return snapshot_state(state), cancelled("after_initial_equilibrium", restored=False)
         step_index += 1
 
     if case.config.solver.workflow.mode == "equilibrium_only":
         initial_state = snapshot_state(state)
+        if is_cancelled():
+            return initial_state, cancelled("before_equilibrium_output_extraction")
         row = collect_row(case, state, record, initial_state)
         emit_boundary("initial", row)
         emit_boundary("final", row)
@@ -153,8 +178,11 @@ def execute_solver(
         == "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
     )
     if case.config.solver.workflow.precondition_kinetics and not staged_closed_workflow:
+        if is_cancelled():
+            return snapshot_state(state), cancelled("before_kinetics_precondition")
         accepted_state = snapshot_state(state)
         result, wall_time_s, error = _timed_precondition(kinetic_solver, state, conditions)
+        cancel_after_attempt = is_cancelled()
         failure_reason = _failure_reason(result, error, "kinetics precondition")
         if failure_reason:
             state.assign(accepted_state)
@@ -173,6 +201,7 @@ def execute_solver(
         )
         if failure_reason:
             failed_steps += 1
+        if failure_reason:
             return snapshot_state(state), progress(
                 completed=False,
                 failed_stage="kinetics_precondition",
@@ -181,12 +210,18 @@ def execute_solver(
                 failed_attempt_target_time_s=0.0,
                 failed_attempt_dt_s=0.0,
                 accepted_state_restored=True,
+                cancellation_requested=cancel_after_attempt,
+                cancellation_boundary=("after_kinetics_precondition" if cancel_after_attempt else None),
             )
+        if cancel_after_attempt:
+            return snapshot_state(state), cancelled("after_kinetics_precondition", restored=False)
         precondition_applied = True
         step_index += 1
 
     initial_state = snapshot_state(state)
     initial_record = _unsolved_record(step_index, "initial_state", 0.0)
+    if is_cancelled():
+        return initial_state, cancelled("before_initial_output_extraction")
     initial_row = collect_row(case, state, initial_record, initial_state)
     emit_boundary("initial", initial_row)
     if output_due(0.0):
@@ -194,6 +229,8 @@ def execute_solver(
 
     if timestep.mode == "fixed":
         for dt_s, target_time_s in case.fixed_steps_s():
+            if is_cancelled():
+                return initial_state, cancelled("before_fixed_solver_attempt")
             start_s = time_s
             accepted_state = snapshot_state(state)
             result, wall_time_s, error = _timed_solve(
@@ -202,6 +239,7 @@ def execute_solver(
                 dt_s=dt_s,
                 conditions=conditions,
             )
+            cancel_after_attempt = is_cancelled()
             kinetic_attempts += 1
             failure_reason = _failure_reason(
                 result,
@@ -236,6 +274,8 @@ def execute_solver(
                     failed_attempt_target_time_s=target_time_s,
                     failed_attempt_dt_s=dt_s,
                     accepted_state_restored=True,
+                    cancellation_requested=cancel_after_attempt,
+                    cancellation_boundary=("after_fixed_solver_attempt" if cancel_after_attempt else None),
                 )
             time_s = target_time_s
             record = _solver_record(
@@ -255,14 +295,34 @@ def execute_solver(
             dt_total_s += dt_s
             step_index += 1
             emit_record(record)
+            if cancel_after_attempt:
+                return initial_state, cancelled(
+                    "after_fixed_solver_attempt",
+                    restored=False,
+                )
             row = None
             if output_due(time_s):
+                if is_cancelled():
+                    return initial_state, cancelled(
+                        "before_fixed_output_extraction",
+                        restored=False,
+                    )
                 row = collect_row(case, state, record, initial_state)
                 emit_row(row)
             if checkpoint_due(time_s):
+                if is_cancelled():
+                    return initial_state, cancelled(
+                        "before_fixed_checkpoint",
+                        restored=False,
+                    )
                 checkpoint_count += 1
                 emit_checkpoint(record, state)
             if time_s == case.duration_s:
+                if row is None and is_cancelled():
+                    return initial_state, cancelled(
+                        "before_fixed_final_output_extraction",
+                        restored=False,
+                    )
                 emit_boundary(
                     "final",
                     row or collect_row(case, state, record, initial_state),
@@ -273,6 +333,8 @@ def execute_solver(
         raise TypeError(f"unsupported timestep config: {type(timestep).__name__}")
     controller_dt_s = case.dt_initial_s
     while time_s < case.duration_s:
+        if is_cancelled():
+            return initial_state, cancelled("before_adaptive_solver_attempt")
         if kinetic_attempts >= timestep.max_internal_steps:
             return initial_state, progress(
                 completed=False,
@@ -300,12 +362,50 @@ def execute_solver(
             dt_s=dt_s,
             conditions=conditions,
         )
+        cancel_after_attempt = is_cancelled()
         kinetic_attempts += 1
         solver_reason = _failure_reason(
             result,
             error,
             f"adaptive kinetic attempt ending at {target_time_s} s",
         )
+        if cancel_after_attempt:
+            state.assign(accepted_state)
+            failed_steps += 1
+            if solver_reason is not None:
+                solver_failed_attempts += 1
+            emit_record(
+                _solver_record(
+                    step_index=step_index,
+                    attempt_index=kinetic_attempts,
+                    stage="adaptive_kinetic_attempt",
+                    time_start_s=start_s,
+                    time_end_s=start_s,
+                    dt_s=dt_s,
+                    result=result,
+                    wall_time_s=wall_time_s,
+                    accepted=False,
+                    failure_reason=(
+                        solver_reason
+                        or "cooperative cancellation requested before trial acceptance"
+                    ),
+                    acceptance_reason=("solver_failure" if solver_reason else "cancelled_before_acceptance"),
+                )
+            )
+            if solver_reason is not None:
+                rejection_reason_counts["solver_failure"] = rejection_reason_counts.get("solver_failure", 0) + 1
+                return initial_state, progress(
+                    completed=False,
+                    failed_stage="adaptive_kinetic_attempt",
+                    error_message=solver_reason,
+                    exception_type=type(error).__name__ if error is not None else None,
+                    failed_attempt_target_time_s=target_time_s,
+                    failed_attempt_dt_s=dt_s,
+                    accepted_state_restored=True,
+                    cancellation_requested=True,
+                    cancellation_boundary="after_adaptive_solver_attempt",
+                )
+            return initial_state, cancelled("after_adaptive_solver_attempt")
         acceptance = _empty_acceptance("solver_failure" if solver_reason else "accepted")
         acceptance_error = None
         if solver_reason is None:
@@ -395,12 +495,27 @@ def execute_solver(
         emit_record(record)
         row = None
         if output_due(time_s):
+            if is_cancelled():
+                return initial_state, cancelled(
+                    "before_adaptive_output_extraction",
+                    restored=False,
+                )
             row = collect_row(case, state, record, initial_state)
             emit_row(row)
         if checkpoint_due(time_s):
+            if is_cancelled():
+                return initial_state, cancelled(
+                    "before_adaptive_checkpoint",
+                    restored=False,
+                )
             checkpoint_count += 1
             emit_checkpoint(record, state)
         if time_s == case.duration_s:
+            if row is None and is_cancelled():
+                return initial_state, cancelled(
+                    "before_adaptive_final_output_extraction",
+                    restored=False,
+                )
             emit_boundary(
                 "final",
                 row or collect_row(case, state, record, initial_state),

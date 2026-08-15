@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import platform
-from pathlib import Path
 from typing import Any
 
 import reaktoro as rkt
@@ -59,12 +57,12 @@ def build_manifest(
         },
         "traceability": {
             "source_config_path": str(case.config_path),
-            "source_config_sha256": _sha256(case.config_path),
+            "source_config_sha256": result.source_config_sha256,
             "database_path": str(case.database_path or config.database.name),
-            "database_sha256": _sha256(case.database_path),
+            "database_sha256": result.database_sha256,
             "kinetic_model": config.kinetics.model,
             "kinetic_parameter_path": str(case.kinetics_path) if case.kinetics_path else None,
-            "kinetic_parameter_sha256": case.kinetic_parameter_sha256,
+            "kinetic_parameter_sha256": result.kinetic_parameter_sha256,
         },
         "input_snapshot": input_snapshot,
         "solver_configuration": {
@@ -115,13 +113,3 @@ def build_manifest(
         },
         "output_files": output_files,
     }
-
-
-def _sha256(path: Path | None) -> str | None:
-    if path is None:
-        return None
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()

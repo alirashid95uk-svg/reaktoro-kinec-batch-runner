@@ -442,6 +442,54 @@ def test_solver_records_monotonic_absolute_times_and_exact_final_time(tmp_path: 
     assert progress["simulation_completed"] is True
 
 
+def test_fixed_solver_cancels_at_safe_boundary_after_return(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=0.5)
+    calls = _install_solver_spy(monkeypatch, [True, True])
+    rows = []
+    history = []
+    state = _FakeState()
+
+    _initial_state, progress = solver_module.execute_solver(
+        case,
+        object(),
+        state,
+        row_ready=rows.append,
+        solver_record_ready=history.append,
+        cancel_requested=lambda: bool(calls),
+    )
+
+    assert calls == [0.5]
+    assert state.value == 1
+    assert [row["time_s"] for row in rows] == [0.0]
+    assert len(history) == 1 and history[0]["accepted"] is True
+    assert progress["termination_reason"] == "cancelled_cleanly"
+    assert progress["cancellation_boundary"] == "after_fixed_solver_attempt"
+    assert progress["final_time_reached_s"] == 0.5
+
+
+def test_fixed_solver_failure_remains_primary_when_cancel_arrives(
+    tmp_path: Path, monkeypatch
+) -> None:
+    case = _load_case(tmp_path, duration_value=1.0, dt_value=0.5)
+    calls = _install_solver_spy(monkeypatch, [False])
+
+    _initial_state, progress = solver_module.execute_solver(
+        case,
+        object(),
+        _FakeState(),
+        solver_record_ready=lambda _record: None,
+        cancel_requested=lambda: bool(calls),
+    )
+
+    assert progress["termination_reason"] == "solver_failure"
+    assert progress["failed_stage"] == "kinetic_step"
+    assert progress["cancellation_requested"] is True
+    assert progress["cancellation_boundary"] == "after_fixed_solver_attempt"
+
+
 def test_solver_lands_on_sparse_output_times_without_emitting_every_internal_step(
     tmp_path: Path,
     monkeypatch,
@@ -968,6 +1016,11 @@ def test_output_failure_preserves_simulation_status_and_file_completeness(
     assert diagnostics["final_time_reached_s"] == 1.0
     assert diagnostics["output_completeness"]["status"] == "partial"
     assert "forced CSV failure" in result.exception_traceback
+    assert not (case.output_dir / ".timeseries.jsonl").exists()
+    assert not (case.output_dir / ".solver_history.jsonl").exists()
+    assert (case.output_dir / "debug" / "partial_timeseries.jsonl").is_file()
+    assert (case.output_dir / "debug" / "partial_solver_history.jsonl").is_file()
+    assert not (case.output_dir / "surrogate_dataset.csv").exists()
 
 
 def test_output_failure_does_not_overwrite_primary_failure(tmp_path: Path, monkeypatch) -> None:

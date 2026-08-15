@@ -1,0 +1,22 @@
+name: reaktoro-workbench
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.15
+  - pyside6=6.11.1
+  - pyqtgraph=0.14.0
+  - ruamel.yaml=0.19.1
+  - pandas=3.0.5
+  - pyarrow=25.0.0
+  - pydantic=2.13.4
+  - pyyaml=6.0.3
+  - markdown=3.10.3
+  - reportlab=5.0.0
+  - pillow=12.3.0
+  - pytest=9.1.1
+  - pytest-qt=4.5.0
+  - pip
+  - pip:
+      - pywinauto==0.6.9
+      - pytest-html==4.2.0
+      - pytest-timeout==2.4.0

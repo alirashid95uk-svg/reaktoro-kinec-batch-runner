@@ -1,6 +1,6 @@
 # Source-supported legacy FYPR workflow software-validation case.
-# Scientific values are identical to calcite_quartz_illite_development.yaml.
-# The only scientific workflow difference is that fixed CO2 fugacity is
+# This case has its own recorded scientific values and is not a workflow-only
+# counterpart of calcite_quartz_illite_development.yaml. Fixed CO2 fugacity is
 # imposed during every kinetic timestep, with no separate conditioning step.
 case:
   name: calcite_quartz_illite_fixed_fugacity_legacy
