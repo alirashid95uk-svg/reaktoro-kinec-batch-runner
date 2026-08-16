@@ -38,6 +38,19 @@ conda run -n fypr-reaktoro python -m pytest -q
 Use focused tests for routine smoke checks; the three-mineral development case
 executes the real staged chemistry workflow.
 
+## Package Architecture
+
+- `batch_runner.config` is the stable, Reaktoro-free configuration API.
+- `batch_runner.simulator` is the stable scientific execution API; chemistry,
+  kinetics, and solver implementation modules live below it.
+- `batch_runner.outputs` is the stable scientific output-writing API.
+- `batch_runner.protocol` owns the worker event envelope and cancellation-file
+  check; process ownership remains outside `batch_runner`.
+- Front ends use these package interfaces rather than implementation files.
+
+See `docs/dev/architecture.md` for the complete package map and dependency
+flow.
+
 ## Scientific Workbench Scope
 
 The approved PySide6 workbench expands only the user-facing orchestration,
@@ -95,7 +108,7 @@ data/kinetics/kinec_rates_minimal.yaml
 data/kinetics/PalandriKharaka_local.yaml
 = corrected local parameters for Reaktoro's native Palandri-Kharaka model
 
-batch_runner/simulator/kinec.py
+batch_runner/simulator/kinetics/kinec.py
 = Kinec YAML -> Reaktoro kinetic-rate adapter
 ```
 

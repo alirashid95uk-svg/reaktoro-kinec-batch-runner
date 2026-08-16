@@ -6,88 +6,21 @@ import hashlib
 import json
 import traceback
 from contextlib import ExitStack
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-import reaktoro as rkt
-
-from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.database import load_database
-from batch_runner.simulator.kinetics import load_kinetic_parameters
-from batch_runner.simulator.mapping import build_kinetic_mapping, require_valid_kinetic_mapping
-from batch_runner.simulator.solver import execute_solver
-from batch_runner.simulator.state_builder import build_chemical_state
-from batch_runner.simulator.system_builder import build_chemical_system
-from batch_runner.simulator.workflows import requires_initial_equilibrium
 
-
-@dataclass
-class SimulationResult:
-    rows: list[dict[str, Any]] | None
-    kinetic_mapping: list[dict[str, Any]]
-    solver_history: list[dict[str, Any]] | None
-    diagnostics: dict[str, Any]
-    initial_state: Any
-    final_state: Any
-    row_stream_path: Path | None = None
-    solver_history_stream_path: Path | None = None
-    first_row: dict[str, Any] | None = None
-    last_row: dict[str, Any] | None = None
-    exception_traceback: str | None = None
-    source_config_sha256: str | None = None
-    database_sha256: str | None = None
-    kinetic_parameter_sha256: str | None = None
-
-    def iter_rows(self):
-        if self.rows is not None:
-            yield from self.rows
-        elif self.row_stream_path is not None:
-            yield from _read_json_lines(self.row_stream_path)
-
-    def iter_solver_history(self):
-        if self.solver_history is not None:
-            yield from self.solver_history
-        elif self.solver_history_stream_path is not None:
-            yield from _read_json_lines(self.solver_history_stream_path)
-
-    @property
-    def initial_row(self) -> dict[str, Any]:
-        row = self.rows[0] if self.rows else self.first_row
-        if row is None:
-            raise ValueError("simulation has no accepted result rows")
-        return row
-
-    @property
-    def final_row(self) -> dict[str, Any]:
-        row = self.rows[-1] if self.rows else self.last_row
-        if row is None:
-            raise ValueError("simulation has no accepted result rows")
-        return row
-
-    def cleanup_streams(self) -> None:
-        for path in (self.row_stream_path, self.solver_history_stream_path):
-            if path is not None:
-                path.unlink(missing_ok=True)
-
-
-@dataclass
-class PreparedSimulation:
-    kinetic_mapping: list[dict[str, Any]]
-    system: Any | None
-    state: Any | None
-    failed_stage: str | None = None
-    error: Exception | None = None
-    exception_traceback: str | None = None
-    source_config_sha256: str | None = None
-    database_sha256: str | None = None
-    kinetic_parameter_sha256: str | None = None
-
-    @property
-    def ready(self) -> bool:
-        return self.error is None
+from .chemistry import build_chemical_state, build_chemical_system, load_database
+from .diagnostics import build_diagnostics, exception_progress, failed_result
+from .kinetics import (
+    build_kinetic_mapping,
+    load_kinetic_parameters,
+    require_valid_kinetic_mapping,
+)
+from .results import PreparedSimulation, SimulationResult
+from .solver import execute_solver
 
 
 def prepare_simulation(
@@ -191,7 +124,7 @@ def run_simulation(
     prepared = prepare_simulation(case, mapping_ready, event_ready)
     if not prepared.ready:
         assert prepared.error is not None and prepared.failed_stage is not None
-        return _failed_result(
+        return failed_result(
             case,
             run_started_at,
             prepared.failed_stage,
@@ -345,7 +278,7 @@ def run_simulation(
             stage = "output_writing"
     except Exception as error:
         exception_traceback = traceback.format_exc()
-        solver_progress = _exception_progress(
+        solver_progress = exception_progress(
             stage,
             error,
             final_time_s=accepted_time_s,
@@ -356,7 +289,7 @@ def run_simulation(
             checkpoint_count=checkpoint_index,
         )
 
-    diagnostics = _build_diagnostics(
+    diagnostics = build_diagnostics(
         case,
         run_started_at,
         system,
@@ -382,163 +315,6 @@ def run_simulation(
         kinetic_parameter_sha256=prepared.kinetic_parameter_sha256,
     )
 
-
-def _build_diagnostics(
-    case: ResolvedCase,
-    run_started_at: str,
-    system: Any | None,
-    result_rows: int,
-    solver_progress: dict[str, Any],
-    database_sha256: str | None,
-    kinetic_parameter_sha256: str | None,
-) -> dict[str, Any]:
-    estimated_solver_calls = (
-        case.internal_step_count + int(requires_initial_equilibrium(case))
-        if case.config.solver.timestep.mode == "fixed"
-        else None
-    )
-    if estimated_solver_calls is not None and (
-        case.config.kinetics.enabled
-        and case.config.solver.workflow.precondition_kinetics
-        and case.config.solver.workflow.mode
-        != "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
-    ):
-        estimated_solver_calls += 1
-    final_time_s = solver_progress["final_time_reached_s"]
-    return {
-        "case_name": case.config.case.name,
-        "output_schema_version": OUTPUT_SCHEMA_VERSION,
-        "stale_output_policy": "fresh output_dir required; legacy results.csv is rejected",
-        "reaktoro_version": rkt.__version__,
-        "database_source": case.config.database.source,
-        "database_value": str(case.database_path or case.config.database.name),
-        "database_sha256": database_sha256,
-        "kinetic_model": case.config.kinetics.model,
-        "kinetic_parameter_path": str(case.kinetics_path) if case.kinetics_path else None,
-        "kinetic_parameter_sha256": kinetic_parameter_sha256,
-        "system_counts": (
-            {
-                "elements": len(system.elements()),
-                "species": len(system.species()),
-                "phases": len(system.phases()),
-                "reactions": len(system.reactions()),
-                "surfaces": len(system.surfaces()),
-            }
-            if system is not None
-            else None
-        ),
-        "requested_internal_steps": (
-            case.internal_step_count if case.config.solver.timestep.mode == "fixed" else None
-        ),
-        "base_internal_steps": (
-            case.base_internal_step_count if case.config.solver.timestep.mode == "fixed" else None
-        ),
-        "max_internal_steps": case.config.solver.timestep.max_internal_steps,
-        "minimum_possible_accepted_steps": case.minimum_accepted_steps,
-        "estimated_solver_calls": estimated_solver_calls,
-        "estimated_result_rows": case.requested_output_row_count,
-        "requested_output_rows": case.requested_output_row_count,
-        "requested_checkpoint_count": len(case.checkpoint_times_s),
-        "result_rows": result_rows,
-        "partial_run": (
-            not solver_progress["simulation_completed"] and final_time_s > 0.0
-        ),
-        "partial_outputs_written": False,
-        "scientific_outputs_omitted": False,
-        "output_completeness": {"status": "not_written", "files_written": []},
-        **solver_progress,
-        "final_time_reached_days": final_time_s / 86400.0,
-        "solver_backend_type": "standard",
-        "timestep_mode": case.config.solver.timestep.mode,
-        "workflow_mode": case.config.solver.workflow.mode,
-        "co2_runtime_workflow": case.config.solver.workflow.mode,
-        "redox_enabled_runtime": case.config.redox.enabled,
-        "redox_apply_during_runtime": case.config.redox.apply_during,
-        "kinetic_precondition_requested": case.config.solver.workflow.precondition_kinetics,
-        "warnings": [],
-        "run_started_at": run_started_at,
-        "run_finished_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def _exception_progress(
-    stage: str,
-    error: Exception,
-    *,
-    final_time_s: float = 0.0,
-    accepted_steps: int = 0,
-    rejected_steps: int = 0,
-    internal_attempts: int = 0,
-    solver_failed_attempts: int = 0,
-    checkpoint_count: int = 0,
-) -> dict[str, Any]:
-    return {
-        "simulation_completed": False,
-        "failed_stage": stage,
-        "exception_type": type(error).__name__,
-        "error_message": str(error),
-        "termination_reason": "lifecycle_exception",
-        "final_time_reached_s": final_time_s,
-        "number_of_accepted_steps": accepted_steps,
-        "number_of_rejected_steps": rejected_steps,
-        "number_of_failed_steps": rejected_steps,
-        "smallest_dt_s": None,
-        "largest_dt_s": None,
-        "average_dt_s": None,
-        "kinetic_precondition_applied": False,
-        "failed_attempt_target_time_s": None,
-        "failed_attempt_dt_s": None,
-        "accepted_state_restored": None,
-        "checkpoint_count": checkpoint_count,
-        "number_of_internal_attempts": internal_attempts,
-        "number_of_solver_failed_attempts": solver_failed_attempts,
-        "retries_at_final_accepted_time": None,
-        "rejection_reason_counts": {},
-        "cancellation_requested": False,
-        "cancellation_boundary": None,
-    }
-
-
-def _failed_result(
-    case: ResolvedCase,
-    run_started_at: str,
-    stage: str,
-    error: Exception,
-    *,
-    kinetic_mapping: list[dict[str, Any]],
-    system: Any | None,
-    state: Any | None,
-    exception_traceback: str | None,
-    source_config_sha256: str | None,
-    database_sha256: str | None,
-    kinetic_parameter_sha256: str | None,
-) -> SimulationResult:
-    return SimulationResult(
-        rows=[],
-        kinetic_mapping=kinetic_mapping,
-        solver_history=[],
-        diagnostics=_build_diagnostics(
-            case,
-            run_started_at,
-            system,
-            0,
-            _exception_progress(stage, error),
-            database_sha256,
-            kinetic_parameter_sha256,
-        ),
-        initial_state=None,
-        final_state=state,
-        exception_traceback=exception_traceback,
-        source_config_sha256=source_config_sha256,
-        database_sha256=database_sha256,
-        kinetic_parameter_sha256=kinetic_parameter_sha256,
-    )
-
-
-def _read_json_lines(path: Path):
-    with path.open(encoding="utf-8") as stream:
-        for line in stream:
-            yield json.loads(line)
 
 
 def _sha256(path: Path | None) -> str | None:

@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+import reaktoro as rkt
+
 from batch_runner.config import ResolvedCase
 
 
@@ -43,3 +45,33 @@ def redox_applies(case: ResolvedCase, stage: ConstraintStage) -> bool:
 
 def constraints_apply(case: ResolvedCase, stage: ConstraintStage) -> bool:
     return fixed_fugacity_applies(case, stage) or redox_applies(case, stage)
+
+
+def build_conditions(
+    case: ResolvedCase,
+    system,
+    state,
+    stage: ConstraintStage,
+):
+    if not constraints_apply(case, stage):
+        return None, None
+
+    specs = rkt.EquilibriumSpecs.TP(system)
+    if fixed_fugacity_applies(case, stage):
+        specs.fugacity(case.config.co2.gas_species)
+    if redox_applies(case, stage):
+        specs.pE()
+
+    conditions = rkt.EquilibriumConditions(specs)
+    conditions.temperature(case.config.physical.temperature_c, "celsius")
+    conditions.pressure(case.config.physical.pressure_bar, "bar")
+    if fixed_fugacity_applies(case, stage):
+        conditions.fugacity(
+            case.config.co2.gas_species,
+            case.config.co2.fugacity_bar,
+            "bar",
+        )
+    if redox_applies(case, stage):
+        conditions.pE(case.config.redox.pe)
+    conditions.setInitialComponentAmountsFromState(state)
+    return specs, conditions

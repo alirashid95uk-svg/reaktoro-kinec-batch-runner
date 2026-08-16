@@ -12,10 +12,12 @@ import yaml
 from pydantic import ValidationError
 
 from batch_runner.config import CaseConfig, load_case
-from batch_runner.simulator import acceptance as acceptance_module
-from batch_runner.simulator import solver as solver_module
-from batch_runner.simulator.acceptance import evaluate_trial
-from batch_runner.simulator.state_snapshot import snapshot_state
+from batch_runner.simulator.solver import acceptance as acceptance_module
+from batch_runner.simulator.solver import calls as solver_calls_module
+from batch_runner.simulator.solver import execution as solver_module
+from batch_runner.simulator.solver.acceptance import evaluate_trial
+from batch_runner.simulator.solver.records import empty_acceptance
+from batch_runner.simulator.solver.state import snapshot_state
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -122,7 +124,7 @@ def _run_fake(
                 solve(state, dt_s)
             return _FakeResult()
 
-    monkeypatch.setattr(solver_module.rkt, "KineticsSolver", lambda _system: FakeSolver())
+    monkeypatch.setattr(solver_calls_module.rkt, "KineticsSolver", lambda _system: FakeSolver())
     monkeypatch.setattr(solver_module, "build_conditions", lambda *_args: (None, None))
     monkeypatch.setattr(solver_module, "snapshot_state", deepcopy)
     monkeypatch.setattr(
@@ -137,7 +139,7 @@ def _run_fake(
     def fake_acceptance(*_args):
         accepted_now = next(accepted) if accepted is not None else True
         return {
-            **solver_module._empty_acceptance("accepted" if accepted_now else "forced_rejection"),
+            **empty_acceptance("accepted" if accepted_now else "forced_rejection"),
             "accepted": accepted_now,
         }
 

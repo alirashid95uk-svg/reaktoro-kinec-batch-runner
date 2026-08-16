@@ -7,7 +7,7 @@ import reaktoro as rkt
 import yaml
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.kinec import KinecParams, ReactionRateModelKinec
+from batch_runner.simulator.kinetics.kinec import KinecParams, ReactionRateModelKinec
 
 
 def load_kinetic_parameters(case: ResolvedCase) -> Any | None:

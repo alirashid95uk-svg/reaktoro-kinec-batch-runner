@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 
@@ -12,7 +12,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.simulation import SimulationResult
+
+if TYPE_CHECKING:
+    from batch_runner.simulator import SimulationResult
 
 
 def write_plots(case: ResolvedCase, result: SimulationResult, plots_dir: Path) -> list[Path]:

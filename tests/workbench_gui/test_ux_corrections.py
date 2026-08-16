@@ -4,13 +4,14 @@ import json
 import shutil
 from pathlib import Path
 
+import pandas as pd
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication, QPushButton, QScrollArea, QWidget
 
 from workbench.app import create_application
 from workbench.main_window import MainWindow, PAGE_NAMES
-from workbench.views import pages as page_module
+from workbench.views.pages import studies as studies_page_module
 from workbench.widgets.presentation import EmptyState
 from workbench_core.comparison import compatibility_gate
 from workbench_core.result_readers import ResultPackage
@@ -169,7 +170,7 @@ def test_queue_and_compare_action_matrices_use_internal_values(qtbot, tmp_path: 
     )
     assert window.compare.save_button.isEnabled()
     window.compare._show_preview(
-        page_module.pd.DataFrame(
+        pd.DataFrame(
             {
                 "run_path": [str(first), str(second)],
                 "time_s": [0.0, 0.0],
@@ -236,7 +237,7 @@ def test_studies_dataset_prerequisites_precede_output_dialog(qtbot, monkeypatch,
     assert not studies.dataset_button.isEnabled()
     dialogs: list[str] = []
     monkeypatch.setattr(
-        page_module,
+        studies_page_module,
         "_new_output_directory",
         lambda *_args: dialogs.append("opened") or str(tmp_path / "dataset"),
     )
@@ -244,7 +245,7 @@ def test_studies_dataset_prerequisites_precede_output_dialog(qtbot, monkeypatch,
     assert not dialogs
 
     monkeypatch.setattr(
-        page_module.QFileDialog,
+        studies_page_module.QFileDialog,
         "getExistingDirectory",
         lambda *_args, **_kwargs: str(package),
     )

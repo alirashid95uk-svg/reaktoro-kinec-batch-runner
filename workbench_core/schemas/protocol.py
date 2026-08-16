@@ -7,10 +7,9 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
+from batch_runner.protocol import PROTOCOL_VERSION
+
 from .common import NonEmptyStr, StrictModel
-
-
-PROTOCOL_VERSION = "1.0"
 
 
 class WorkerEventType(str, Enum):

@@ -5,6 +5,11 @@ equilibrium and kinetic cases. Reaktoro's native Palandri-Kharaka model uses
 the corrected local parameter file by default; the custom Kinec model is an
 explicit option.
 
+The scientific core is organised into stable `batch_runner.config`,
+`batch_runner.simulator`, and `batch_runner.outputs` package APIs. See
+[docs/dev/architecture.md](docs/dev/architecture.md) for the package map and
+execution flow.
+
 ## Recommended: Scientific Workbench
 
 Create the pinned GUI environment once, then double-click `Run Workbench.cmd`:
@@ -113,7 +118,7 @@ porosity_permeability.csv
 - Default native kinetic parameters: `data/kinetics/PalandriKharaka_local.yaml`
 - Optional custom Kinec parameters: `data/kinetics/kinec_rates_minimal.yaml`
 - Optional Kinec adapter:
-  `batch_runner/simulator/kinec.py`
+  `batch_runner/simulator/kinetics/kinec.py`
 
 Copy `cases/schema_template.yaml` to create a case input. The template is
 intentionally not runnable: replace every required placeholder with a value

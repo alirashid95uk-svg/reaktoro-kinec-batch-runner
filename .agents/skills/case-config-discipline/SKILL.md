@@ -12,7 +12,7 @@ Maintain one explicit and synchronized configuration contract. Never invent scie
 
 Use these sources in this order:
 
-1. `batch_runner/config.py` and focused tests define active runtime behaviour.
+1. `batch_runner/config/` and focused tests define active runtime behaviour.
 2. The coordinated design files define approved intended behaviour:
 
    * `docs/dev/config_schema_feature_options.md`
@@ -29,7 +29,7 @@ Read:
 
 ```text
 AGENTS.md
-batch_runner/config.py
+batch_runner/config/
 cases/schema_template.yaml
 docs/dev/config_rules.md
 ```

@@ -59,7 +59,7 @@ from workbench_core.studies import (
     validate_study_spec_text,
 )
 import workbench_core.validation as validation_module
-import workbench_core.operations as operations_module
+import workbench_core.operations.preparation as operations_module
 
 
 H0 = "0" * 64

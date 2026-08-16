@@ -5,7 +5,7 @@ from typing import Any
 import reaktoro as rkt
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.kinetics import parameter_record_names
+from batch_runner.simulator.kinetics.parameters import parameter_record_names
 
 
 def build_kinetic_mapping(

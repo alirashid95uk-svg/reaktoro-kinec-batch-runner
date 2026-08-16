@@ -14,10 +14,11 @@ from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import CaseConfig, load_case
 from batch_runner import outputs as outputs_module
 from batch_runner.outputs import write_outputs
-from batch_runner.output_tables import SOLVER_HISTORY_COLUMNS
+from batch_runner.outputs.tables import SOLVER_HISTORY_COLUMNS
 from batch_runner.simulator import simulation as simulation_module
-from batch_runner.simulator import solver as solver_module
-from batch_runner.simulator.state_snapshot import snapshot_state
+from batch_runner.simulator.solver import calls as solver_calls_module
+from batch_runner.simulator.solver import execution as solver_module
+from batch_runner.simulator.solver.state import snapshot_state
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -408,7 +409,7 @@ class _FakeState:
 def _install_solver_spy(monkeypatch, results: list[bool]):
     calls: list[float] = []
     solver = _FakeSolver(results, calls)
-    monkeypatch.setattr(solver_module.rkt, "KineticsSolver", lambda _system: solver)
+    monkeypatch.setattr(solver_calls_module.rkt, "KineticsSolver", lambda _system: solver)
     monkeypatch.setattr(solver_module, "build_conditions", lambda *_args: (None, None))
     monkeypatch.setattr(solver_module, "snapshot_state", deepcopy)
 

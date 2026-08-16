@@ -45,7 +45,7 @@ Before implementation begins, `AGENTS.md` must be updated with a short workbench
 
 The following precedence applies:
 
-1. `batch_runner/config.py` and its focused tests define active runtime configuration behaviour.
+1. `batch_runner/config/` and its focused tests define active runtime configuration behaviour.
 2. `batch_runner` scientific modules and their focused tests define active execution behaviour.
 3. The coordinated developer contracts define approved intended behaviour:
    - `docs/dev/config_schema_feature_options.md`;
@@ -1011,6 +1011,12 @@ Jupyter remains a follow-on analysis and export target, not the authoritative qu
 
 ```text
 workbench_core/
+├── operations/              # stable headless process-control API
+│   ├── locking.py
+│   ├── preparation.py
+│   ├── execution.py
+│   ├── queues.py
+│   └── recovery.py
 ├── schemas/
 │   ├── protocol.py
 │   ├── validation_receipt.py
@@ -1035,6 +1041,14 @@ workbench/
 ├── app.py
 ├── models/
 ├── views/
+│   └── pages/               # stable seven-page presentation API
+│       ├── environment.py
+│       ├── cases.py
+│       ├── queue.py
+│       ├── runs.py
+│       ├── explore.py
+│       ├── compare.py
+│       └── studies.py
 ├── widgets/
 ├── controllers/
 ├── services/
@@ -1045,8 +1059,10 @@ workbench/
 └── resources/
 
 batch_runner/
-├── existing scientific execution
-└── protocol_events.py
+├── config/                  # strict schema, loading, and resolution
+├── simulator/               # chemistry, kinetics, solver, lifecycle
+├── outputs/                 # tables, audits, plots, manifest, writer
+└── protocol.py              # worker events and cancellation check
 
 runner.py
 workbench_cli.py
@@ -2463,14 +2479,10 @@ Display aggregation is not written back into scientific source files.
 | Existing area | Final treatment |
 |---|---|
 | `runner.py` | Preserve current CLI; add backward-compatible machine-event and cancellation options. |
-| `batch_runner/config.py` | Retain as authoritative runtime schema and preprocessing source. Add only justified metadata and tests. |
+| `batch_runner/config/` | Retain as authoritative runtime schema, loading, and preprocessing package. Add only justified metadata and tests. |
 | `batch_runner/simulator/simulation.py` | Retain orchestration; expose safe progress and cooperative-cancellation checks without Qt imports. |
 | `batch_runner/simulator/*` | Retain scientific implementation and direct Reaktoro usage. |
-| `batch_runner/outputs.py` | Retain authoritative scientific output writing. |
-| `batch_runner/output_tables.py` | Retain table definitions and expose stable descriptors where practical. |
-| `batch_runner/output_plots.py` | Retain canonical Matplotlib outputs. |
-| `batch_runner/scientific_reports.py` | Retain source calculations for existing configured audit outputs. |
-| `batch_runner/manifest.py` | Expand provenance, code identity, and run references without duplicating operational records. |
+| `batch_runner/outputs/` | Retain authoritative scientific output writing, deterministic tables, configured audit calculations, canonical Matplotlib plots, and manifests behind the stable package API. |
 | `Simulation launcher/simulation_launcher.py` | Preserve as a regression launcher until replacement acceptance passes; later move to an explicit legacy/reference location. |
 | `Simulation launcher/launcher_diagnosis.py` | Refactor reusable diagnosis logic into a Qt-free operational module while preserving behaviour. |
 | `Simulation launcher/Run Simulations.cmd` | Preserve during migration; later replace with the verified workbench bootstrap. |

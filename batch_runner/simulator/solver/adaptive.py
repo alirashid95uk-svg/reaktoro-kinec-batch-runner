@@ -1,0 +1,260 @@
+"""Adaptive timestep execution, acceptance, retry, and rollback."""
+
+from decimal import Decimal
+from typing import Any
+
+from .calls import failure_reason, timed_solve
+from .records import acceptance_record, empty_acceptance, solver_record
+from .runtime import SolverRun
+
+
+def next_forced_target(
+    current_time_s: float,
+    duration_s: float,
+    next_output_time_s: float | None,
+    next_checkpoint_time_s: float | None,
+) -> float:
+    candidates = [duration_s]
+    candidates.extend(
+        target
+        for target in (next_output_time_s, next_checkpoint_time_s)
+        if target is not None and target > current_time_s
+    )
+    return min(candidates)
+
+
+def adaptive_target(
+    current_time_s: float, controller_dt_s: float, forced_target_s: float
+) -> float:
+    proposed = Decimal(str(current_time_s)) + Decimal(str(controller_dt_s))
+    forced = Decimal(str(forced_target_s))
+    return forced_target_s if proposed >= forced else float(proposed)
+
+
+def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
+    initial_state = run.initial_state
+    controller_dt_s = run.case.dt_initial_s
+    while run.time_s < run.case.duration_s:
+        if run.is_cancelled():
+            return initial_state, run.cancelled("before_adaptive_solver_attempt")
+        if run.kinetic_attempts >= run.timestep.max_internal_steps:
+            return initial_state, run.progress(
+                completed=False,
+                termination_reason="max_internal_steps_exceeded",
+                failed_stage="timestep_controller",
+                error_message=(
+                    "adaptive controller reached "
+                    f"max_internal_steps={run.timestep.max_internal_steps}"
+                ),
+                accepted_state_restored=True,
+            )
+
+        forced_target_s = next_forced_target(
+            run.time_s,
+            run.case.duration_s,
+            run.next_output_time,
+            run.next_checkpoint_time,
+        )
+        target_time_s = adaptive_target(
+            run.time_s, controller_dt_s, forced_target_s
+        )
+        dt_s = float(
+            Decimal(str(target_time_s)) - Decimal(str(run.time_s))
+        )
+        start_s = run.time_s
+        accepted_state = run.snapshot_state(run.state)
+        result, wall_time_s, error = timed_solve(
+            run.kinetic_solver,
+            run.state,
+            dt_s=dt_s,
+            conditions=run.conditions,
+        )
+        cancel_after_attempt = run.is_cancelled()
+        run.kinetic_attempts += 1
+        solver_reason = failure_reason(
+            result,
+            error,
+            f"adaptive kinetic attempt ending at {target_time_s} s",
+        )
+        if cancel_after_attempt:
+            run.state.assign(accepted_state)
+            run.failed_steps += 1
+            if solver_reason is not None:
+                run.solver_failed_attempts += 1
+            run.emit_record(
+                solver_record(
+                    step_index=run.step_index,
+                    attempt_index=run.kinetic_attempts,
+                    stage="adaptive_kinetic_attempt",
+                    time_start_s=start_s,
+                    time_end_s=start_s,
+                    dt_s=dt_s,
+                    result=result,
+                    wall_time_s=wall_time_s,
+                    accepted=False,
+                    failure_reason=(
+                        solver_reason
+                        or "cooperative cancellation requested before trial acceptance"
+                    ),
+                    acceptance_reason=(
+                        "solver_failure"
+                        if solver_reason
+                        else "cancelled_before_acceptance"
+                    ),
+                )
+            )
+            if solver_reason is not None:
+                run.rejection_reason_counts["solver_failure"] = (
+                    run.rejection_reason_counts.get("solver_failure", 0) + 1
+                )
+                return initial_state, run.progress(
+                    completed=False,
+                    failed_stage="adaptive_kinetic_attempt",
+                    error_message=solver_reason,
+                    exception_type=type(error).__name__ if error is not None else None,
+                    failed_attempt_target_time_s=target_time_s,
+                    failed_attempt_dt_s=dt_s,
+                    accepted_state_restored=True,
+                    cancellation_requested=True,
+                    cancellation_boundary="after_adaptive_solver_attempt",
+                )
+            return initial_state, run.cancelled("after_adaptive_solver_attempt")
+
+        acceptance = empty_acceptance(
+            "solver_failure" if solver_reason else "accepted"
+        )
+        acceptance_error = None
+        if solver_reason is None:
+            try:
+                acceptance = run.evaluate_trial(
+                    run.case, run.system, accepted_state, run.state
+                )
+            except Exception as error_during_acceptance:
+                acceptance_error = error_during_acceptance
+                acceptance = empty_acceptance(
+                    "acceptance_evaluation_error:"
+                    f"{type(error_during_acceptance).__name__}:"
+                    f"{error_during_acceptance}"
+                )
+
+        rejection_reason = solver_reason or (
+            None if acceptance["accepted"] else acceptance["acceptance_reason"]
+        )
+        if rejection_reason is not None:
+            run.state.assign(accepted_state)
+            run.failed_steps += 1
+            run.retries_at_current_time += 1
+            if solver_reason is not None:
+                run.solver_failed_attempts += 1
+            reason_key = (
+                "solver_failure"
+                if solver_reason
+                else acceptance["acceptance_reason"]
+            )
+            for reason in reason_key.split(";"):
+                run.rejection_reason_counts[reason] = (
+                    run.rejection_reason_counts.get(reason, 0) + 1
+                )
+            next_dt_s = max(
+                run.case.dt_min_s,
+                dt_s * run.timestep.step_size.shrink_factor,
+            )
+            run.emit_record(
+                solver_record(
+                    step_index=run.step_index,
+                    attempt_index=run.kinetic_attempts,
+                    stage="adaptive_kinetic_attempt",
+                    time_start_s=start_s,
+                    time_end_s=start_s,
+                    dt_s=dt_s,
+                    result=result,
+                    wall_time_s=wall_time_s,
+                    accepted=False,
+                    failure_reason=rejection_reason,
+                    next_dt_s=next_dt_s,
+                    **acceptance_record(acceptance),
+                )
+            )
+            retry_limit_hit = (
+                run.retries_at_current_time
+                > run.timestep.step_size.max_retries_per_step
+            )
+            minimum_hit = dt_s <= run.case.dt_min_s
+            if retry_limit_hit or minimum_hit:
+                return initial_state, run.progress(
+                    completed=False,
+                    termination_reason=(
+                        "retry_limit_exceeded"
+                        if retry_limit_hit
+                        else "minimum_timestep_rejected"
+                    ),
+                    failed_stage="adaptive_kinetic_attempt",
+                    error_message=rejection_reason,
+                    exception_type=(
+                        type(error).__name__
+                        if error is not None
+                        else (
+                            type(acceptance_error).__name__
+                            if acceptance_error is not None
+                            else None
+                        )
+                    ),
+                    failed_attempt_target_time_s=target_time_s,
+                    failed_attempt_dt_s=dt_s,
+                    accepted_state_restored=True,
+                )
+            controller_dt_s = next_dt_s
+            continue
+
+        next_dt_s = min(
+            run.case.dt_max_s,
+            max(
+                run.case.dt_min_s,
+                controller_dt_s * run.timestep.step_size.growth_factor,
+            ),
+        )
+        record = solver_record(
+            step_index=run.step_index,
+            attempt_index=run.kinetic_attempts,
+            stage="adaptive_kinetic_attempt",
+            time_start_s=start_s,
+            time_end_s=target_time_s,
+            dt_s=dt_s,
+            result=result,
+            wall_time_s=wall_time_s,
+            next_dt_s=next_dt_s,
+            **acceptance_record(acceptance),
+        )
+        run.accept_step(dt_s, target_time_s)
+        run.retries_at_current_time = 0
+        run.emit_record(record)
+        row = None
+        if run.output_due(run.time_s):
+            if run.is_cancelled():
+                return initial_state, run.cancelled(
+                    "before_adaptive_output_extraction", restored=False
+                )
+            row = run.collect_row(
+                run.case, run.state, record, initial_state
+            )
+            run.emit_row(row)
+        if run.checkpoint_due(run.time_s):
+            if run.is_cancelled():
+                return initial_state, run.cancelled(
+                    "before_adaptive_checkpoint", restored=False
+                )
+            run.checkpoint_count += 1
+            run.emit_checkpoint(record, run.state)
+        if run.time_s == run.case.duration_s:
+            if row is None and run.is_cancelled():
+                return initial_state, run.cancelled(
+                    "before_adaptive_final_output_extraction", restored=False
+                )
+            run.emit_boundary(
+                "final",
+                row
+                or run.collect_row(run.case, run.state, record, initial_state),
+            )
+        controller_dt_s = next_dt_s
+
+    return initial_state, run.progress(completed=True)

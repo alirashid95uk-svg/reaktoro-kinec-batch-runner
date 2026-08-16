@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from batch_runner.protocol_events import PROTOCOL_VERSION, ProtocolEmitter
+from batch_runner.protocol import PROTOCOL_VERSION, ProtocolEmitter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

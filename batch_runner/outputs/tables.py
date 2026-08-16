@@ -5,10 +5,12 @@ from __future__ import annotations
 import csv
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.simulation import SimulationResult
+
+if TYPE_CHECKING:
+    from batch_runner.simulator import SimulationResult
 
 
 TIMESERIES_CORE_COLUMNS = [

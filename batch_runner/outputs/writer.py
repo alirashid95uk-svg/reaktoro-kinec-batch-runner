@@ -5,14 +5,42 @@ from __future__ import annotations
 import json
 import traceback
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import yaml
 
 from batch_runner.config import ResolvedCase
-from batch_runner.manifest import build_manifest
-from batch_runner.output_plots import write_plots
-from batch_runner.output_tables import (
+from .audits import (
+    CARBON_INVENTORY_COLUMNS,
+    ELEMENT_BUDGET_COLUMNS,
+    REACTION_RATE_COLUMNS,
+    REACTION_RATE_VALIDATION_COLUMNS,
+    SURFACE_AREA_COLUMNS,
+    VALIDATION_LEDGER_COLUMNS,
+    carbon_inventory_rows,
+    element_budget_rows,
+    reaction_rate_rows,
+    reaction_rate_validation_rows,
+    surface_area_audit_rows,
+    validation_ledger_rows,
+)
+from .derived import (
+    MINERAL_VOLUME_COLUMNS,
+    POROSITY_PERMEABILITY_COLUMNS,
+    REGIME_COLUMNS,
+    SECONDARY_ASSEMBLAGE_COLUMNS,
+    mineral_volume_rows,
+    porosity_permeability_rows,
+    regime_classification_rows,
+    secondary_mineral_assemblage_rows,
+    surrogate_dataset_columns,
+    surrogate_dataset_rows,
+    workflow_comparison_columns,
+    workflow_comparison_rows,
+)
+from .manifest import build_manifest
+from .plots import write_plots
+from .tables import (
     AQUEOUS_SUMMARY_COLUMNS,
     MINERAL_SUMMARY_COLUMNS,
     SOLVER_HISTORY_COLUMNS,
@@ -20,35 +48,10 @@ from batch_runner.output_tables import (
     mineral_summary_rows,
     timeseries_columns,
     timeseries_rows,
-    write_csv,
 )
-from batch_runner.scientific_reports import (
-    CARBON_INVENTORY_COLUMNS,
-    ELEMENT_BUDGET_COLUMNS,
-    MINERAL_VOLUME_COLUMNS,
-    POROSITY_PERMEABILITY_COLUMNS,
-    REACTION_RATE_COLUMNS,
-    REACTION_RATE_VALIDATION_COLUMNS,
-    REGIME_COLUMNS,
-    SECONDARY_ASSEMBLAGE_COLUMNS,
-    SURFACE_AREA_COLUMNS,
-    VALIDATION_LEDGER_COLUMNS,
-    carbon_inventory_rows,
-    element_budget_rows,
-    mineral_volume_rows,
-    porosity_permeability_rows,
-    reaction_rate_rows,
-    reaction_rate_validation_rows,
-    regime_classification_rows,
-    secondary_mineral_assemblage_rows,
-    surface_area_audit_rows,
-    surrogate_dataset_columns,
-    surrogate_dataset_rows,
-    validation_ledger_rows,
-    workflow_comparison_columns,
-    workflow_comparison_rows,
-)
-from batch_runner.simulator.simulation import SimulationResult
+
+if TYPE_CHECKING:
+    from batch_runner.simulator import SimulationResult
 
 
 MAPPING_COLUMNS = [
@@ -64,14 +67,18 @@ MAPPING_COLUMNS = [
 ]
 
 
-def write_kinetic_mapping(case: ResolvedCase, mapping: list[dict]) -> Path:
+def write_kinetic_mapping(
+    case: ResolvedCase,
+    mapping: list[dict],
+    csv_writer: Callable[..., None],
+) -> Path:
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=False)
     debug = case.config.outputs.debug
     if debug.enabled and debug.mineral_connection:
         debug_dir = output_dir / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
-        write_csv(debug_dir / "mineral_connection.csv", MAPPING_COLUMNS, mapping)
+        csv_writer(debug_dir / "mineral_connection.csv", MAPPING_COLUMNS, mapping)
     return output_dir
 
 
@@ -79,9 +86,11 @@ def write_outputs(
     case: ResolvedCase,
     result: SimulationResult,
     cancel_requested: Callable[[], bool] | None = None,
+    *,
+    csv_writer: Callable[..., None],
 ) -> Path:
     try:
-        output_dir = _write_outputs(case, result, cancel_requested)
+        output_dir = _write_outputs(case, result, cancel_requested, csv_writer)
     except Exception as error:
         output_dir = case.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +150,7 @@ def _write_outputs(
     case: ResolvedCase,
     result: SimulationResult,
     cancel_requested: Callable[[], bool] | None,
+    csv_writer: Callable[..., None],
 ) -> Path:
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -181,28 +191,28 @@ def _write_outputs(
 
     if outputs.timeseries.enabled:
         path = output_dir / "timeseries.csv"
-        write_csv(path, timeseries_columns(case), timeseries_rows(case, result))
+        csv_writer(path, timeseries_columns(case), timeseries_rows(case, result))
         written.append(path)
     if outputs.solver_history.enabled:
         path = output_dir / "solver_history.csv"
-        write_csv(path, SOLVER_HISTORY_COLUMNS, result.iter_solver_history())
+        csv_writer(path, SOLVER_HISTORY_COLUMNS, result.iter_solver_history())
         written.append(path)
     scientific_output_allowed()
     if outputs.summaries.mineral_summary and scientific_output_allowed():
         path = output_dir / "mineral_summary.csv"
-        write_csv(path, MINERAL_SUMMARY_COLUMNS, mineral_summary_rows(case, result))
+        csv_writer(path, MINERAL_SUMMARY_COLUMNS, mineral_summary_rows(case, result))
         written.append(path)
     if outputs.summaries.aqueous_summary and scientific_output_allowed():
         path = output_dir / "aqueous_summary.csv"
-        write_csv(path, AQUEOUS_SUMMARY_COLUMNS, aqueous_summary_rows(case, result))
+        csv_writer(path, AQUEOUS_SUMMARY_COLUMNS, aqueous_summary_rows(case, result))
         written.append(path)
     if outputs.summaries.reaction_rates and scientific_output_allowed():
         path = output_dir / "reaction_rates.csv"
-        write_csv(path, REACTION_RATE_COLUMNS, reaction_rate_rows(case, result))
+        csv_writer(path, REACTION_RATE_COLUMNS, reaction_rate_rows(case, result))
         written.append(path)
     if outputs.summaries.reaction_rate_validation and scientific_output_allowed():
         path = output_dir / "reaction_rate_validation.csv"
-        write_csv(
+        csv_writer(
             path,
             REACTION_RATE_VALIDATION_COLUMNS,
             reaction_rate_validation_rows(case, result),
@@ -210,43 +220,43 @@ def _write_outputs(
         written.append(path)
     if outputs.summaries.carbon_inventory and scientific_output_allowed():
         path = output_dir / "carbon_inventory.csv"
-        write_csv(path, CARBON_INVENTORY_COLUMNS, carbon_inventory_rows(case, result))
+        csv_writer(path, CARBON_INVENTORY_COLUMNS, carbon_inventory_rows(case, result))
         written.append(path)
     if outputs.summaries.element_budget and scientific_output_allowed():
         path = output_dir / "element_budget.csv"
-        write_csv(path, ELEMENT_BUDGET_COLUMNS, element_budget_rows(case, result))
+        csv_writer(path, ELEMENT_BUDGET_COLUMNS, element_budget_rows(case, result))
         written.append(path)
     if outputs.summaries.mineral_volume_change and scientific_output_allowed():
         path = output_dir / "mineral_volume_change.csv"
-        write_csv(path, MINERAL_VOLUME_COLUMNS, mineral_volume_rows(case, result))
+        csv_writer(path, MINERAL_VOLUME_COLUMNS, mineral_volume_rows(case, result))
         written.append(path)
     if outputs.summaries.regime_classification and scientific_output_allowed():
         path = output_dir / "regime_classification.csv"
-        write_csv(path, REGIME_COLUMNS, regime_classification_rows(case, result))
+        csv_writer(path, REGIME_COLUMNS, regime_classification_rows(case, result))
         written.append(path)
     if outputs.summaries.surface_area_audit and scientific_output_allowed():
         path = output_dir / "surface_area_audit.csv"
-        write_csv(path, SURFACE_AREA_COLUMNS, surface_area_audit_rows(case))
+        csv_writer(path, SURFACE_AREA_COLUMNS, surface_area_audit_rows(case))
         written.append(path)
     if outputs.summaries.workflow_comparison and scientific_output_allowed():
         path = output_dir / "workflow_comparison.csv"
-        write_csv(path, workflow_comparison_columns(case), workflow_comparison_rows(case, result))
+        csv_writer(path, workflow_comparison_columns(case), workflow_comparison_rows(case, result))
         written.append(path)
     if outputs.summaries.secondary_mineral_assemblage and scientific_output_allowed():
         path = output_dir / "secondary_mineral_assemblage.csv"
-        write_csv(path, SECONDARY_ASSEMBLAGE_COLUMNS, secondary_mineral_assemblage_rows(case))
+        csv_writer(path, SECONDARY_ASSEMBLAGE_COLUMNS, secondary_mineral_assemblage_rows(case))
         written.append(path)
     if outputs.summaries.surrogate_dataset and scientific_output_allowed():
         path = output_dir / "surrogate_dataset.csv"
-        write_csv(path, surrogate_dataset_columns(case), surrogate_dataset_rows(case, result))
+        csv_writer(path, surrogate_dataset_columns(case), surrogate_dataset_rows(case, result))
         written.append(path)
     if outputs.summaries.validation_ledger and scientific_output_allowed():
         path = output_dir / "validation_ledger.csv"
-        write_csv(path, VALIDATION_LEDGER_COLUMNS, validation_ledger_rows(case, result))
+        csv_writer(path, VALIDATION_LEDGER_COLUMNS, validation_ledger_rows(case, result))
         written.append(path)
     if outputs.summaries.porosity_permeability and scientific_output_allowed():
         path = output_dir / "porosity_permeability.csv"
-        write_csv(path, POROSITY_PERMEABILITY_COLUMNS, porosity_permeability_rows(case, result))
+        csv_writer(path, POROSITY_PERMEABILITY_COLUMNS, porosity_permeability_rows(case, result))
         written.append(path)
     if outputs.diagnostics.enabled:
         path = output_dir / "diagnostics.json"

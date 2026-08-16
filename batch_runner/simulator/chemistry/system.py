@@ -5,8 +5,8 @@ from typing import Any
 import reaktoro as rkt
 
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.kinetics import build_rate_model
-from batch_runner.simulator.mapping import _require_thermodynamic_mineral
+from batch_runner.simulator.kinetics.mapping import _require_thermodynamic_mineral
+from batch_runner.simulator.kinetics.parameters import build_rate_model
 
 
 def build_chemical_system(case: ResolvedCase, database: Any, params: Any | None = None) -> Any:

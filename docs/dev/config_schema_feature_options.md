@@ -19,7 +19,7 @@ What can the user turn on/off from the case file?
 What fields are required?
 What fields are forbidden?
 What combinations are invalid?
-What config blocks should Codex implement in config.py?
+What config blocks should Codex implement in the `batch_runner.config` package?
 ```
 
 Output-file meanings are defined in:

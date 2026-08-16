@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import platform
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import reaktoro as rkt
 
 from batch_runner import OUTPUT_SCHEMA_VERSION
 from batch_runner.config import ResolvedCase
-from batch_runner.simulator.simulation import SimulationResult
+
+if TYPE_CHECKING:
+    from batch_runner.simulator import SimulationResult
+
 
 def build_manifest(
     case: ResolvedCase,

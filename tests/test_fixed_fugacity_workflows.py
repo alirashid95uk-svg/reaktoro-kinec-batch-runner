@@ -6,8 +6,10 @@ import yaml
 from pydantic import ValidationError
 
 from batch_runner.config import CaseConfig, load_case
-from batch_runner.simulator import solver as solver_module
-from batch_runner.simulator import state_builder as state_builder_module
+from batch_runner.simulator.chemistry import conditions as state_builder_module
+from batch_runner.simulator.solver import calls as solver_calls_module
+from batch_runner.simulator.solver import equilibrium as equilibrium_module
+from batch_runner.simulator.solver import execution as solver_module
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -149,9 +151,10 @@ def _run_with_solver_spy(monkeypatch, case):
             return kinetic_specs, kinetic_conditions
         return None, None
 
-    monkeypatch.setattr(solver_module.rkt, "EquilibriumSolver", fake_equilibrium_solver)
-    monkeypatch.setattr(solver_module.rkt, "KineticsSolver", fake_kinetics_solver)
+    monkeypatch.setattr(solver_calls_module.rkt, "EquilibriumSolver", fake_equilibrium_solver)
+    monkeypatch.setattr(solver_calls_module.rkt, "KineticsSolver", fake_kinetics_solver)
     monkeypatch.setattr(solver_module, "build_conditions", fake_build_conditions)
+    monkeypatch.setattr(equilibrium_module, "build_conditions", fake_build_conditions)
     monkeypatch.setattr(solver_module, "snapshot_state", lambda value: value)
     monkeypatch.setattr(solver_module, "collect_row", lambda *_args: {"time_s": 0.0})
 

@@ -1,9 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-outputs/
+/outputs/
 runs/
 .workbench/
+.claude-flow/
 
 # Generated local artifacts
 *.log
