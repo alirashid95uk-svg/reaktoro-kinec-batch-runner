@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 import traceback
@@ -15,8 +16,10 @@ from time import monotonic
 from uuid import uuid4
 
 import reaktoro as rkt
+import yaml
 
 from batch_runner.config import load_case
+from batch_runner.config._base import PROJECT_ROOT
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.protocol import ProtocolEmitter, cancellation_requested
 from batch_runner.simulator import (
@@ -33,6 +36,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run one Reaktoro batch case from YAML.")
     parser.add_argument("case_config", help="Path to a runnable YAML case config.")
     parser.add_argument("--preflight", action="store_true", help="Validate construction without starting a solver.")
+    parser.add_argument("--overwrite", action="store_true", help="Delete the configured output directory before a full run if it already exists.")
     parser.add_argument("--events-jsonl", action="store_true", help="Write versioned worker events to stdout.")
     parser.add_argument("--operation-id", help="Controller operation identifier.")
     parser.add_argument("--run-id", help="Controller run identifier.")
@@ -193,6 +197,8 @@ def _run_simulation(
     cancel,
 ) -> tuple[int, bool]:
     emitter.emit("stage_started", {"stage": "configuration_validation"})
+    if args.overwrite:
+        _remove_existing_output_dir(args.case_config)
     case = load_case(args.case_config)
     emitter.emit("stage_completed", {"stage": "configuration_validation"})
     _emit_environment(emitter)
@@ -262,6 +268,34 @@ def _run_simulation(
         )
 
     return (0 if completed else 1), uses_python_rate_callback(case)
+
+
+def _remove_existing_output_dir(case_config: str | Path) -> None:
+    """Remove the configured output directory for an explicit --overwrite run."""
+    config_path = Path(case_config).resolve()
+    if not config_path.is_file():
+        raise FileNotFoundError(f"case config does not exist: {config_path}")
+
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"case config must contain a YAML mapping: {config_path}")
+    paths = raw.get("paths")
+    if not isinstance(paths, dict) or not isinstance(paths.get("output_dir"), str):
+        raise ValueError("case config must define paths.output_dir before --overwrite can be used")
+
+    output_dir = Path(paths["output_dir"])
+    if not output_dir.is_absolute():
+        output_dir = PROJECT_ROOT / output_dir
+    output_dir = output_dir.resolve()
+
+    protected_paths = {PROJECT_ROOT.resolve(), *PROJECT_ROOT.resolve().parents}
+    if output_dir in protected_paths:
+        raise ValueError(f"refusing to overwrite protected path: {output_dir}")
+    if not output_dir.exists():
+        return
+    if not output_dir.is_dir():
+        raise NotADirectoryError(f"output path exists and is not a directory: {output_dir}")
+    shutil.rmtree(output_dir)
 
 
 def _emit_environment(emitter: ProtocolEmitter) -> None:
