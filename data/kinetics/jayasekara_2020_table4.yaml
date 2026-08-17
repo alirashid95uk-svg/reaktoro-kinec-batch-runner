@@ -1,0 +1,87 @@
+# Jayasekara et al. (2020), Table 4, fixed-temperature kinetic parameters.
+# Paper: CO2-brine-caprock interaction: Reactivity experiments on mudstone
+# caprock of South-west Hub geo-sequestration project.
+#
+# The experiment/model temperature is fixed at 40 degC. Table 4 reports k40
+# directly, so each acid-term A below is the reported k40 value and E is set
+# to 0 J/mol. This is an implementation encoding, not a scientific assertion
+# that Ea = 0: it makes the Kinec evaluator return exactly
+#     k40 * a_H+^n * (1 - Omega)
+# at 40 degC, matching the paper's Eq. (3), while avoiding re-derivation from
+# k25/Ea where the published table contains values that do not all reproduce
+# the tabulated k40 exactly.
+#
+# sigma = 1 gives the paper affinity factor (1 - Q/K) = (1 - Omega).
+# Mineral keys use this repository's local thermodynamic-database names.
+# Chlorite -> Clinochlore-14A; K-feldspar -> K-Feldspar;
+# Montmorillonite -> Montmor-Ca.
+
+Quartz:
+  family: standard
+  omega: Quartz
+  sigma: 1.0
+  terms:
+    acid: {A: 5.45e-14, E: 0.0, n: 0.0}
+
+Illite:
+  family: standard
+  omega: Illite
+  sigma: 1.0
+  terms:
+    acid: {A: 9.68e-13, E: 0.0, n: 0.1}
+
+Clinochlore-14A:
+  family: standard
+  omega: Clinochlore-14A
+  sigma: 1.0
+  terms:
+    acid: {A: 3.34e-11, E: 0.0, n: 0.5}
+
+Anorthite:
+  family: standard
+  omega: Anorthite
+  sigma: 1.0
+  terms:
+    acid: {A: 1.38e-8, E: 0.0, n: 1.41}
+
+Albite:
+  family: standard
+  omega: Albite
+  sigma: 1.0
+  terms:
+    acid: {A: 3.51e-12, E: 0.0, n: 0.5}
+
+K-Feldspar:
+  family: standard
+  omega: K-Feldspar
+  sigma: 1.0
+  terms:
+    acid: {A: 2.37e-10, E: 0.0, n: 0.5}
+
+Kaolinite:
+  family: standard
+  omega: Kaolinite
+  sigma: 1.0
+  terms:
+    acid: {A: 1.75e-11, E: 0.0, n: 0.2}
+
+Goethite:
+  family: standard
+  omega: Goethite
+  sigma: 1.0
+  terms:
+    acid: {A: 3.42e-8, E: 0.0, n: 0.5}
+
+Pyrite:
+  family: standard
+  omega: Pyrite
+  sigma: 1.0
+  terms:
+    acid: {A: 1.35e-10, E: 0.0, n: 0.5}
+
+Montmor-Ca:
+  family: standard
+  omega: Montmor-Ca
+  sigma: 1.0
+  terms:
+    acid: {A: 3.34e-13, E: 0.0, n: 0.5}
