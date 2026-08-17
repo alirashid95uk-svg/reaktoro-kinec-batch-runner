@@ -34,8 +34,9 @@ def collect_row(
     minerals = {mineral.name: mineral for mineral in case.config.minerals}
     for name in _mineral_amount_names(case):
         mineral = minerals[name]
-        amount = float(state.speciesAmount(mineral.name))
-        initial_amount = float(initial_state.speciesAmount(mineral.name))
+        mineral_index = _solid_species_index(state.system(), mineral.name)
+        amount = float(state.speciesAmount(mineral_index))
+        initial_amount = float(initial_state.speciesAmount(mineral_index))
         row[f"mineral_amount_mol::{name}"] = amount
         row[f"mineral_delta_mol::{name}"] = amount - initial_amount
         row[f"saturation_index::{name}"] = float(aqueous.saturationIndex(mineral.name))
@@ -82,3 +83,17 @@ def _mineral_amount_names(case: ResolvedCase) -> list[str]:
     if post.reaction_rates:
         names |= {mineral.name for mineral in case.config.minerals if mineral.role == "kinetic"}
     return [mineral.name for mineral in case.config.minerals if mineral.name in names]
+
+
+def _solid_species_index(system: Any, name: str) -> int:
+    matches = [
+        index
+        for index, species in enumerate(system.species())
+        if species.name() == name
+        and species.aggregateState() == rkt.AggregateState.Solid
+    ]
+    if not matches:
+        raise ValueError(f"solid mineral is not present in the chemical system: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"multiple solid minerals with the same name are present in the chemical system: {name}")
+    return matches[0]
