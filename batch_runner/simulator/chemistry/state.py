@@ -18,8 +18,8 @@ def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
 
     for mineral in case.config.minerals:
         if mineral.initial_amount is not None:
-            _require_system_species(system, mineral.name)
-            state.set(mineral.name, mineral.initial_amount.value, mineral.initial_amount.unit)
+            mineral_index = _require_system_mineral(system, mineral.name)
+            state.set(mineral_index, mineral.initial_amount.value, mineral.initial_amount.unit)
 
     if case.config.co2.mode == "finite":
         species_name = case.config.co2.gas_species
@@ -39,6 +39,22 @@ def _require_system_species(system: Any, name: str) -> None:
         system.species().index(name)
     except RuntimeError as exc:
         raise ValueError(f"species is not present in the constructed chemical system: {name}") from exc
+
+
+def _require_system_mineral(system: Any, name: str) -> int:
+    matches = [
+        index
+        for index, species in enumerate(system.species())
+        if species.name() == name
+        and species.aggregateState() == rkt.AggregateState.Solid
+    ]
+    if not matches:
+        raise ValueError(f"solid mineral is not present in the constructed chemical system: {name}")
+    if len(matches) > 1:
+        raise ValueError(
+            f"multiple solid minerals with the same name are present in the constructed chemical system: {name}"
+        )
+    return matches[0]
 
 
 def _postprocessing_species_amount_names(case: ResolvedCase) -> set[str]:
