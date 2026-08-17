@@ -28,8 +28,8 @@ paths:
   output_dir: outputs/jayasekara_2020_reproduction
 
 database:
-  source: local
-  path: data/thermo/Kinec_v3_4.dat
+  source: embedded
+  name: llnl.dat
 
 activity_models:
   aqueous: phreeqc
@@ -154,7 +154,7 @@ minerals:
     initial_amount: {value: 0.0, unit: mol}
     selection_reason: "Repository compatibility silica phase; paper reports amorphous silica"
 
-  - name: Fe(OH)3(a)
+  - name: Fe(OH)3
     role: equilibrium
     initial_amount: {value: 0.0, unit: mol}
     selection_reason: "Secondary Fe(OH)3 phase reported by Jayasekara et al."
@@ -191,7 +191,7 @@ postprocessing:
   requested_species: [H2O]
   requested_minerals:
     [Quartz, Illite, Clinochlore-14A, Anorthite, Albite, K-Feldspar,
-     Kaolinite, Goethite, Pyrite, Montmor-Ca, Gibbsite, Chalcedony, Fe(OH)3(a)]
+     Kaolinite, Goethite, Pyrite, Montmor-Ca, Gibbsite, Chalcedony, Fe(OH)3]
   aqueous_molalities: true
   saturation_indices: true
   reaction_rates: true
