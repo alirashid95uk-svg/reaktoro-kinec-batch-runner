@@ -68,17 +68,13 @@ def require_valid_kinetic_mapping(mapping: list[dict[str, Any]]) -> None:
 
 
 def _require_thermodynamic_mineral(database: Any, name: str) -> None:
-    try:
-        species = database.species(name)
-    except RuntimeError as exc:
-        raise ValueError(f"missing thermodynamic mineral: {name}") from exc
-    if species.aggregateState() != rkt.AggregateState.Solid:
-        raise ValueError(f"configured mineral is not a solid thermodynamic species: {name}")
+    if not _is_thermodynamic_mineral(database, name):
+        raise ValueError(f"missing thermodynamic mineral: {name}")
 
 
 def _is_thermodynamic_mineral(database: Any, name: str) -> bool:
-    try:
-        species = database.species(name)
-    except RuntimeError:
-        return False
-    return species.aggregateState() == rkt.AggregateState.Solid
+    """Return whether *name* exists as a solid thermodynamic species."""
+    return any(
+        species.name() == name
+        for species in database.speciesWithAggregateState(rkt.AggregateState.Solid)
+    )
