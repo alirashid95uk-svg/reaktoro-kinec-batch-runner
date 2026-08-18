@@ -188,8 +188,7 @@ KineticsSolver
 ```
 
 There is no `solver.backend` YAML block and no smart-solver fallback policy in
-the active runtime contract. A future backend proposal must return as a new
-`IDEA`; it must not be predeclared in the current schema.
+the active runtime contract.
 
 ## 7. Time Ownership
 
@@ -208,9 +207,8 @@ adaptive
 adaptive_long_horizon
 ```
 
-`adaptive_long_horizon` is currently an implemented mode with additional schema
-requirements. Whether it should later be simplified into an adaptive policy is
-a separate design decision; it is not stale functionality.
+`adaptive_long_horizon` is an implemented mode using the same adaptive
+controller with additional schema requirements.
 
 ### 8.1 Fixed Timestep
 
@@ -321,9 +319,8 @@ Checkpointing means writing an accepted intermediate state plus enough metadata
 for diagnostics and evidence.
 
 Checkpointing does **not** mean resumable execution. Automatic restart is not
-part of the current configuration schema. Do not add a disabled `solver.restart`
-placeholder. A future restart implementation must be introduced as a new
-feature with an explicit reconstruction contract and tests.
+part of the current configuration schema, and `solver.restart` is not a valid
+placeholder field.
 
 ## 11. Rejected-Step State Safety
 
@@ -349,7 +346,7 @@ recompute kinetic equations for routine diagnostics.
 
 Rate extraction does not by itself enable rate-based timestep acceptance.
 
-## 13. Conservation and Balance Features
+## 13. Conservation and Balance Status
 
 There is no generic `solver.conservation` YAML block in the active schema.
 
@@ -357,9 +354,8 @@ The adaptive controller currently supports its specific
 `acceptance.element_conservation` check. Existing postprocessing element/carbon
 budgets are separate reconstructed diagnostics.
 
-Authoritative material/component/charge-balance diagnostics are a separate
-feature to be specified and verified; do not expose placeholder configuration
-before that feature reaches `READY`.
+The current solver/output contract does not provide an authoritative whole-state
+material, component, or charge-balance diagnostic.
 
 ## 14. Surface Area
 
@@ -367,8 +363,8 @@ Configured kinetic surface areas remain explicit scientific inputs. There is no
 `solver.geochemical_controls.surface_area_update` block and no automatic
 surface-area evolution law in the active runtime.
 
-Do not silently evolve surface area. Any future evolution law requires a new
-scientific feature with source-supported parameters and explicit provenance.
+Do not silently evolve surface area; runtime uses the configured surface-area
+semantics only.
 
 ## 15. Solver Success Criteria
 
@@ -384,5 +380,5 @@ The active solver contract is satisfied when:
 8. fixed-step failure restores the accepted state before termination;
 9. every solver attempt is traceable in solver history;
 10. checkpointing remains distinct from unsupported restart;
-11. unsupported roadmap blocks are not exposed as disabled schema options;
+11. unsupported blocks are not exposed as disabled schema options;
 12. no Reaktoro internals or scientific inputs are silently modified.
