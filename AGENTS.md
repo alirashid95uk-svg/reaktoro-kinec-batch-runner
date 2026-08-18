@@ -115,8 +115,7 @@ proposal, status workflow, roadmap, or separate design phase.
 
 Do not create repository artifacts for speculative or unimplemented features,
 including proposal documents, roadmap entries, feature-status labels, placeholder
-schema blocks, or future-behaviour specifications, unless the user explicitly
-asks for such an artifact.
+schema blocks, or future-behaviour specifications.
 
 Active documentation, schema templates, and configuration contracts describe
 implemented behaviour and current limitations. Add or change them in the same
