@@ -13,6 +13,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_CASE = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
 SCHEMA_TEMPLATE = PROJECT_ROOT / "cases" / "schema_template.yaml"
 
+REMOVED_SOLVER_BLOCKS = [
+    ("backend", {"type": "standard"}),
+    ("restart", {"enabled": False, "from_checkpoint": None}),
+    ("safety", {}),
+    ("conservation", {}),
+    ("geochemical_controls", {}),
+]
+
 
 def _source_case() -> dict:
     with SOURCE_CASE.open(encoding="utf-8") as stream:
@@ -21,19 +29,27 @@ def _source_case() -> dict:
     return data
 
 
-def test_restart_block_is_rejected_by_case_schema() -> None:
+@pytest.mark.parametrize(("name", "value"), REMOVED_SOLVER_BLOCKS)
+def test_removed_solver_placeholder_blocks_are_rejected_by_case_schema(
+    name: str,
+    value: dict,
+) -> None:
     raw = _source_case()
-    raw["solver"]["restart"] = {"enabled": False, "from_checkpoint": None}
+    raw["solver"][name] = value
 
-    with pytest.raises(ValidationError, match="restart"):
+    with pytest.raises(ValidationError, match=name):
         CaseConfig.model_validate(raw)
 
 
-def test_restart_block_is_rejected_by_standalone_generator() -> None:
+@pytest.mark.parametrize(("name", "value"), REMOVED_SOLVER_BLOCKS)
+def test_removed_solver_placeholder_blocks_are_rejected_by_standalone_generator(
+    name: str,
+    value: dict,
+) -> None:
     raw = _source_case()
-    raw["solver"]["restart"] = {"enabled": False, "from_checkpoint": None}
+    raw["solver"][name] = value
 
-    with pytest.raises(ValueError, match="restart"):
+    with pytest.raises(ValueError, match=name):
         _validate_structure(raw)
 
 
@@ -41,5 +57,7 @@ def test_restart_config_is_not_public_api() -> None:
     assert not hasattr(config_api, "RestartConfig")
 
 
-def test_schema_template_has_no_restart_placeholder() -> None:
-    assert "restart:" not in SCHEMA_TEMPLATE.read_text(encoding="utf-8")
+def test_schema_template_has_no_removed_solver_placeholders() -> None:
+    template = SCHEMA_TEMPLATE.read_text(encoding="utf-8")
+    for name, _ in REMOVED_SOLVER_BLOCKS:
+        assert f"  {name}:" not in template
