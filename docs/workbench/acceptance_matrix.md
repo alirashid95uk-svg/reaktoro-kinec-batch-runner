@@ -1,8 +1,10 @@
-# GUI Upgrade acceptance matrix
+# Workbench acceptance matrix
 
-This matrix audits every criterion in section 32 of
-`docs/dev/GUI_Upgrade_Fixed.md`. “Pass” means implemented and covered by the
-named automated or real-run evidence. “Constrained” means the safe contract is
+This matrix is the retained verification record for the implemented workbench.
+It records the acceptance criteria and evidence that were used during the
+workbench upgrade without retaining the former target-design document as an
+active feature plan. “Pass” means implemented and covered by the named
+automated or real-run evidence. “Constrained” means the safe current contract is
 implemented but an explicitly prohibited or scientifically unapproved mode is
 not enabled. “Partial evidence” identifies a measurement not claimed as fully
 demonstrated.
@@ -162,8 +164,8 @@ demonstrated.
 | Run-index rebuilding is deterministic | Pass | Repeated 10,000-record rebuild test. |
 | Measurements are documented, not invented | Pass | Scale wall times and target workstation are recorded in `acceptance_evidence.md`. |
 
-The only unimplemented exact request is the benchmark across multiple
-*supported* scientific output-schema versions: project contract
-`docs/dev/output_package_design.md` supports only v4 and explicitly rejects
-older schemas. Parallel workers and interpolation remain safely disabled until
-their required scientific/runtime evidence exists.
+Current implementation boundaries: the supported scientific output schema is
+v4 and older schemas are rejected. Parallel study workers are disabled.
+Comparison interpolation remains disabled for current v4 descriptors because
+none is scientifically approved. These are current-state constraints, not
+roadmap commitments.
