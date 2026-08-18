@@ -34,10 +34,10 @@ The generator covers the active Reaktoro-facing case features: local/embedded PH
 
 Reporting-only blocks (`outputs`, `validation`, and non-solver postprocessing) are not emitted as Reaktoro code. A postprocessing requested-species list is included only when it directly participates in adaptive step acceptance.
 
-## Future-feature safety
+## Unsupported-field safety
 
 The generator is generic for data inside a supported feature: adding/removing minerals, aqueous elements, species, amounts, surface areas, schedules, or numerical values does not require generator changes.
 
-A genuinely new physics field, solver field, activity model, workflow mode, kinetic model, or timestep mode is different: the generator must know its Reaktoro meaning. Such a field is a hard failure until an explicit mapping is added. It must never silently emit an incomplete script that appears physically equivalent.
+Any unsupported physics field, solver field, activity model, workflow mode, kinetic model, or timestep mode has no defined Reaktoro mapping and is therefore a hard failure. The generator must never silently emit an incomplete script that appears physically equivalent.
 
-This is intentional: successful code generation means every Reaktoro-facing option in the case is either translated or explicitly known to be non-Reaktoro output metadata.
+Successful code generation means every Reaktoro-facing option in the case is either translated or explicitly known to be non-Reaktoro output metadata.
