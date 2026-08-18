@@ -6,12 +6,10 @@ from batch_runner.config import AdaptiveTimestepConfig, ResolvedCase
 from batch_runner.simulator.chemistry.observations import collect_row
 from batch_runner.simulator.chemistry.conditions import build_conditions
 
-from .acceptance import evaluate_trial
 from .adaptive import run_adaptive_timesteps
 from .calls import kinetics_solver
 from .equilibrium import (
     finish_equilibrium_only,
-    precondition_kinetics,
     run_initial_equilibrium,
 )
 from .fixed import run_fixed_timesteps
@@ -41,7 +39,6 @@ def execute_solver(
         is_cancelled=cancel_requested or (lambda: False),
         collect_row=collect_row,
         snapshot_state=snapshot_state,
-        evaluate_trial=evaluate_trial,
     )
 
     stopped = run_initial_equilibrium(run)
@@ -55,9 +52,6 @@ def execute_solver(
         case, system, state, "kinetic_steps"
     )
     run.kinetic_solver = kinetics_solver(system, specs)
-    stopped = precondition_kinetics(run)
-    if stopped is not None:
-        return stopped
 
     run.initial_state = snapshot_state(state)
     initial_record = unsolved_record(run.step_index, "initial_state", 0.0)

@@ -49,13 +49,10 @@ from .reporting import (
 )
 from .resolution import ResolvedCase, resolve_case
 from .timestep import (
-    AdaptiveAcceptanceConfig,
     AdaptiveStepSizeConfig,
     AdaptiveTimestepConfig,
-    AmountChangeToleranceConfig,
     CheckpointScheduleConfig,
     DurationConfig,
-    ElementConservationConfig,
     FixedStepSizeConfig,
     FixedTimestepConfig,
     LogarithmicScheduleConfig,
@@ -68,11 +65,9 @@ from .timestep import (
 
 __all__ = [
     "ActivityModelsConfig",
-    "AdaptiveAcceptanceConfig",
     "AdaptiveStepSizeConfig",
     "AdaptiveTimestepConfig",
     "Amount",
-    "AmountChangeToleranceConfig",
     "BrineConfig",
     "CarbonInventoryConfig",
     "CaseConfig",
@@ -85,7 +80,6 @@ __all__ = [
     "DiagnosticsOutputConfig",
     "DurationConfig",
     "ElementBudgetConfig",
-    "ElementConservationConfig",
     "EnabledConfig",
     "FixedStepSizeConfig",
     "FixedTimestepConfig",

@@ -22,8 +22,7 @@ Supported runtime scope:
 - optional custom Kinec kinetics when explicitly selected;
 - optional fixed-fugacity CO2 or finite-amount CO2;
 - optional pE-based redox;
-- fixed, adaptive, and `adaptive_long_horizon` timestep execution as implemented
-  by the active schema.
+- fixed and adaptive timestep execution as implemented by the active schema.
 
 Not currently supported as authoritative runtime features:
 

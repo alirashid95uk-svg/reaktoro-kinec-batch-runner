@@ -214,11 +214,7 @@ def run_simulation(
                             "accepted_attempts": accepted_steps,
                             "rejected_attempts": rejected_steps,
                             "latest_accepted": record["accepted"],
-                            "latest_reason": (
-                                record.get("acceptance_reason")
-                                or record.get("failure_reason")
-                                or None
-                            ),
+                            "latest_reason": record.get("failure_reason") or None,
                             "solver_iterations": record.get("iterations"),
                             "stage": record["stage"],
                         }

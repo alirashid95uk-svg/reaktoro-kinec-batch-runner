@@ -2,10 +2,9 @@
 
 ## Runtime Status
 
-The active `CaseConfig` implements fixed, adaptive, and
-`adaptive_long_horizon` timesteps, scheduled timeseries output, explicit
-accepted-state checkpoints, standard Reaktoro solvers, and the current
-postprocessing/output blocks.
+The active `CaseConfig` implements fixed and adaptive timesteps, scheduled
+timeseries output, explicit accepted-state checkpoints, standard Reaktoro
+solvers, and the current postprocessing/output blocks.
 
 This document describes only fields accepted by the strict runtime schema.
 Unsupported or unimplemented concepts must not appear as disabled YAML
@@ -136,7 +135,6 @@ The active solver block has exactly two owners:
 solver:
   workflow:
     mode: fixed_fugacity_initial_equilibrium_then_closed_kinetics
-    precondition_kinetics: true
 
   timestep:
     mode: fixed
@@ -185,7 +183,6 @@ Active modes:
 ```text
 fixed
 adaptive
-adaptive_long_horizon
 ```
 
 Each mode uses strict fields. Fields from another mode are rejected.
@@ -275,19 +272,6 @@ solver:
       growth_factor: 1.25
       shrink_factor: 0.5
       max_retries_per_step: 8
-    acceptance:
-      enabled: true
-      fail_on_non_finite: true
-      negative_amount_tolerance_mol: null
-      max_delta_pH: null
-      max_delta_saturation_index: null
-      selected_species_change: null
-      mineral_change: null
-      element_conservation:
-        enabled: false
-        relative_tolerance: null
-        absolute_tolerance_mol: null
-      max_relative_rate_change: null
     max_internal_steps: 100000
     output_schedule:
       mode: explicit
@@ -300,39 +284,16 @@ solver:
       times: []
 ```
 
-At least one acceptance check must be active. The example above therefore needs
-another configured check if `fail_on_non_finite` is set false.
-
 Rules:
 
 - `dt_min <= dt_initial <= dt_max` after resolution;
 - `growth_factor > 1`;
 - `0 < shrink_factor < 1`;
-- amount-change checks use absolute + relative tolerance with an explicit
-  reference floor;
-- `max_relative_rate_change` must remain null because rate-based adaptive
-  acceptance is not verified;
+- successful Reaktoro solves are accepted and grow the controller timestep;
+- failed or raised Reaktoro solves restore the accepted state, shrink the
+  timestep, and retry from the same accepted time;
 - adaptive preflight rejects cases whose lower bound on accepted steps exceeds
   `max_internal_steps`.
-
-Element-conservation acceptance must not be applied blindly to externally
-constrained/open kinetic workflows.
-
-### 8.5 `adaptive_long_horizon`
-
-This is the active adaptive controller with additional requirements:
-
-```text
-output_schedule.mode != every_internal_step
-include_final: true
-checkpoint_schedule.enabled: true
-```
-
-Human-readable year units are supported only with explicit
-`year_definition_days`.
-
-`adaptive_long_horizon` is an implemented timestep mode using the same adaptive
-controller plus these additional schema requirements.
 
 ## 9. Time Units
 
@@ -375,7 +336,7 @@ The `outputs` block controls the active manifest, diagnostics, timeseries,
 summaries, solver history, plots, and debug artifacts. Output meanings and
 completeness rules are defined in `output_package_design.md`.
 
-## 13. Removed Placeholder Fields
+## 13. Removed and Unsupported Fields
 
 These fields are deliberately **not** part of active case YAML and must be
 rejected as unknown fields:
@@ -386,7 +347,10 @@ solver.restart
 solver.safety
 solver.conservation
 solver.geochemical_controls
+solver.workflow.precondition_kinetics
+solver.timestep.acceptance
+solver.timestep.mode: adaptive_long_horizon
 ```
 
-They were placeholders without implemented runtime behaviour and remain invalid
-configuration fields.
+They are not part of the current runtime contract and remain invalid
+configuration fields or modes.

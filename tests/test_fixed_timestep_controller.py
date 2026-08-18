@@ -38,7 +38,6 @@ def _raw_case(
     with SOURCE_CASE_PATH.open(encoding="utf-8") as stream:
         raw = yaml.safe_load(stream)
     raw["paths"]["output_dir"] = str(tmp_path / "outputs")
-    raw["solver"]["workflow"]["precondition_kinetics"] = False
     if max_internal_steps is not None:
         raw["solver"]["timestep"]["max_internal_steps"] = max_internal_steps
     raw["solver"]["timestep"]["time"] = {
@@ -640,7 +639,6 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
             "smallest_dt_s": 0.5,
             "largest_dt_s": 0.5,
             "average_dt_s": 0.5,
-            "kinetic_precondition_applied": False,
             "failed_attempt_target_time_s": None,
             "failed_attempt_dt_s": None,
             "accepted_state_restored": None,
@@ -825,7 +823,6 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
             "smallest_dt_s": 0.3,
             "largest_dt_s": 0.3,
             "average_dt_s": 0.3,
-            "kinetic_precondition_applied": False,
             "failed_attempt_target_time_s": 0.6,
             "failed_attempt_dt_s": 0.3,
             "accepted_state_restored": True,
@@ -986,7 +983,6 @@ def test_output_failure_preserves_simulation_status_and_file_completeness(
             "smallest_dt_s": 1.0,
             "largest_dt_s": 1.0,
             "average_dt_s": 1.0,
-            "kinetic_precondition_applied": False,
             "failed_attempt_target_time_s": None,
             "failed_attempt_dt_s": None,
             "accepted_state_restored": None,

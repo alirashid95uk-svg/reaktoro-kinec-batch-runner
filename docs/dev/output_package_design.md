@@ -3,9 +3,8 @@
 ## Runtime Status
 
 The active runner writes the base output package plus the currently implemented
-optional Objective 1 diagnostics. Fixed, adaptive, and
-`adaptive_long_horizon` execution are represented through the same output
-package and solver-history contract.
+optional Objective 1 diagnostics. Fixed and adaptive execution use the same
+output package and solver-history contract.
 
 Only implemented output fields belong in this document. Smart-solver and
 restart fields are not active output requirements.
@@ -154,7 +153,6 @@ The active manifest records:
 ```text
 backend_type = standard
 workflow
-kinetic_precondition_applied
 timestep configuration
 redox_apply_during
 ```
@@ -221,7 +219,6 @@ timestep_mode
 co2_runtime_workflow
 redox_enabled_runtime
 redox_apply_during_runtime
-kinetic_precondition_requested
 warnings
 ```
 
@@ -238,7 +235,7 @@ Rules:
 - fixed mode writes according to its configured output schedule;
 - adaptive modes shorten attempted steps as needed to land exactly on forced
   output times;
-- rejected adaptive trials never become chemistry rows;
+- failed adaptive attempts never become chemistry rows;
 - output times are canonical seconds after resolution.
 
 Requested species/mineral values and enabled runtime diagnostics must use stable
@@ -247,8 +244,8 @@ column naming and ordering.
 ## 9. `solver_history.csv`
 
 `solver_history.csv` is the numerical-control audit trail. It records every
-solver attempt required by the active controller, including rejected adaptive
-attempts and failed fixed attempts.
+Reaktoro solver attempt required by the active controller, including failed
+adaptive attempts and failed fixed attempts.
 
 At minimum the record must preserve enough information to reconstruct:
 
@@ -258,12 +255,12 @@ attempt start time
 attempt target/end time
 attempt dt
 solver success
-accepted/rejected status
+accepted/failed status
 iterations when available
-rejection/failure reason when available
+failure reason when available
 ```
 
-Rejected adaptive attempts keep accepted time unchanged. A solver history record
+Failed adaptive attempts keep accepted time unchanged. A solver history record
 is numerical evidence; it is not scientific validation.
 
 ## 10. Checkpoints

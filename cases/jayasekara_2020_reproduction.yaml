@@ -162,7 +162,6 @@ minerals:
 solver:
   workflow:
     mode: fixed_fugacity_during_kinetic_steps
-    precondition_kinetics: false
 
   timestep:
     mode: adaptive
@@ -178,20 +177,6 @@ solver:
       growth_factor: 1.5
       shrink_factor: 0.5
       max_retries_per_step: 8
-
-    acceptance:
-      enabled: true
-      fail_on_non_finite: true
-      negative_amount_tolerance_mol: null
-      max_delta_pH: null
-      max_delta_saturation_index: null
-      selected_species_change: null
-      mineral_change: null
-      element_conservation:
-        enabled: false
-        relative_tolerance: null
-        absolute_tolerance_mol: null
-      max_relative_rate_change: null
 
     output_schedule:
       mode: explicit

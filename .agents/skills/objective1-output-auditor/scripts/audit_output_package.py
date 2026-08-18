@@ -54,23 +54,7 @@ SOLVER_HISTORY_COLUMNS = [
     "iterations",
     "wall_time_s",
     "failure_reason",
-    "acceptance_reason",
     "next_dt_s",
-    "delta_pH",
-    "max_delta_saturation_index",
-    "max_selected_species_change_mol",
-    "max_selected_species_tolerance_ratio",
-    "worst_selected_species",
-    "max_mineral_change_mol",
-    "max_mineral_tolerance_ratio",
-    "worst_mineral",
-    "minimum_species_amount_mol",
-    "tolerated_negative_species_count",
-    "most_negative_tolerated_amount_mol",
-    "max_element_balance_error_mol",
-    "max_element_balance_error_ratio",
-    "worst_element",
-    "trial_charge_mol",
 ]
 
 

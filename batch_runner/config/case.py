@@ -8,7 +8,7 @@ from pydantic import Field, model_validator
 
 from ._base import Amount, DEFAULT_KINETIC_PATHS, KineticModel, StrictModel, SurfaceArea
 from .reporting import OutputsConfig, PostprocessingConfig, ValidationConfig
-from .timestep import AdaptiveTimestepConfig, SolverConfig
+from .timestep import SolverConfig
 
 
 class CaseInfo(StrictModel):
@@ -149,25 +149,9 @@ class CaseConfig(StrictModel):
             raise ValueError("equilibrium_only requires kinetics.enabled: false")
         if workflow.mode != "equilibrium_only" and not self.kinetics.enabled:
             raise ValueError(f"{workflow.mode} requires kinetics.enabled: true")
-        if not self.kinetics.enabled and workflow.precondition_kinetics:
-            raise ValueError("precondition_kinetics must be false when kinetics are disabled")
         timestep = self.solver.timestep
         if not self.kinetics.enabled and timestep.mode != "fixed":
             raise ValueError("adaptive timestep modes require kinetics.enabled: true")
-        if isinstance(timestep, AdaptiveTimestepConfig):
-            acceptance = timestep.acceptance
-            if (
-                acceptance.selected_species_change is not None
-                and not self.postprocessing.requested_species
-            ):
-                raise ValueError("selected-species acceptance requires requested_species")
-            if (
-                acceptance.element_conservation.enabled
-                and workflow.mode == "fixed_fugacity_during_kinetic_steps"
-            ):
-                raise ValueError(
-                    "element-conservation acceptance is not valid with fixed-fugacity kinetic steps"
-                )
 
         fixed_fugacity_workflows = {
             "fixed_fugacity_initial_equilibrium_then_closed_kinetics",

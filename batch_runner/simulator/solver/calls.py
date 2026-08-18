@@ -14,19 +14,6 @@ def kinetics_solver(system: Any, specs: Any | None) -> Any:
     return rkt.KineticsSolver(specs) if specs is not None else rkt.KineticsSolver(system)
 
 
-def timed_precondition(
-    solver: Any,
-    state: Any,
-    conditions: Any | None,
-) -> tuple[Any | None, float, Exception | None]:
-    start = perf_counter()
-    try:
-        result = solver.precondition(state, conditions) if conditions is not None else solver.precondition(state)
-        return result, perf_counter() - start, None
-    except Exception as error:
-        return None, perf_counter() - start, error
-
-
 def timed_solve(
     solver: Any,
     state: Any,

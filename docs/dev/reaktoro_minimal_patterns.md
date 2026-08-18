@@ -142,15 +142,22 @@ mineral is a hard failure. No silent skipping.
 ## 7. Run a Kinetic Step
 
 ```python
-from reaktoro import KineticsSolver
+from reaktoro import ChemicalState, KineticsSolver
 
 solver = KineticsSolver(system)
-precondition_result = solver.precondition(state)
-step_result = solver.solve(state, dt_s)
+accepted_state = ChemicalState(state)
+try:
+    step_result = solver.solve(state, dt_s)
+except Exception:
+    state.assign(accepted_state)
+    raise
+if step_result is None or not step_result.succeeded():
+    state.assign(accepted_state)
+    raise RuntimeError("kinetic solve failed")
 ```
 
 `dt_s` must come from the resolved config or deterministic timestep logic.
-Check solver results and diagnostics after every step.
+Accept the mutated state only when Reaktoro reports success.
 
 ## 8. Extract Standard Outputs
 

@@ -1,4 +1,3 @@
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -35,7 +34,6 @@ def _case():
         "solver": {
             "workflow": {
                 "mode": "fixed_fugacity_initial_equilibrium_then_closed_kinetics",
-                "precondition_kinetics": False,
             },
             "timestep": {
                 "mode": "fixed",
@@ -90,21 +88,20 @@ def test_finite_co2_custom_kinec_equivalent():
         "initial_amount": {"value": 1.0, "unit": "mol"},
     }
     case["kinetics"] = {"enabled": True, "model": "kinec"}
-    case["solver"]["workflow"] = {"mode": "closed_kinetics", "precondition_kinetics": True}
+    case["solver"]["workflow"] = {"mode": "closed_kinetics"}
     code = _generate(case)
     assert "rkt.GaseousPhase(['CO2(g)'])" in code
     assert "rkt.ActivityModelPengRobinsonPhreeqc()" in code
     assert "state.set('CO2(g)', 1.0, 'mol')" in code
     assert "def make_kinec_rate_model" in code
     assert "activity must be positive when raised to a nonzero power" in code
-    assert "kinetic_solver.precondition" in code
+    assert "kinetic_solver.precondition" not in code
 
 
-def test_adaptive_acceptance_and_rollback_are_emitted():
+def test_adaptive_solver_failure_rollback_and_retry_are_emitted():
     case = _case()
     case["solver"]["workflow"] = {
         "mode": "fixed_fugacity_during_kinetic_steps",
-        "precondition_kinetics": False,
     }
     case["solver"]["timestep"] = {
         "mode": "adaptive",
@@ -117,25 +114,6 @@ def test_adaptive_acceptance_and_rollback_are_emitted():
             "shrink_factor": 0.5,
             "max_retries_per_step": 8,
         },
-        "acceptance": {
-            "enabled": True,
-            "fail_on_non_finite": True,
-            "negative_amount_tolerance_mol": 1e-18,
-            "max_delta_pH": 0.1,
-            "max_delta_saturation_index": None,
-            "selected_species_change": {
-                "absolute_tolerance_mol": 1e-12,
-                "relative_tolerance": 0.1,
-                "reference_floor_mol": 1e-12,
-            },
-            "mineral_change": None,
-            "element_conservation": {
-                "enabled": False,
-                "relative_tolerance": None,
-                "absolute_tolerance_mol": None,
-            },
-            "max_relative_rate_change": None,
-        },
         "output_schedule": {
             "mode": "explicit",
             "include_initial": True,
@@ -145,8 +123,10 @@ def test_adaptive_acceptance_and_rollback_are_emitted():
         "checkpoint_schedule": {"enabled": False, "times": []},
     }
     code = _generate(case)
-    assert "def trial_accepted" in code
-    assert "trial_saturation_indices" in code
+    assert "def trial_accepted" not in code
+    assert "accepted_state = rkt.ChemicalState(state)" in code
+    assert "result is None or not result.succeeded()" in code
+    assert "controller_dt_s = max(dt_min_s, dt_s * shrink_factor)" in code
     assert "state.assign(accepted_state)" in code
     assert "controller_dt_s" in code
     assert "conditions.fugacity('CO2(g)', 57.77, 'bar')" in code
@@ -161,4 +141,14 @@ def test_unknown_physics_fails_loudly():
     case = _case()
     case["solver"]["timestep"]["mystery_control"] = 123
     with pytest.raises(ValueError, match="unsupported YAML field.*solver.timestep"):
+        generate_reaktoro_code(case, Path("case.yaml"))
+
+    case = _case()
+    case["solver"]["workflow"]["precondition_kinetics"] = False
+    with pytest.raises(ValueError, match="precondition_kinetics"):
+        generate_reaktoro_code(case, Path("case.yaml"))
+
+    case = _case()
+    case["solver"]["timestep"]["mode"] = "adaptive_long_horizon"
+    with pytest.raises(ValueError, match="adaptive_long_horizon"):
         generate_reaktoro_code(case, Path("case.yaml"))

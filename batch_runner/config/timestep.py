@@ -11,7 +11,6 @@ from ._base import StrictModel, TimeUnit, WorkflowMode
 
 class SolverWorkflowConfig(StrictModel):
     mode: WorkflowMode
-    precondition_kinetics: bool
 
 
 class TimeValue(StrictModel):
@@ -82,58 +81,6 @@ class AdaptiveStepSizeConfig(StrictModel):
     max_retries_per_step: int = Field(ge=0)
 
 
-class ElementConservationConfig(StrictModel):
-    enabled: bool
-    relative_tolerance: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    absolute_tolerance_mol: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-
-    @model_validator(mode="after")
-    def validate_tolerances(self) -> "ElementConservationConfig":
-        configured = self.relative_tolerance is not None or self.absolute_tolerance_mol is not None
-        if self.enabled and not configured:
-            raise ValueError("enabled element_conservation requires a relative or absolute tolerance")
-        if not self.enabled and configured:
-            raise ValueError("disabled element_conservation forbids tolerances")
-        return self
-
-
-class AmountChangeToleranceConfig(StrictModel):
-    absolute_tolerance_mol: float = Field(ge=0, allow_inf_nan=False)
-    relative_tolerance: float = Field(ge=0, allow_inf_nan=False)
-    reference_floor_mol: float = Field(gt=0, allow_inf_nan=False)
-
-
-class AdaptiveAcceptanceConfig(StrictModel):
-    enabled: bool
-    fail_on_non_finite: bool
-    negative_amount_tolerance_mol: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    max_delta_pH: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    max_delta_saturation_index: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    selected_species_change: AmountChangeToleranceConfig | None = None
-    mineral_change: AmountChangeToleranceConfig | None = None
-    element_conservation: ElementConservationConfig
-    max_relative_rate_change: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-
-    @model_validator(mode="after")
-    def validate_checks(self) -> "AdaptiveAcceptanceConfig":
-        if not self.enabled:
-            raise ValueError("adaptive timestep acceptance must be enabled")
-        if self.max_relative_rate_change is not None:
-            raise ValueError("rate-based adaptive acceptance is not verified and must remain null")
-        checks = (
-            self.fail_on_non_finite,
-            self.negative_amount_tolerance_mol is not None,
-            self.max_delta_pH is not None,
-            self.max_delta_saturation_index is not None,
-            self.selected_species_change is not None,
-            self.mineral_change is not None,
-            self.element_conservation.enabled,
-        )
-        if not any(checks):
-            raise ValueError("adaptive acceptance requires at least one configured state check")
-        return self
-
-
 class FixedTimestepConfig(StrictModel):
     mode: Literal["fixed"]
     time: DurationConfig
@@ -163,10 +110,9 @@ class FixedTimestepConfig(StrictModel):
 
 
 class AdaptiveTimestepConfig(StrictModel):
-    mode: Literal["adaptive", "adaptive_long_horizon"]
+    mode: Literal["adaptive"]
     time: DurationConfig
     step_size: AdaptiveStepSizeConfig
-    acceptance: AdaptiveAcceptanceConfig
     max_internal_steps: int = Field(default=100_000, gt=0)
     output_schedule: OutputScheduleConfig
     checkpoint_schedule: CheckpointScheduleConfig = Field(default_factory=CheckpointScheduleConfig)
@@ -193,13 +139,6 @@ class AdaptiveTimestepConfig(StrictModel):
             raise ValueError("year_definition_days is required when adaptive times use years")
         if not uses_years and self.time.year_definition_days is not None:
             raise ValueError("year_definition_days is only valid when an adaptive time uses years")
-        if self.mode == "adaptive_long_horizon":
-            if self.output_schedule.mode == "every_internal_step":
-                raise ValueError("adaptive_long_horizon requires an explicit, logarithmic, or hybrid output schedule")
-            if not self.output_schedule.include_final:
-                raise ValueError("adaptive_long_horizon requires include_final: true")
-            if not self.checkpoint_schedule.enabled:
-                raise ValueError("adaptive_long_horizon requires checkpoint_schedule.enabled: true")
         return self
 
 

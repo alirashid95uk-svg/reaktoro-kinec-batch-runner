@@ -26,13 +26,6 @@ def build_diagnostics(
         if case.config.solver.timestep.mode == "fixed"
         else None
     )
-    if estimated_solver_calls is not None and (
-        case.config.kinetics.enabled
-        and case.config.solver.workflow.precondition_kinetics
-        and case.config.solver.workflow.mode
-        != "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
-    ):
-        estimated_solver_calls += 1
     final_time_s = solver_progress["final_time_reached_s"]
     return {
         "case_name": case.config.case.name,
@@ -87,7 +80,6 @@ def build_diagnostics(
         "co2_runtime_workflow": case.config.solver.workflow.mode,
         "redox_enabled_runtime": case.config.redox.enabled,
         "redox_apply_during_runtime": case.config.redox.apply_during,
-        "kinetic_precondition_requested": case.config.solver.workflow.precondition_kinetics,
         "warnings": [],
         "run_started_at": run_started_at,
         "run_finished_at": datetime.now(timezone.utc).isoformat(),
@@ -118,7 +110,6 @@ def exception_progress(
         "smallest_dt_s": None,
         "largest_dt_s": None,
         "average_dt_s": None,
-        "kinetic_precondition_applied": False,
         "failed_attempt_target_time_s": None,
         "failed_attempt_dt_s": None,
         "accepted_state_restored": None,

@@ -54,7 +54,6 @@ minerals:
 solver:
   workflow:
     mode: fixed_fugacity_initial_equilibrium_then_closed_kinetics
-    precondition_kinetics: false
   timestep:
     mode: fixed
     time: {duration_value: 60.0, duration_unit: seconds}

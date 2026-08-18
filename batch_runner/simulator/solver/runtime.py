@@ -19,7 +19,6 @@ class SolverRun:
     is_cancelled: Callable[[], bool]
     collect_row: Callable[[ResolvedCase, Any, dict[str, Any], Any], dict[str, Any]]
     snapshot_state: Callable[[Any], Any]
-    evaluate_trial: Callable[[ResolvedCase, Any, Any, Any], dict[str, Any]]
     timestep: Any = field(init=False)
     output_times: Iterator[float] = field(init=False)
     checkpoint_times: Iterator[float] = field(init=False)
@@ -37,7 +36,6 @@ class SolverRun:
     dt_min_s: float | None = None
     dt_max_s: float | None = None
     dt_total_s: float = 0.0
-    precondition_applied: bool = False
     checkpoint_count: int = 0
     kinetic_attempts: int = 0
     solver_failed_attempts: int = 0
@@ -104,7 +102,6 @@ class SolverRun:
             "average_dt_s": (
                 self.dt_total_s / self.accepted_steps if self.accepted_steps else None
             ),
-            "kinetic_precondition_applied": self.precondition_applied,
             "failed_attempt_target_time_s": failed_attempt_target_time_s,
             "failed_attempt_dt_s": failed_attempt_dt_s,
             "accepted_state_restored": accepted_state_restored,

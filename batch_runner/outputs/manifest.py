@@ -71,7 +71,6 @@ def build_manifest(
         "solver_configuration": {
             "backend_type": "standard",
             "workflow": config.solver.workflow.model_dump(mode="json"),
-            "kinetic_precondition_applied": result.diagnostics["kinetic_precondition_applied"],
             "timestep": config.solver.timestep.model_dump(mode="json"),
             "redox_apply_during": config.redox.apply_during,
         },

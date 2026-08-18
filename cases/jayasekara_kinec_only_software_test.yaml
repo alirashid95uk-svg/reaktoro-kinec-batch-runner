@@ -90,7 +90,6 @@ minerals:
 solver:
   workflow:
     mode: fixed_fugacity_during_kinetic_steps
-    precondition_kinetics: false
   timestep:
     mode: fixed
     time: {duration_value: 1.0, duration_unit: seconds}

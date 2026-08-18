@@ -157,7 +157,7 @@ initial_prompt: ""
 # such as docstrings or parameter information.
 # This overrides the corresponding setting in the global configuration; see the documentation there.
 # If null or missing, use the setting from the global configuration.
-symbol_info_budget:
+symbol_info_budget: 5
 
 # list of regex patterns which, when matched, mark a memory entry as read‑only.
 # Extends the list from the global configuration, merging the two lists.

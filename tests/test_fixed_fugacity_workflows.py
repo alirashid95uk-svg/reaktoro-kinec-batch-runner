@@ -34,7 +34,6 @@ def test_workflow_mode_can_change_without_mutating_scientific_case_values() -> N
     legacy_variant = deepcopy(staged)
     legacy_variant["solver"]["workflow"] = {
         "mode": "fixed_fugacity_during_kinetic_steps",
-        "precondition_kinetics": False,
     }
 
     CaseConfig.model_validate(staged)
@@ -116,10 +115,6 @@ class _FakeSolver:
     def __init__(self, constructor_arg, events):
         self.constructor_arg = constructor_arg
         self.events = events
-
-    def precondition(self, *args):
-        self.events.append(("precondition", args))
-        return _FakeResult()
 
     def solve(self, *args):
         self.events.append(("solve", args))

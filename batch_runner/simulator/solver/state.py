@@ -1,4 +1,4 @@
-"""Reliable ChemicalState snapshots for future rejected-step rollback."""
+"""Reliable ChemicalState snapshots for failed-step rollback."""
 
 from typing import Any
 

@@ -65,7 +65,7 @@ def _equilibrium_case(output_dir: Path, database_path: Path = DATABASE_PATH) -> 
     raw["kinetics"] = {"enabled": False}
     raw["minerals"][0]["role"] = "equilibrium"
     del raw["minerals"][0]["surface_area"]
-    raw["solver"]["workflow"] = {"mode": "equilibrium_only", "precondition_kinetics": False}
+    raw["solver"]["workflow"] = {"mode": "equilibrium_only"}
     return raw
 
 
@@ -511,7 +511,6 @@ def test_base_output_package_and_disabled_plot_behavior(tmp_path: Path) -> None:
         "run_started_at": "2026-06-14T00:00:00+00:00",
         "run_finished_at": "2026-06-14T00:00:01+00:00",
         "simulation_completed": True,
-        "kinetic_precondition_applied": False,
     }
     result = SimulationResult(
         rows=[deepcopy(row)],
@@ -658,7 +657,6 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
         "run_started_at": "2026-06-14T00:00:00+00:00",
         "run_finished_at": "2026-06-14T00:00:01+00:00",
         "simulation_completed": True,
-        "kinetic_precondition_applied": False,
     }
     result = SimulationResult(
         rows=[row],

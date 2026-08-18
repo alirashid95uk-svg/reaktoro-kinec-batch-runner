@@ -50,7 +50,7 @@ YAML
 → load the explicit PHREEQC database and kinetic parameters
 → validate mineral mappings
 → build ChemicalSystem and ChemicalState
-→ initial equilibrium and optional kinetic preconditioning
+→ scientifically required initial equilibrium when configured
 → fixed or adaptive solver controller
 → accepted-state observations and lifecycle diagnostics
 → config-controlled output package
@@ -60,8 +60,8 @@ YAML
 visible stage order. `solver/runtime.py` holds only the mutable counters,
 callbacks, and schedule cursors shared by those stages. Fixed and adaptive
 controllers own their respective loops; direct Reaktoro solver calls remain in
-`solver/calls.py`. Acceptance, rollback, record fields, target landing, and
-cancellation boundaries remain explicit.
+`solver/calls.py`. Solver-success handling, rollback, record fields, target
+landing, and cancellation boundaries remain explicit.
 
 Dependencies flow from config to simulator to outputs. Simulator code never
 imports output writers. `batch_runner` and `workbench_core` contain no Qt;

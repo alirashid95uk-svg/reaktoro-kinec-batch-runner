@@ -44,7 +44,6 @@ def run_fixed_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
                     wall_time_s=wall_time_s,
                     accepted=False,
                     failure_reason=reason,
-                    acceptance_reason="solver_failure",
                 )
             )
             return initial_state, run.progress(
@@ -70,7 +69,6 @@ def run_fixed_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
             dt_s=dt_s,
             result=result,
             wall_time_s=wall_time_s,
-            acceptance_reason="fixed_solver_success",
         )
         run.accept_step(dt_s, target_time_s)
         run.emit_record(record)

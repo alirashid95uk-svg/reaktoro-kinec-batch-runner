@@ -44,13 +44,13 @@ SCHEMA_KEYS = {
         "surface_area_basis", "surface_area_provenance", "selection_reason",
     },
     "solver": {"workflow", "timestep"},
-    "workflow": {"mode", "precondition_kinetics"},
+    "workflow": {"mode"},
     "timestep_fixed": {
         "mode", "time", "step_size", "max_internal_steps",
         "output_schedule", "checkpoint_schedule",
     },
     "timestep_adaptive": {
-        "mode", "time", "step_size", "acceptance", "max_internal_steps",
+        "mode", "time", "step_size", "max_internal_steps",
         "output_schedule", "checkpoint_schedule",
     },
     "time": {"duration_value", "duration_unit", "year_definition_days"},
@@ -65,17 +65,6 @@ SCHEMA_KEYS = {
     },
     "logarithmic": {"start", "end", "points_per_decade"},
     "checkpoint_schedule": {"enabled", "times"},
-    "acceptance": {
-        "enabled", "fail_on_non_finite", "negative_amount_tolerance_mol",
-        "max_delta_pH", "max_delta_saturation_index", "selected_species_change",
-        "mineral_change", "element_conservation", "max_relative_rate_change",
-    },
-    "amount_change": {
-        "absolute_tolerance_mol", "relative_tolerance", "reference_floor_mol",
-    },
-    "element_conservation": {
-        "enabled", "relative_tolerance", "absolute_tolerance_mol",
-    },
     "postprocessing": {
         "requested_species", "requested_minerals", "aqueous_molalities",
         "saturation_indices", "reaction_rates", "element_budget",
@@ -251,20 +240,9 @@ def _validate_structure(cfg: dict[str, Any]) -> None:
     if mode == "fixed":
         _expect_keys(timestep, SCHEMA_KEYS["timestep_fixed"], "solver.timestep")
         _expect_keys(timestep["step_size"], SCHEMA_KEYS["fixed_step_size"], "solver.timestep.step_size")
-    elif mode in {"adaptive", "adaptive_long_horizon"}:
+    elif mode == "adaptive":
         _expect_keys(timestep, SCHEMA_KEYS["timestep_adaptive"], "solver.timestep")
         _expect_keys(timestep["step_size"], SCHEMA_KEYS["adaptive_step_size"], "solver.timestep.step_size")
-        acceptance = _expect_keys(timestep["acceptance"], SCHEMA_KEYS["acceptance"], "solver.timestep.acceptance")
-        for name in ("selected_species_change", "mineral_change"):
-            if acceptance.get(name) is not None:
-                _expect_keys(acceptance[name], SCHEMA_KEYS["amount_change"], f"solver.timestep.acceptance.{name}")
-        _expect_keys(
-            acceptance["element_conservation"],
-            SCHEMA_KEYS["element_conservation"],
-            "solver.timestep.acceptance.element_conservation",
-        )
-        if acceptance.get("max_relative_rate_change") is not None:
-            raise ValueError("max_relative_rate_change is not implemented by the current runner")
     else:
         raise ValueError(f"unsupported solver.timestep.mode: {mode}")
 
@@ -361,95 +339,6 @@ def _generate_conditions_function(cfg: dict[str, Any]) -> list[str]:
         "    return specs, conditions",
         "",
     ]
-
-
-def _generate_acceptance_function(cfg: dict[str, Any]) -> list[str]:
-    ts = cfg["solver"]["timestep"]
-    if ts["mode"] == "fixed":
-        return []
-    a = ts["acceptance"]
-    requested_species = cfg["postprocessing"]["requested_species"]
-    minerals = [m["name"] for m in cfg["minerals"]]
-    lines = [
-        "def trial_accepted(system, accepted_state, trial_state):",
-        "    reasons = []",
-        "    trial_amounts = [float(x) for x in trial_state.speciesAmounts()]",
-    ]
-    if a.get("negative_amount_tolerance_mol") is not None:
-        lines += [
-            f"    negative_tol = {_py(a['negative_amount_tolerance_mol'])}",
-            "    if any(x < -negative_tol for x in trial_amounts):",
-            "        reasons.append('negative_species_amount_below_tolerance')",
-        ]
-    if a.get("max_delta_pH") is not None or a.get("fail_on_non_finite"):
-        lines += [
-            "    accepted_aq = rkt.AqueousProps(accepted_state)",
-            "    trial_aq = rkt.AqueousProps(trial_state)",
-            "    accepted_pH = float(accepted_aq.pH())",
-            "    trial_pH = float(trial_aq.pH())",
-        ]
-        if a.get("max_delta_pH") is not None:
-            lines += [
-                f"    if abs(trial_pH - accepted_pH) > {_py(a['max_delta_pH'])}:",
-                "        reasons.append('max_delta_pH')",
-            ]
-    else:
-        lines += [
-            "    accepted_aq = rkt.AqueousProps(accepted_state)",
-            "    trial_aq = rkt.AqueousProps(trial_state)",
-        ]
-    if a.get("max_delta_saturation_index") is not None or a.get("fail_on_non_finite"):
-        lines += [
-            "    trial_saturation_indices = []",
-            f"    for mineral in {_py(minerals)}:",
-            "        accepted_si = float(accepted_aq.saturationIndex(mineral))",
-            "        trial_si = float(trial_aq.saturationIndex(mineral))",
-            "        trial_saturation_indices.append(trial_si)",
-        ]
-        if a.get("max_delta_saturation_index") is not None:
-            lines += [
-                f"        if abs(trial_si - accepted_si) > {_py(a['max_delta_saturation_index'])}:",
-                "            reasons.append('max_delta_saturation_index')",
-            ]
-    for key, names, reason in (
-        ("selected_species_change", requested_species, "selected_species_change_tolerance"),
-        ("mineral_change", minerals, "mineral_change_tolerance"),
-    ):
-        tol = a.get(key)
-        if tol is not None:
-            lines += [
-                f"    for name in {_py(names)}:",
-                "        before = float(accepted_state.speciesAmount(name))",
-                "        after = float(trial_state.speciesAmount(name))",
-                "        delta = abs(after - before)",
-                f"        allowed = {_py(tol['absolute_tolerance_mol'])} + {_py(tol['relative_tolerance'])} * max(abs(before), {_py(tol['reference_floor_mol'])})",
-                "        if delta > allowed:",
-                f"            reasons.append({_py(reason)})",
-                "            break",
-            ]
-    ec = a["element_conservation"]
-    if ec["enabled"]:
-        rel = ec.get("relative_tolerance") or 0.0
-        abs_tol = ec.get("absolute_tolerance_mol") or 0.0
-        lines += [
-            "    before_elements = [float(x) for x in accepted_state.elementAmounts()]",
-            "    after_elements = [float(x) for x in trial_state.elementAmounts()]",
-            "    for before, after in zip(before_elements, after_elements):",
-            f"        allowed = {_py(abs_tol)} + {_py(rel)} * abs(before)",
-            "        if abs(after - before) > allowed:",
-            "            reasons.append('element_conservation')",
-            "            break",
-        ]
-    if a.get("fail_on_non_finite"):
-        lines += [
-            "    values = trial_amounts + [float(trial_state.temperature()), float(trial_state.pressure()), float(trial_state.charge())]",
-            "    values += [float(trial_aq.pH())]",
-            "    values += trial_saturation_indices",
-            "    if any(not math.isfinite(x) for x in values):",
-            "        reasons.append('non_finite_state_value')",
-        ]
-    lines += ["    return not reasons, ';'.join(dict.fromkeys(reasons))", ""]
-    return lines
 
 
 def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
@@ -573,7 +462,6 @@ def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
 
     lines += [""]
     lines.extend(_generate_conditions_function(cfg))
-    lines.extend(_generate_acceptance_function(cfg))
 
     need_initial_equilibrium = (
         workflow["mode"] == "equilibrium_only"
@@ -598,17 +486,6 @@ def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
         "kinetic_specs, kinetic_conditions = build_conditions('kinetic_steps', system, state)",
         "kinetic_solver = rkt.KineticsSolver(kinetic_specs) if kinetic_specs is not None else rkt.KineticsSolver(system)",
     ]
-    if workflow.get("precondition_kinetics") and workflow["mode"] != "fixed_fugacity_initial_equilibrium_then_closed_kinetics":
-        lines += [
-            "precondition_result = (",
-            "    kinetic_solver.precondition(state, kinetic_conditions)",
-            "    if kinetic_conditions is not None",
-            "    else kinetic_solver.precondition(state)",
-            ")",
-            "if not precondition_result.succeeded():",
-            "    raise RuntimeError('kinetics precondition failed')",
-        ]
-
     lines += [
         f"duration_s = {_py(duration_s)}",
         f"output_mode = {_py(output_mode)}",
@@ -654,9 +531,13 @@ def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
             "            continue",
             "    dt_s = target_s - time_s",
             "    accepted_state = rkt.ChemicalState(state)",
-            "    result = solve_kinetic_step(dt_s)",
+            "    try:",
+            "        result = solve_kinetic_step(dt_s)",
+            "    except Exception:",
+            "        state.assign(accepted_state)",
+            "        raise",
             "    attempts += 1",
-            "    if not result.succeeded():",
+            "    if result is None or not result.succeeded():",
             "        state.assign(accepted_state)",
             "        raise RuntimeError(f'kinetic step failed at target {target_s} s')",
             "    time_s = target_s",
@@ -694,14 +575,20 @@ def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
             "    target_s = min(time_s + controller_dt_s, forced_target_s)",
             "    dt_s = target_s - time_s",
             "    accepted_state = rkt.ChemicalState(state)",
-            "    result = solve_kinetic_step(dt_s)",
+            "    solve_error = None",
+            "    try:",
+            "        result = solve_kinetic_step(dt_s)",
+            "    except Exception as error:",
+            "        result = None",
+            "        solve_error = error",
             "    attempts += 1",
-            "    accepted, reason = (False, 'solver_failure') if not result.succeeded() else trial_accepted(system, accepted_state, state)",
-            "    if not accepted:",
+            "    if result is None or not result.succeeded():",
             "        state.assign(accepted_state)",
             "        retries_at_current_time += 1",
             "        if retries_at_current_time > max_retries_per_step or dt_s <= dt_min_s:",
-            "            raise RuntimeError(f'adaptive step rejected: {reason}')",
+            "            if solve_error is not None:",
+            "                raise RuntimeError('adaptive kinetic solve failed') from solve_error",
+            "            raise RuntimeError('adaptive kinetic solve failed')",
             "        controller_dt_s = max(dt_min_s, dt_s * shrink_factor)",
             "        continue",
             "    time_s = target_s",

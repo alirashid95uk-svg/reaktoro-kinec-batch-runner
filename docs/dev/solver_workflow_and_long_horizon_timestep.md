@@ -6,12 +6,11 @@ The active runner implements:
 
 - standard Reaktoro equilibrium and kinetics solvers;
 - explicit equilibrium/kinetics workflow staging;
-- fixed, adaptive, and `adaptive_long_horizon` timestep modes;
+- fixed and adaptive timestep modes;
 - scheduled output times;
 - accepted-state checkpoints;
 - adaptive rollback and retry;
-- solver-attempt history;
-- configured adaptive state acceptance checks.
+- solver-attempt history.
 
 Only implemented runtime behaviour belongs in this contract. Smart-solver
 backends, automatic restart, generic solver-safety blocks, global solver
@@ -31,11 +30,9 @@ CO2 constraint staging
 redox constraint staging
 fixed timestep
 adaptive timestep
-adaptive_long_horizon timestep
 state rollback
 output-time landing
 checkpoint writing
-adaptive acceptance
 solver history
 reaction-rate extraction policy
 ```
@@ -204,11 +201,7 @@ The active modes are:
 ```text
 fixed
 adaptive
-adaptive_long_horizon
 ```
-
-`adaptive_long_horizon` is an implemented mode using the same adaptive
-controller with additional schema requirements.
 
 ### 8.1 Fixed Timestep
 
@@ -241,28 +234,26 @@ solver_history      = every accepted or failed solver attempt
 
 ### 8.2 Adaptive Timestep
 
-Adaptive stepping uses solver success plus configured scientific/numerical state
-checks.
+Adaptive stepping uses only Reaktoro solver success or failure.
 
 Core algorithm:
 
 ```text
 1. Snapshot the accepted state.
 2. Attempt the proposed dt.
-3. Evaluate solver success and configured acceptance checks.
-4. If accepted:
+3. If `KineticsSolver.solve(state, dt)` succeeds:
    - advance accepted time;
    - emit output/checkpoint records when targeted;
    - grow controller dt subject to dt_max.
-5. If rejected:
+4. If Reaktoro raises or reports an unsuccessful result:
    - restore the accepted state;
    - keep accepted time unchanged;
    - shrink dt;
    - retry.
-6. Fail cleanly when retries are exhausted or retry control cannot continue.
+5. Fail cleanly when retries are exhausted or retry control cannot continue.
 ```
 
-Every attempt is written to `solver_history.csv`. Rejected attempts retain
+Every attempt is written to `solver_history.csv`. Failed attempts retain
 `time_end_s == time_start_s`.
 
 The controller caps an attempted target at the next output time, checkpoint
@@ -273,47 +264,10 @@ Before solver construction, adaptive preflight partitions the duration at all
 forced targets and uses `dt_max` to calculate a lower bound on required accepted
 steps. Cases that cannot fit within `max_internal_steps` are rejected.
 
-### 8.3 `adaptive_long_horizon`
+Long simulations use ordinary adaptive mode with the same duration, output,
+checkpoint, and timestep controls.
 
-This mode uses the same adaptive controller with additional long-horizon policy
-requirements:
-
-- `every_internal_step` output is forbidden;
-- `include_final` must be true;
-- checkpointing must be enabled;
-- human-readable year units require explicit `year_definition_days`;
-- output/checkpoint targets are landed on exactly without interpolation.
-
-Long horizons still require scientifically justified `dt_initial`, `dt_min`,
-`dt_max`, growth/shrink factors, and acceptance thresholds. The mode does not
-make a long-duration simulation scientifically valid by itself.
-
-## 9. Adaptive Acceptance Checks
-
-Current configurable acceptance checks include:
-
-```text
-non-finite state values
-negative species amount tolerance
-maximum delta pH
-maximum delta saturation index
-selected-species amount change tolerance
-mineral amount change tolerance
-element conservation tolerance
-```
-
-`max_relative_rate_change` must remain null because rate-based adaptive
-acceptance has not been verified in the active controller.
-
-Thresholds are numerical/scientific controls and must not be invented or tuned
-silently.
-
-Element conservation inside adaptive acceptance is valid only where the chosen
-workflow is closed with respect to the checked elements. Fixed-fugacity kinetic
-steps can exchange material with an external reservoir and therefore cannot use
-blind closed-system element-conservation rejection.
-
-## 10. Checkpoint Semantics
+## 9. Checkpoint Semantics
 
 Checkpointing means writing an accepted intermediate state plus enough metadata
 for diagnostics and evidence.
@@ -322,16 +276,15 @@ Checkpointing does **not** mean resumable execution. Automatic restart is not
 part of the current configuration schema, and `solver.restart` is not a valid
 placeholder field.
 
-## 11. Rejected-Step State Safety
+## 10. Failed-Step State Safety
 
-Adaptive rejection must restore the last accepted `ChemicalState`. The active
+An adaptive solver failure must restore the last accepted `ChemicalState`. The active
 implementation uses a copied state before each trial and native assignment on
-rejection. Accepted time advances only after solver success and all configured
-acceptance checks pass.
+failure. Accepted time advances only after a successful Reaktoro solve.
 
 Numerical rollback is a solver-safety mechanism; it is not a scientific fix.
 
-## 12. Reaction-Rate Extraction
+## 11. Reaction-Rate Extraction
 
 When reaction-rate postprocessing is enabled, use accepted-state Reaktoro
 runtime properties:
@@ -344,20 +297,19 @@ ChemicalProps.surfaceArea(mineral.name)   -> live total area in m2
 Only divide by live surface area when it is nonzero. Do not independently
 recompute kinetic equations for routine diagnostics.
 
-Rate extraction does not by itself enable rate-based timestep acceptance.
+Rate extraction does not control timestep acceptance.
 
-## 13. Conservation and Balance Status
+## 12. Conservation and Balance Status
 
 There is no generic `solver.conservation` YAML block in the active schema.
 
-The adaptive controller currently supports its specific
-`acceptance.element_conservation` check. Existing postprocessing element/carbon
-budgets are separate reconstructed diagnostics.
+Existing postprocessing element/carbon budgets are reconstructed diagnostics;
+they are not solver acceptance criteria.
 
 The current solver/output contract does not provide an authoritative whole-state
 material, component, or charge-balance diagnostic.
 
-## 14. Surface Area
+## 13. Surface Area
 
 Configured kinetic surface areas remain explicit scientific inputs. There is no
 `solver.geochemical_controls.surface_area_update` block and no automatic
@@ -366,17 +318,17 @@ surface-area evolution law in the active runtime.
 Do not silently evolve surface area; runtime uses the configured surface-area
 semantics only.
 
-## 15. Solver Success Criteria
+## 14. Solver Success Criteria
 
 The active solver contract is satisfied when:
 
 1. workflow staging is explicit and validated;
 2. the standard Reaktoro backend is used directly;
 3. CO2 and redox constraints are applied only at their configured stages;
-4. fixed, adaptive, and `adaptive_long_horizon` modes follow their schemas;
+4. fixed and adaptive modes follow their schemas;
 5. timestep ownership remains under `solver.timestep`;
 6. scheduled outputs/checkpoints are landed on without interpolation;
-7. rejected adaptive steps do not corrupt accepted state;
+7. failed adaptive attempts do not corrupt accepted state;
 8. fixed-step failure restores the accepted state before termination;
 9. every solver attempt is traceable in solver history;
 10. checkpointing remains distinct from unsupported restart;

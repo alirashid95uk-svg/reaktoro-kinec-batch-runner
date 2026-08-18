@@ -65,7 +65,6 @@ minerals:
 solver:
   workflow:
     mode: closed_kinetics
-    precondition_kinetics: true
   timestep:
     mode: fixed
     time:

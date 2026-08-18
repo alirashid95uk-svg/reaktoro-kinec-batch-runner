@@ -1,32 +1,6 @@
-"""Stable solver-history and acceptance record construction."""
+"""Stable solver-history record construction."""
 
 from typing import Any
-
-
-def empty_acceptance(reason: str) -> dict[str, Any]:
-    return {
-        "accepted": reason == "accepted",
-        "acceptance_reason": reason,
-        "delta_pH": None,
-        "max_delta_saturation_index": None,
-        "max_selected_species_change_mol": None,
-        "max_selected_species_tolerance_ratio": None,
-        "worst_selected_species": None,
-        "max_mineral_change_mol": None,
-        "max_mineral_tolerance_ratio": None,
-        "worst_mineral": None,
-        "minimum_species_amount_mol": None,
-        "tolerated_negative_species_count": None,
-        "most_negative_tolerated_amount_mol": None,
-        "max_element_balance_error_mol": None,
-        "max_element_balance_error_ratio": None,
-        "worst_element": None,
-        "trial_charge_mol": None,
-    }
-
-
-def acceptance_record(acceptance: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in acceptance.items() if key != "accepted"}
 
 
 def solver_record(
@@ -42,22 +16,6 @@ def solver_record(
     failure_reason: str = "",
     attempt_index: int | None = None,
     next_dt_s: float | None = None,
-    acceptance_reason: str = "",
-    delta_pH: float | None = None,
-    max_delta_saturation_index: float | None = None,
-    max_selected_species_change_mol: float | None = None,
-    max_selected_species_tolerance_ratio: float | None = None,
-    worst_selected_species: str | None = None,
-    max_mineral_change_mol: float | None = None,
-    max_mineral_tolerance_ratio: float | None = None,
-    worst_mineral: str | None = None,
-    minimum_species_amount_mol: float | None = None,
-    tolerated_negative_species_count: int | None = None,
-    most_negative_tolerated_amount_mol: float | None = None,
-    max_element_balance_error_mol: float | None = None,
-    max_element_balance_error_ratio: float | None = None,
-    worst_element: str | None = None,
-    trial_charge_mol: float | None = None,
 ) -> dict[str, Any]:
     return {
         "step_index": step_index,
@@ -71,23 +29,7 @@ def solver_record(
         "iterations": int(result.iterations()) if result is not None else None,
         "wall_time_s": float(wall_time_s),
         "failure_reason": failure_reason,
-        "acceptance_reason": acceptance_reason,
         "next_dt_s": next_dt_s,
-        "delta_pH": delta_pH,
-        "max_delta_saturation_index": max_delta_saturation_index,
-        "max_selected_species_change_mol": max_selected_species_change_mol,
-        "max_selected_species_tolerance_ratio": max_selected_species_tolerance_ratio,
-        "worst_selected_species": worst_selected_species,
-        "max_mineral_change_mol": max_mineral_change_mol,
-        "max_mineral_tolerance_ratio": max_mineral_tolerance_ratio,
-        "worst_mineral": worst_mineral,
-        "minimum_species_amount_mol": minimum_species_amount_mol,
-        "tolerated_negative_species_count": tolerated_negative_species_count,
-        "most_negative_tolerated_amount_mol": most_negative_tolerated_amount_mol,
-        "max_element_balance_error_mol": max_element_balance_error_mol,
-        "max_element_balance_error_ratio": max_element_balance_error_ratio,
-        "worst_element": worst_element,
-        "trial_charge_mol": trial_charge_mol,
     }
 
 
@@ -104,21 +46,5 @@ def unsolved_record(step_index: int, stage: str, time_s: float) -> dict[str, Any
         "iterations": None,
         "wall_time_s": 0.0,
         "failure_reason": "",
-        "acceptance_reason": "not_evaluated",
         "next_dt_s": None,
-        "delta_pH": None,
-        "max_delta_saturation_index": None,
-        "max_selected_species_change_mol": None,
-        "max_selected_species_tolerance_ratio": None,
-        "worst_selected_species": None,
-        "max_mineral_change_mol": None,
-        "max_mineral_tolerance_ratio": None,
-        "worst_mineral": None,
-        "minimum_species_amount_mol": None,
-        "tolerated_negative_species_count": None,
-        "most_negative_tolerated_amount_mol": None,
-        "max_element_balance_error_mol": None,
-        "max_element_balance_error_ratio": None,
-        "worst_element": None,
-        "trial_charge_mol": None,
     }

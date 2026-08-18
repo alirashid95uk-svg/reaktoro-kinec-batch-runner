@@ -30,9 +30,9 @@ python yaml_to_reaktoro.py cases\calcite_quartz_illite_development.yaml --stdout
 
 ## Coverage
 
-The generator covers the active Reaktoro-facing case features: local/embedded PHREEQC databases, PHREEQC aqueous activities, finite-CO2 Peng–Robinson gas phases, fixed CO2 fugacity, pE staging, equilibrium/kinetic minerals, native Palandri–Kharaka kinetics, the project Kinec callback, all four workflow modes, fixed timestep execution, adaptive/adaptive-long-horizon execution, output/checkpoint target splitting, rollback, and configured adaptive state-acceptance checks.
+The generator covers the active Reaktoro-facing case features: local/embedded PHREEQC databases, PHREEQC aqueous activities, finite-CO2 Peng–Robinson gas phases, fixed CO2 fugacity, pE staging, equilibrium/kinetic minerals, native Palandri–Kharaka kinetics, the project Kinec callback, all four workflow modes, fixed and adaptive timestep execution, output/checkpoint target splitting, and rollback after Reaktoro solver failure.
 
-Reporting-only blocks (`outputs`, `validation`, and non-solver postprocessing) are not emitted as Reaktoro code. A postprocessing requested-species list is included only when it directly participates in adaptive step acceptance.
+Reporting-only blocks (`outputs`, `validation`, and non-solver postprocessing) are not emitted as Reaktoro code.
 
 ## Unsupported-field safety
 

@@ -1,10 +1,10 @@
-"""Adaptive timestep execution, acceptance, retry, and rollback."""
+"""Adaptive timestep execution driven by Reaktoro solve feasibility."""
 
 from decimal import Decimal
 from typing import Any
 
 from .calls import failure_reason, timed_solve
-from .records import acceptance_record, empty_acceptance, solver_record
+from .records import solver_record
 from .runtime import SolverRun
 
 
@@ -94,12 +94,7 @@ def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
                     accepted=False,
                     failure_reason=(
                         solver_reason
-                        or "cooperative cancellation requested before trial acceptance"
-                    ),
-                    acceptance_reason=(
-                        "solver_failure"
-                        if solver_reason
-                        else "cancelled_before_acceptance"
+                        or "cooperative cancellation requested before step commit"
                     ),
                 )
             )
@@ -120,41 +115,14 @@ def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
                 )
             return initial_state, run.cancelled("after_adaptive_solver_attempt")
 
-        acceptance = empty_acceptance(
-            "solver_failure" if solver_reason else "accepted"
-        )
-        acceptance_error = None
-        if solver_reason is None:
-            try:
-                acceptance = run.evaluate_trial(
-                    run.case, run.system, accepted_state, run.state
-                )
-            except Exception as error_during_acceptance:
-                acceptance_error = error_during_acceptance
-                acceptance = empty_acceptance(
-                    "acceptance_evaluation_error:"
-                    f"{type(error_during_acceptance).__name__}:"
-                    f"{error_during_acceptance}"
-                )
-
-        rejection_reason = solver_reason or (
-            None if acceptance["accepted"] else acceptance["acceptance_reason"]
-        )
-        if rejection_reason is not None:
+        if solver_reason is not None:
             run.state.assign(accepted_state)
             run.failed_steps += 1
             run.retries_at_current_time += 1
-            if solver_reason is not None:
-                run.solver_failed_attempts += 1
-            reason_key = (
-                "solver_failure"
-                if solver_reason
-                else acceptance["acceptance_reason"]
+            run.solver_failed_attempts += 1
+            run.rejection_reason_counts["solver_failure"] = (
+                run.rejection_reason_counts.get("solver_failure", 0) + 1
             )
-            for reason in reason_key.split(";"):
-                run.rejection_reason_counts[reason] = (
-                    run.rejection_reason_counts.get(reason, 0) + 1
-                )
             next_dt_s = max(
                 run.case.dt_min_s,
                 dt_s * run.timestep.step_size.shrink_factor,
@@ -170,9 +138,8 @@ def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
                     result=result,
                     wall_time_s=wall_time_s,
                     accepted=False,
-                    failure_reason=rejection_reason,
+                    failure_reason=solver_reason,
                     next_dt_s=next_dt_s,
-                    **acceptance_record(acceptance),
                 )
             )
             retry_limit_hit = (
@@ -189,16 +156,8 @@ def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
                         else "minimum_timestep_rejected"
                     ),
                     failed_stage="adaptive_kinetic_attempt",
-                    error_message=rejection_reason,
-                    exception_type=(
-                        type(error).__name__
-                        if error is not None
-                        else (
-                            type(acceptance_error).__name__
-                            if acceptance_error is not None
-                            else None
-                        )
-                    ),
+                    error_message=solver_reason,
+                    exception_type=type(error).__name__ if error is not None else None,
                     failed_attempt_target_time_s=target_time_s,
                     failed_attempt_dt_s=dt_s,
                     accepted_state_restored=True,
@@ -223,7 +182,6 @@ def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
             result=result,
             wall_time_s=wall_time_s,
             next_dt_s=next_dt_s,
-            **acceptance_record(acceptance),
         )
         run.accept_step(dt_s, target_time_s)
         run.retries_at_current_time = 0
