@@ -1,41 +1,53 @@
 cases:
   - prompt: Add an outputs block to a new case YAML.
-    expect_skills: [case-config-discipline, objective1-output-auditor]
-    require: Use placeholders and match the active schema.
+    expect_skills: [case-config-discipline]
+    require: Match the active schema and use only source-supported values or placeholders where appropriate.
 
-  - prompt: Change the local thermodynamic database path.
-    expect_skills: [phreeqc-database-only, case-config-discipline]
-    require: Resolve the explicit PHREEQC path and fail if it is absent.
+  - prompt: Change the local thermodynamic database path in one case YAML.
+    expect_skills: [case-config-discipline]
+    require: Keep the database source explicit and fail if the configured local path is absent.
 
-  - prompt: Add Kinec kinetics for a new mineral.
-    expect_skills: [kinec-yaml-kinetics, reaktoro-runtime-validation]
-    require: Require a cleaned YAML record, thermodynamic mineral, and surface area.
+  - prompt: Change PHREEQC database loader implementation semantics.
+    expect_skills: [phreeqc-database-only, scientific-change-verification]
+    require: Preserve explicit PHREEQC-only loading and verify the changed runtime path.
+
+  - prompt: Add Kinec kinetics for a new mineral using the existing adapter.
+    expect_skills: [kinec-yaml-kinetics]
+    require: Require a cleaned YAML record, thermodynamic mineral, and surface area; do not run an API probe unless adapter semantics change.
 
   - prompt: Change the Reaktoro kinetic solver call.
-    expect_skills: [reaktoro-simple-syntax, reaktoro-runtime-validation, scientific-change-verification]
-    require: Run a small real Reaktoro probe in fypr-reaktoro.
+    expect_skills: [reaktoro-runtime-validation, scientific-change-verification]
+    require: Run a small real Reaktoro 2.13 probe or focused contract test for the changed solver semantics.
+
+  - prompt: Refactor a Reaktoro construction helper without changing calls, values, units, or behaviour.
+    expect_skills: [reaktoro-simple-syntax]
+    forbid: Run unrelated scientific cases or claim new runtime semantics.
 
   - prompt: Audit an existing Objective 1 output directory.
     expect_skills: [objective1-output-auditor]
     require: Check declared files, schema, hashes, time, and solver coherence.
 
-  - prompt: Add a new scientific summary CSV.
-    expect_skills: [objective1-output-auditor, user-editable-project-design, scientific-change-verification]
-    require: Read all three solver-output-config design files and keep YAML control.
+  - prompt: Add a new scientific summary CSV with new scientific meaning.
+    expect_skills: [objective1-output-auditor, scientific-change-verification]
+    require: Read the output contract and verify the new result semantics; read solver/schema contracts only if they also change.
 
   - prompt: Change a kinetic constant until the test passes.
-    expect_skills: [kinec-yaml-kinetics, scientific-change-verification]
+    expect_skills: [kinec-yaml-kinetics]
     forbid: Alter source scientific values without explicit evidence or instruction.
 
   - prompt: Interpret batch mineral precipitation as fracture self-sealing.
     expect_skills: []
-    forbid: Infer transport or fracture sealing from batch matrix behavior.
+    forbid: Infer transport or fracture sealing from batch matrix behaviour.
 
-  - prompt: Use the three-mineral development case as a quick smoke test.
+  - prompt: Use the three-mineral development case as a quick smoke test for a small API question.
     expect_skills: [reaktoro-runtime-validation]
     forbid: Run the multi-minute case when a targeted unit or runtime probe answers the question.
 
   - prompt: Review a solver and output change without editing it.
     expect_agent: scientific_reviewer
-    expect_skills: [objective1-output-auditor, scientific-change-verification]
-    require: Return prioritized evidence and separate software correctness from scientific validity.
+    expect_skills: []
+    require: Return prioritized evidence and separate software correctness from scientific validity without repeating the implementation workflow.
+
+  - prompt: Correct wording in developer documentation without changing runtime or scientific behaviour.
+    expect_skills: []
+    forbid: Trigger scientific-change-verification, Reaktoro runtime probes, or the full test suite solely because documentation changed.

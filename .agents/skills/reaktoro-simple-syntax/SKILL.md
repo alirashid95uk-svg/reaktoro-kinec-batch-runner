@@ -1,33 +1,32 @@
 ---
 name: reaktoro-simple-syntax
-description: Use when adding or reviewing Reaktoro construction and solver code in this repository; enforce direct official-style Reaktoro syntax and reject unnecessary abstractions.
+description: Use when adding or reviewing Reaktoro construction code and the main concern is keeping setup direct, visible, and free of unnecessary abstraction. Use reaktoro-runtime-validation separately only when exact 2.13 API semantics are uncertain.
 ---
 
 # Reaktoro Simple Syntax
 
-Use simple visible Reaktoro calls that follow the documented Reaktoro
-construction order.
+Keep the scientific construction order visible:
 
-## Required Patterns
+```text
+PhreeqcDatabase
+-> AqueousPhase / optional GaseousPhase / MineralPhases
+-> ChemicalSystem
+-> ChemicalState
+-> solver
+-> ChemicalProps / AqueousProps
+```
 
-- Load PHREEQC-style thermodynamics with `PhreeqcDatabase`.
-- Construct the aqueous phase with `AqueousPhase`.
-- Use `GaseousPhase` only when gas is explicitly enabled.
-- Construct pure mineral phases with `MineralPhases`.
-- Assemble the system with `ChemicalSystem`.
-- Construct and populate the initial state with `ChemicalState`.
-- Use `ActivityModelPhreeqc` for PHREEQC aqueous systems unless an explicit,
-  documented project decision changes it.
-- When gas is enabled, choose the gas activity model explicitly. A
-  PHREEQC-compatible option is `ActivityModelPengRobinsonPhreeqc`.
-- Use direct state-setting patterns such as temperature, pressure, and
-  explicit species amounts with units.
-- Keep phase construction, state construction, solver calls, and property
-  extraction visible and readable.
+Use explicit database, phase, state, amount, unit, solver, and property calls.
+Use `ActivityModelPhreeqc` for PHREEQC aqueous systems unless an explicit
+project decision changes it. Configure a gas activity model explicitly when a
+gas phase exists.
 
-## Guardrails
+Do not hide scientific settings or units behind helper defaults, factories,
+registries, dynamic imports, or generic simulator abstractions.
 
-- Do not hide basic Reaktoro setup behind unnecessary classes.
-- Do not hide scientific settings or units in helper defaults.
-- Use pseudocode labels where syntax has not been locally tested.
-- Exact Reaktoro Python syntax must be verified during implementation.
+Prefer short focused helpers only when they remove ordinary code duplication
+without obscuring Reaktoro objects or scientific choices.
+
+If exact Python syntax, overload behaviour, sign, units, state mutation, or
+solver semantics are uncertain, use `reaktoro-runtime-validation`. Do not run a
+runtime probe merely because this style skill was triggered.

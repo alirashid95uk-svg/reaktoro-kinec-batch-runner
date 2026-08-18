@@ -1,268 +1,86 @@
 ---
-
 name: case-config-discipline
-description: Use whenever creating, editing, reviewing, or migrating case YAML, the case schema template, CaseConfig models, configuration preprocessing, or configuration documentation. Enforce strict runtime-schema alignment, source-supported scientific values, explicit feature control, placeholder rejection, and generated resolved configuration. Do not use this skill to change kinetic parameter values or Reaktoro solver implementation except where their configuration interface changes.
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+description: Use for case YAML, CaseConfig/schema, configuration preprocessing, schema templates, or configuration documentation. Keep runtime schema, user-facing YAML, and scientific provenance aligned without inventing values.
+---
 
 # Case Config Discipline
 
-Maintain one explicit and synchronized configuration contract. Never invent scientific values, silently add scientific behaviour, or allow configuration files to drift from runtime validation.
+## Authority
 
-## Sources of Truth
-
-Use these sources in this order:
+Use these sources in order:
 
 1. `batch_runner/config/` and focused tests define active runtime behaviour.
-2. The coordinated design files define approved intended behaviour:
+2. `docs/dev/config_schema_feature_options.md` defines approved schema intent.
+3. `cases/schema_template.yaml`, runnable cases, README, and config documentation
+   must describe the active contract accurately.
 
-   * `docs/dev/config_schema_feature_options.md`
-   * `docs/dev/solver_workflow_and_long_horizon_timestep.md`
-   * `docs/dev/output_package_design.md`
-3. `cases/schema_template.yaml`, runnable cases, README, and developer documentation must accurately represent the active contract.
-4. Runnable example cases demonstrate specific source-supported cases. They are not generic scientific defaults.
+Read the solver or output design document only when the configuration change
+also alters that runtime/output contract. Do not read all three coordinated
+design documents for a schema-local change.
 
-When these sources disagree, identify the inconsistency and resolve it deliberately. Do not silently copy one source over another.
+## Scientific Values
 
-## Before Editing
+Do not invent, tune, or copy unrelated scientific values.
 
-Read:
+Scientific values may come only from supplied files/data, explicit user
+instruction, cited project sources, or deterministic preprocessing.
 
-```text
-AGENTS.md
-batch_runner/config/
-cases/schema_template.yaml
-docs/dev/config_rules.md
-```
+Templates may contain placeholders. Runnable cases may not contain unresolved
+placeholder sentinels such as `REQUIRED`, `OPTIONAL`, `TBD_SOURCE_REQUIRED`, or
+`REQUIRED_IF_*`.
 
-Also read all three coordinated design files when the change affects:
+Preserve provenance fields when they exist. Add new provenance structure only
+when the new scientific input genuinely requires it.
 
-```text
-solver
-timestep control
-workflow staging
-postprocessing
-outputs
-validation
-checkpoints
-resolved configuration
-```
+## Change Types
 
-Inspect one relevant runnable case and the focused configuration tests.
+### Case-data change
 
-Determine whether the task is:
+- Edit only the relevant runnable case.
+- Do not change the schema to accommodate malformed data.
+- Validate through `load_case`.
+- Confirm paths and units resolve as intended.
+- Run a focused test only when runtime behaviour needs protection.
 
-```text
-case-data change
-schema change
-validation change
-derived-value preprocessing change
-documentation-only correction
-```
+### Schema or preprocessing change
 
-## Scientific Value Rule
+- Update the strict Pydantic model and relevant cross-field validation.
+- Keep unknown fields and invalid combinations as hard failures.
+- Update the schema template when the accepted YAML shape changes.
+- Update `docs/dev/config_schema_feature_options.md` when the public contract
+  changes.
+- Update runnable cases only when source-supported values are available.
+- Add focused positive/negative tests for the changed rule.
 
-Scientific numerical values may come only from:
+Do not require unrelated README, output, solver, Workbench, or skill-routing
+changes unless their contract actually changed.
 
-```text
-user-supplied files
-user-supplied data
-explicit user instruction
-cited project sources
-deterministic preprocessing of supported inputs
-```
+## Stable Rules
 
-Do not:
-
-```text
-invent example scientific values
-copy unrelated values from another case
-change values to make a test pass
-replace missing evidence with a plausible estimate
-add random scientific cases
-```
-
-When a required scientific value is unavailable:
-
-* keep a placeholder only in a schema template;
-* omit or disable the optional feature when the schema permits it;
-* otherwise stop and report the missing input.
-
-## Configuration Layers
-
-```text
-schema template
-→ user-edited case input
-→ validated and resolved runtime configuration
-```
-
-### Schema template
-
-* Documents the complete accepted shape.
-* Contains placeholders instead of scientific values.
-* Is intentionally non-runnable.
-* Must remain synchronized with `CaseConfig`.
-
-### Case input
-
-* Contains real source-supported values.
-* Contains no unresolved placeholders.
-* Explicitly selects optional features.
-* Uses only active schema fields.
-
-### Resolved configuration
-
-* Is generated by deterministic preprocessing.
-* Contains normalized paths, approved defaults, derived values, schedules, and hashes.
-* Is written as `debug/resolved_config.yaml` only when enabled.
-* Must never be manually edited or used as the source case.
-
-## Placeholder Rule
-
-Template placeholders may use:
-
-```text
-REQUIRED
-OPTIONAL
-TBD_SOURCE_REQUIRED
-REQUIRED_IF_*
-```
-
-Runnable case inputs must reject any scalar or key matching:
-
-```regex
-^(REQUIRED|OPTIONAL|TBD_SOURCE_REQUIRED|REQUIRED_IF_[A-Z0-9_]+)$
-```
-
-Do not maintain a separate exhaustive list of every `REQUIRED_IF_*` variant in this skill.
-
-## Schema Rules
-
-* Treat the active top-level blocks as exact, not preferred.
-* Unknown fields must fail validation.
-* Invalid combinations must fail before simulation construction.
-* Keep each feature in one obvious configuration location.
-* Duration and timestep control belong only under `solver.timestep`.
-* Optional features require an explicit `enabled` field unless the active schema deliberately defines another mechanism.
-* Do not add case-level mineral aliases.
-* Do not add `cation_exchange` until it is implemented and validated.
-* The `validation` block records explicit targets; it does not imply a completed experiment-validation workflow.
-* Never use silent fallback, automatic database selection, or automatic kinetic-model switching.
-
-## Defaults
-
-Do not introduce new scientific-behaviour defaults.
-
-Existing defaults may remain only when they are:
-
-```text
-explicitly approved by project design
-implemented in CaseConfig
-documented
-covered by focused tests
-visible in the resolved configuration
-```
-
-Do not infer a model from a filename.
-
-## Units
-
-Use:
-
-* fixed-unit field names such as `temperature_c`, `pressure_bar`, and `fugacity_bar` when one canonical unit is enforced;
-* `{value, unit}` structures when multiple units are supported.
-
-Do not accept ambiguous unitless scientific quantities. New unit strings must be validated against an explicit accepted set or the exact runtime interface.
-
-## Provenance
-
-Preserve existing provenance and source fields.
-
-For new source-dependent values:
-
-1. identify the source before adding the value;
-2. use an existing provenance field when one exists;
-3. when no suitable field exists, treat adding provenance support as a schema change;
-4. update model, template, documentation, resolved output, and tests together.
-
-Comments alone are not a substitute for structured provenance when runtime traceability is required.
-
-## Case-Data Change Workflow
-
-1. Verify every changed value and its source.
-2. Edit only the relevant runnable case.
-3. Do not change the schema to accommodate a malformed case.
-4. Validate through `load_case`.
-5. Confirm no placeholders remain.
-6. Confirm the output directory and selected paths resolve exactly.
-7. Run the smallest focused test covering the changed feature.
-
-## Schema Change Workflow
-
-1. Update the relevant strict Pydantic model and cross-field validators.
-2. Reject unknown and incompatible fields explicitly.
-3. Update the complete user-facing template or the relevant mode-specific template.
-4. Update the coordinated design documentation.
-5. Update README only when user-facing behaviour changes.
-6. Update a runnable case only when source-supported values are available.
-7. Add minimal focused positive and negative tests.
-8. Update `.agents/evals/skill-routing.yaml` when the skill trigger or prohibited behaviour changes.
-9. Confirm the generated resolved configuration records every approved default and derived value.
-
-Do not update only one layer of the contract.
-
-## Required Negative Checks
-
-Verify that the configuration rejects:
-
-```text
-unresolved placeholders in runnable cases
-unknown top-level or nested fields
-mode-specific fields used in another timestep mode
-duration or timestep fields under kinetics
-kinetic minerals when kinetics are disabled
-enabled kinetics without kinetic minerals
-missing local paths
-unsupported database sources
-contradictory CO2 and workflow settings
-invalid redox staging
-case-level mineral aliases
-manual restart configuration while restart is unsupported
-```
+- Duration and timestep control belong under `solver.timestep`.
+- Optional scientific behaviour must be explicit.
+- Database selection is explicit; no fallback database.
+- Missing kinetic records, thermodynamic minerals, or required surface areas are
+  hard failures.
+- Do not add case-level mineral aliases.
+- Do not expose unsupported runtime features merely as disabled schema blocks.
+- Defaults that affect scientific behaviour must be approved, documented, and
+  visible in resolved configuration.
+- Units must be explicit and validated.
 
 ## Verification
 
-Run the verified environment:
+Use the smallest check that covers the edit:
 
 ```powershell
 conda run -n fypr-reaktoro python -m pytest -q tests/test_first_version.py -k "schema_template or config or timestep or redox or kinetics"
 ```
 
-Also validate every modified runnable case through `load_case`.
+Narrow the `-k` expression further when possible. Validate every modified
+runnable case with `load_case`.
 
-For a schema change, confirm:
+Run broader tests only when the configuration change also alters shared runtime
+execution or outputs.
 
-```text
-the template parses as YAML but is not runnable
-all runnable cases contain no placeholder sentinels
-valid cases load successfully
-invalid combinations fail before execution
-unknown fields fail
-resolved values and paths are deterministic
-no source scientific value changed without evidence
-```
-
-Use broader tests only when the configuration change affects execution or outputs.
-
-## Completion Report
-
-Report:
-
-```text
-configuration files changed
-runtime models or validators changed
-scientific values changed and their provenance
-defaults introduced, removed, or preserved
-template and documentation synchronization
-tests and case-validation commands executed
-remaining schema or documentation inconsistencies
-```
+Report scientific values changed and their provenance separately from schema,
+default, documentation, and test changes.
