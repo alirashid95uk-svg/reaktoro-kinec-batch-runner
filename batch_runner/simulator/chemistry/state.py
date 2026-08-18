@@ -42,19 +42,21 @@ def _require_system_species(system: Any, name: str) -> None:
 
 
 def _require_system_mineral(system: Any, name: str) -> int:
-    matches = [
-        index
-        for index, species in enumerate(system.species())
-        if species.name() == name
-        and species.aggregateState() == rkt.AggregateState.Solid
-    ]
-    if not matches:
-        raise ValueError(f"solid mineral is not present in the constructed chemical system: {name}")
-    if len(matches) > 1:
-        raise ValueError(
-            f"multiple solid minerals with the same name are present in the constructed chemical system: {name}"
-        )
-    return matches[0]
+    species_index = 0
+
+    for phase in system.phases():
+        phase_species = phase.species()
+
+        if phase.name() == name:
+            if len(phase_species) != 1:
+                raise ValueError(f"mineral phase is not a pure phase: {name}")
+            return species_index
+
+        species_index += len(phase_species)
+
+    raise ValueError(
+        f"mineral phase is not present in the constructed chemical system: {name}"
+    )
 
 
 def _postprocessing_species_amount_names(case: ResolvedCase) -> set[str]:

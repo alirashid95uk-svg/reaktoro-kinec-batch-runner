@@ -57,8 +57,8 @@ redox:
 
 kinetics:
   enabled: true
-  model: kinec
-  path: data/kinetics/jayasekara_2020_table4.yaml
+  model: palandri_kharaka
+  path: data/kinetics/PalandriKharaka_local.yaml
 
 minerals:
   # Table 4 masses are mol per kg water. The case contains exactly 1 kg H2O,
@@ -161,27 +161,49 @@ minerals:
 
 solver:
   workflow:
-    # The experiment maintained 10 MPa throughout reaction. The current runner
-    # cannot represent an independent constant-pressure CO2 reservoir directly;
-    # fixed fugacity during kinetic steps is its closest supported analogue.
     mode: fixed_fugacity_during_kinetic_steps
     precondition_kinetics: false
+
   timestep:
-    mode: fixed
-    time: {duration_value: 259.0, duration_unit: days}
+    mode: adaptive
+
+    time:
+      duration_value: 259.0
+      duration_unit: days
+
     step_size:
-      dt: {value: 2700.0, unit: seconds}
+      dt_initial: {value: 2700.0, unit: seconds}
+      dt_min: {value: 60.0, unit: seconds}
+      dt_max: {value: 2700.0, unit: seconds}
+      growth_factor: 1.5
+      shrink_factor: 0.5
+      max_retries_per_step: 8
+
+    acceptance:
+      enabled: true
+      fail_on_non_finite: true
+      negative_amount_tolerance_mol: null
+      max_delta_pH: null
+      max_delta_saturation_index: null
+      selected_species_change: null
+      mineral_change: null
+      element_conservation:
+        enabled: false
+        relative_tolerance: null
+        absolute_tolerance_mol: null
+      max_relative_rate_change: null
+
     output_schedule:
       mode: explicit
       include_initial: true
       include_final: true
-      # Paper sampling times 2, 5, 9, 18, 37 weeks -> 14, 35, 63, 126, 259 days.
       explicit_times:
         - {value: 14.0, unit: days}
         - {value: 35.0, unit: days}
         - {value: 63.0, unit: days}
         - {value: 126.0, unit: days}
         - {value: 259.0, unit: days}
+  
 
 postprocessing:
   # Element-total ICP-OES concentrations are experimental observables, but this

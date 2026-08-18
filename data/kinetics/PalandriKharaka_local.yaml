@@ -285,6 +285,8 @@ ReactionRateModelParams:
           Neutral: { lgk: -12.40, E: 29.0 }
       Montmorillonite:
         Mineral: Montmorillonite
+        OtherNames:
+          - Montmor-Ca
         Mechanisms:
           Acid: { lgk: -12.71, E: 48.0, a(H+): 0.220 }
           Neutral: { lgk: -14.41, E: 48.0 }
