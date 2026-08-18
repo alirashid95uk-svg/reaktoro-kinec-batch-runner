@@ -1,39 +1,32 @@
 ---
 name: user-editable-project-design
-description: Use when designing, adding, or reviewing project features; keep the batch runner readable, explicit, optional-feature aware, and maintainable without Codex.
+description: Use for cross-module feature or architecture design where placement, ownership, or complexity is genuinely in question. Do not use for routine local feature implementation with an obvious existing module.
 ---
 
 # User-Editable Project Design
 
-The user must be able to understand, modify, and extend this project without
-Codex.
+Use this skill when deciding where a feature belongs or when a proposal risks
+creating competing architecture.
 
 ## Design Rules
 
-- Prefer short modules and simple Python functions.
-- Give every feature one clear config location.
-- Give every feature one clear execution module.
-- Give every feature one clear output effect.
-- Make every optional feature explicitly disableable.
-- Use only minimal tests that directly protect the feature being added.
-- Do not create large testing loops, broad test harnesses, or excessive test
-  infrastructure.
-- Keep direct Reaktoro syntax visible.
-- Raise specific errors with actionable context.
-- Add comments only for scientific, unit, or non-obvious implementation
-  decisions.
+- Preserve the existing YAML -> validation -> system/state -> solver ->
+  observations -> outputs flow.
+- Reuse existing runner, Workbench, study, event, diagnostics, and output
+  infrastructure before creating new layers.
+- Give each feature one clear configuration owner, one execution owner, and one
+  observable output/diagnostic effect.
+- Prefer short modules and simple functions.
+- Keep direct Reaktoro syntax and scientific settings visible.
+- Optional behaviour should be explicitly disableable when it is truly optional.
+- Add only focused tests that protect the feature's behaviour.
 
-## Forbidden Patterns
+Avoid plugin managers, hidden registries, generic backend systems, abstract
+simulator engines, dynamic imports for core execution, dependency-injection
+containers, broad exception swallowing, and silent fallback.
 
-- generic backend system;
-- plugin manager;
-- hidden registry;
-- abstract simulator architecture;
-- dynamic imports for core execution;
-- dependency injection container;
-- broad exception swallowing;
-- silent fallback;
-- random example configs.
+`runner.py` remains orchestration only.
 
-`runner.py` must remain orchestration only. `runner.py` must not contain
-scientific logic.
+Do not invoke this skill simply because a feature is new. If the correct module
+and contract are already obvious, use the domain-specific skill and implement
+the smallest clean change.
