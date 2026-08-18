@@ -2,283 +2,172 @@
 
 ## Purpose
 
-This repository is a simple Reaktoro batch simulation runner. It must remain
-understandable, reproducible, and modifiable without Codex. Physics and
-geochemistry take precedence over software abstraction.
+This repository is a research-grade Reaktoro batch geochemical simulator for
+CO2-brine-mineral systems. Keep the scientific execution path explicit,
+reproducible, and maintainable without Codex.
+
+Scientific correctness takes precedence over software abstraction.
 
 ## Supported Scope
 
-- PHREEQC-style thermodynamic databases only.
-- Explicitly selected embedded PHREEQC databases, such as `phreeqc.dat`.
-- Explicitly selected local PHREEQC-style `.dat` databases.
-- Batch equilibrium simulations.
-- Batch kinetic simulations using the native local Palandri-Kharaka model by default.
-- Optional custom Kinec kinetics when explicitly selected.
-- Optional fixed-fugacity CO2 or finite-amount CO2 setup.
-- Optional redox using pE.
+Supported runtime scope:
 
-Cation exchange is planned but not implemented in V1.
-Experiment validation is planned but not implemented in V1.
+- PHREEQC-style thermodynamic databases selected explicitly;
+- batch equilibrium simulations;
+- batch kinetic simulations;
+- Reaktoro native Palandri-Kharaka kinetics by default;
+- optional custom Kinec kinetics when explicitly selected;
+- optional fixed-fugacity CO2 or finite-amount CO2;
+- optional pE-based redox;
+- fixed and adaptive timestep execution as implemented by the active schema.
 
-## Active V1 Baseline
+Not currently supported as authoritative runtime features:
 
-- Standard Reaktoro equilibrium and kinetics solvers.
-- Fixed, adaptive, and adaptive-long-horizon timestep modes.
-- Base outputs and YAML-controlled Objective 1 audit outputs.
-- Rejected-step recovery and checkpoint writing.
-- No automatic restart, cation exchange, reactive transport, or
-  experiment-validation workflow.
+- reactive transport;
+- automatic restart;
+- cation exchange;
+- automatic experimental calibration or experiment-fitting workflows.
 
-Use the verified environment:
+The existing validation target/ledger machinery is a reporting capability; it
+must not be described as automated experimental validation or calibration.
 
-```powershell
-conda run -n fypr-reaktoro python -m pytest -q
-```
+## Scientific Non-Negotiables
 
-Use focused tests for routine smoke checks; the three-mineral development case
-executes the real staged chemistry workflow.
+Never silently change:
 
-## Package Architecture
+- thermodynamic database selection or content;
+- activity models;
+- mineral identities or mappings;
+- kinetic parameters;
+- reactive surface areas;
+- CO2 boundary conditions;
+- redox conditions;
+- timestep controls;
+- experimental or literature-derived values.
 
-- `batch_runner.config` is the stable, Reaktoro-free configuration API.
-- `batch_runner.simulator` is the stable scientific execution API; chemistry,
-  kinetics, and solver implementation modules live below it.
-- `batch_runner.outputs` is the stable scientific output-writing API.
-- `batch_runner.protocol` owns the worker event envelope and cancellation-file
-  check; process ownership remains outside `batch_runner`.
-- Front ends use these package interfaces rather than implementation files.
+Scientific numerical values must come from supplied files/data, explicit user
+instruction, cited project sources, or deterministic preprocessing. Do not
+invent values to make examples, tests, or simulations pass.
 
-See `docs/dev/architecture.md` for the complete package map and dependency
-flow.
-
-## Scientific Workbench Scope
-
-The approved PySide6 workbench expands only the user-facing orchestration,
-editing, process-control, artifact-reading, comparison, study, dataset, and
-reporting layers defined in `docs/dev/GUI_Upgrade_Fixed.md`.
-
-- `batch_runner` remains the authoritative Qt-free scientific execution path.
-- `workbench_core` remains Qt-free and operates on case and saved artifacts.
-- `workbench` contains presentation, accessibility, and `QProcess` ownership.
-- The command-line runner and legacy launcher remain operational until golden
-  replacement-equivalence and Windows acceptance checks pass.
-- Scientific values, databases, kinetic parameters, Reaktoro equations,
-  defaults, timestep acceptance, and output definitions do not change during
-  the GUI migration.
-- Saved or derived workbench artifacts must be reproducible headlessly.
-- Completed result packages remain immutable; legacy packages are indexed or
-  adapted read-only and are never migrated in place.
-
-## Skill Routing
-
-- YAML case changes: `case-config-discipline`.
-- PHREEQC database loading: `phreeqc-database-only`.
-- Custom Kinec parameters or attachment: `kinec-yaml-kinetics`.
-- Reaktoro construction or solver code: `reaktoro-simple-syntax` and
-  `reaktoro-runtime-validation`.
-- Any source-code change: `scientific-change-verification`.
-- Output generation or package review: `objective1-output-auditor`; also read
-  the three coordinated design files named below.
-- Workbench UX design or screenshot review: `design-critique` and
-  `qt-ui-design`.
-- Native Windows GUI interaction, accessibility, or scale acceptance:
-  `windows-desktop-e2e`.
-- Workbench plots and data-visualisation accessibility: `charts-graphs`.
-
-## Scientific Interpretation Boundary
-
-- Batch results are not reactive-transport behaviour.
-- Mineral-volume change is not porosity, permeability, or capillary-entry-
-  pressure change without an explicit update law and its provenance.
-- Matrix mineral precipitation is not fracture sealing unless fracture-surface
-  reactions and aperture evolution are represented.
-
-## User-Supplied Scientific Files
-
-The user supplied these files. They have been moved to their active project
-locations. Do not delete them or modify their scientific content:
+Keep these user-supplied scientific files protected unless the user explicitly
+authorizes a scientific-content change:
 
 ```text
 data/thermo/Kinec_v3_4.dat
-= local PHREEQC-style thermodynamic database
-
 data/kinetics/kinec_rates_minimal.yaml
-= cleaned runtime kinetic-rate parameter file
-
 data/kinetics/PalandriKharaka_local.yaml
-= corrected local parameters for Reaktoro's native Palandri-Kharaka model
-
 batch_runner/simulator/kinetics/kinec.py
-= Kinec YAML -> Reaktoro kinetic-rate adapter
 ```
 
-## Thermodynamic Database Rule
+`Kinec_v3_4.dat` is thermodynamic input. Runtime kinetic-rate parameters come
+from the selected kinetics YAML. Do not parse PHREEQC `RATES` blocks at runtime.
 
-PHREEQC-style databases only. Use `PhreeqcDatabase`. Database selection must
-be explicit:
+## Reaktoro Runtime
 
-- No generic database backend.
-- No automatic database selection.
-- No fallback database.
-- If a local database path fails, stop and report the exact path.
+Target Reaktoro 2.13.0 with Python 3.11 in the `fypr-reaktoro` Conda
+environment.
 
-```yaml
-database:
-  source: embedded
-  name: phreeqc.dat
-```
+Use the installed 2.13.0 runtime as the authority when exact Python binding,
+solver, reaction-rate, state-mutation, unit, sign, or surface-area semantics
+matter.
 
-or:
+Do not run a Reaktoro runtime probe for ordinary documentation, UI, refactoring,
+or unrelated test changes.
 
-```yaml
-database:
-  source: local
-  path: data/thermo/Kinec_v3_4.dat
-```
+## Architecture
 
-`data/thermo/Kinec_v3_4.dat` is the user-supplied local PHREEQC-style
-thermodynamic database. It is not the runtime kinetic-rate input.
-
-## Kinetic-Rate Rule
-
-The default kinetic model is Reaktoro's native
-`ReactionRateModelPalandriKharaka` loaded from:
+Preserve the execution chain:
 
 ```text
-data/kinetics/PalandriKharaka_local.yaml
+YAML
+-> validation/resolution
+-> database + kinetics
+-> chemical system
+-> chemical state
+-> solver
+-> observations
+-> outputs/diagnostics
 ```
 
-Reaktoro matches each exact thermodynamic mineral species name through the
-parameter record's `Mineral` and `OtherNames` fields. Missing matches are hard
-failures. Case configuration must not add a separate mineral alias.
+`runner.py` is orchestration only. Scientific logic belongs under the focused
+`batch_runner` modules.
 
-The custom Kinec model is available only with explicit `model: kinec` and uses:
+Do not introduce plugin managers, generic backend factories, abstract simulator
+engines, dependency-injection containers, dynamic imports for core execution,
+silent fallbacks, or broad exception swallowing.
 
-```text
-data/kinetics/kinec_rates_minimal.yaml
-```
+The project models batch geochemistry. Do not infer reactive-transport,
+permeability, capillary-entry-pressure, or fracture-sealing behaviour from batch
+mineral changes unless an explicit model for those quantities is implemented.
 
-Do not parse PHREEQC `RATES` blocks at runtime. Do not use
-`Kinec_v3_4.dat` as the runtime kinetic-rate input.
+## Guidance Routing
 
-- Missing kinetic record = hard failure.
-- Missing surface area for a kinetic mineral = hard failure.
-- Missing thermodynamic mineral = hard failure.
-- No silent skipping.
-- No invented kinetic parameters.
+Use one primary project skill by default. Add a second skill only when the task
+actually crosses that boundary.
 
-`ReactionRateModelKinec` is provided by the user-supplied adapter, not by
-Reaktoro. Its units and dissolution/precipitation sign must be validated
-against the exact Reaktoro reaction-rate interface used before scientific
-runs. Standard diagnostics use Reaktoro's runtime `ChemicalProps.reactionRate`
-for either selected model.
+- Case YAML, schema, preprocessing, or config documentation:
+  `case-config-discipline`.
+- PHREEQC database loading or database configuration:
+  `phreeqc-database-only`.
+- Custom Kinec parameters or attachment:
+  `kinec-yaml-kinetics`.
+- Exact Reaktoro 2.13 runtime/API semantics:
+  `reaktoro-runtime-validation`.
+- Direct Reaktoro construction style:
+  `reaktoro-simple-syntax`.
+- Existing output-package audit:
+  `objective1-output-auditor`.
+- Cross-module feature/architecture design:
+  `user-editable-project-design`.
+- Changes that can alter scientific/runtime behaviour, configuration semantics,
+  solver behaviour, output interpretation, or Reaktoro integration:
+  `scientific-change-verification` before claiming completion.
 
-## No-Random-Values Rule
+Do not load `scientific-change-verification` for documentation-only, formatting,
+UI-only, or other changes that cannot alter the scientific/runtime contract.
 
-Do not invent scientific numeric values. Case values must come from supplied
-files, supplied data, explicit user instruction, or deterministic
-preprocessing. Templates must use placeholders, not fake numbers.
+## Design Documents
 
-## Simple Reaktoro Syntax Rule
+Read only the contract directly affected by the change:
 
-Use simple visible Reaktoro calls. Prefer direct use of
-`PhreeqcDatabase`, `AqueousPhase`, optional `GaseousPhase`,
-`MineralPhases`, `ChemicalSystem`, `ChemicalState`, solver classes,
-`ChemicalProps`, and `AqueousProps`. Use `ActivityModelPhreeqc` for PHREEQC
-aqueous systems unless an explicit, documented project decision changes it.
-Do not hide basic Reaktoro setup behind unnecessary classes. Use pseudocode
-labels where syntax has not been locally tested. Exact Reaktoro Python syntax
-must be verified during implementation.
+- `docs/dev/config_schema_feature_options.md` for case-schema/validation changes;
+- `docs/dev/solver_workflow_and_long_horizon_timestep.md` for solver, workflow,
+  timestep, rollback, or checkpoint behaviour;
+- `docs/dev/output_package_design.md` for output-package contracts.
 
-## User-Editable Design Rule
+Read all three only when the change crosses those boundaries. Do not require all
+three for a local change confined to one contract.
 
-- Prefer short modules and simple Python functions.
-- Give each feature one clear config location, one clear execution module,
-  and one clear output effect.
-- Make optional features explicitly disableable.
-- Use only minimal tests that directly protect the feature being added.
-- Do not create large testing loops, broad test harnesses, or excessive test
-  infrastructure.
-- Add comments only for scientific, unit, or non-obvious Reaktoro decisions.
-- Preserve working code and make targeted changes.
+Treat large migration/historical design documents as task-specific references,
+not mandatory background reading.
 
-## Required Execution Chain
+## Verification
 
-Maintain this simple execution chain as a design guide:
+Use the smallest verification that can falsify the change.
 
-```text
-YAML config
-→ validation/preprocessing
-→ PHREEQC database loading
-→ chemical system construction
-→ chemical state construction
-→ selected kinetic model attachment
-→ solver execution
-→ diagnostics/postprocessing
-```
+- Guidance or documentation only: inspect the changed text; no scientific
+  runtime probe or full test suite is required.
+- Case-data/config-only change: validate the affected case/config and run the
+  focused configuration test when needed.
+- Local runtime change: run the focused test covering the affected path.
+- Exact Reaktoro API/solver semantics: run a minimal real Reaktoro 2.13 probe or
+  focused runtime test.
+- Shared runtime/config/output changes: run focused tests during development;
+  run the broader suite once at final integration when warranted.
 
-This chain is not a reason to build complicated architecture. `runner.py`
-must remain orchestration only. `runner.py` must not contain scientific logic.
+Do not use the multi-minute three-mineral case when a unit test or minimal
+runtime probe answers the question.
 
-## Forbidden Complexity
+Passing tests establish software behaviour only. Do not claim calibration,
+timestep convergence, conservation, experimental agreement, or scientific
+validity unless those checks were actually performed.
 
-- No generic backend system.
-- No plugin manager.
-- No hidden registry.
-- No abstract simulator architecture.
-- No dynamic imports for core execution.
-- No dependency injection container.
-- No broad exception swallowing.
-- No silent fallback.
-- No random example configs.
+## Feature Status
 
-## Before Adding Any Feature
+Use only:
 
-1. Confirm the feature belongs to supported batch scope.
-2. Identify the source-supported scientific inputs and units.
-3. Add one clear YAML config field or block.
-4. Add explicit validation and any deterministic preprocessing.
-5. Add execution logic in the correct focused module, not `runner.py`.
-6. Add diagnostics or output behavior if the feature changes results.
-7. Add only minimal tests that directly protect the feature.
-8. Update developer documentation.
-9. Confirm the feature introduces no hidden default or silent fallback.
+- `IDEA` - discussed;
+- `READY` - behaviour agreed and compactly specified;
+- `DONE` - implemented and verified.
 
-## Solver/output/config feature design files
-
-Before modifying solver execution, timestep control, output writing, postprocessing, or the case-config schema, read these three design files together:
-
-```text
-docs/dev/output_package_design.md
-docs/dev/solver_workflow_and_long_horizon_timestep.md
-docs/dev/config_schema_feature_options.md
-```
-
-Use them as a coordinated implementation contract:
-
-```text
-output_package_design.md
-→ defines what files are produced and what each file contains.
-
-solver_workflow_and_long_horizon_timestep.md
-→ defines how Reaktoro is executed, including workflow modes, CO₂/redox constraint staging, timestep control, rollback, checkpointing, and solver diagnostics.
-
-config_schema_feature_options.md
-→ defines the YAML schema, allowed values, validation rules, defaults, and feature flags.
-```
-
-Do not implement one of these areas in isolation if the change affects the others.
-
-Hard rules:
-
-```text
-All optional features must be controlled from YAML.
-Unknown config fields must fail validation.
-Invalid config combinations must fail validation.
-Do not modify Reaktoro internals.
-Do not introduce plugin managers, backend factories, abstract simulator engines, dynamic imports, or silent fallbacks.
-Do not let kinetics own duration or timestep control; solver.timestep owns time integration.
-Checkpointing and restart are separate features.
-CSV column order must be deterministic.
-Output tables should report runtime results, not repeated copies of the input YAML.
-```
+Do not leave unimplemented roadmap items presented as active V1 functionality.
