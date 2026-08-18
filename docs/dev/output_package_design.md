@@ -8,7 +8,7 @@ optional Objective 1 diagnostics. Fixed, adaptive, and
 package and solver-history contract.
 
 Only implemented output fields belong in this document. Smart-solver and
-restart roadmap fields are not active output requirements.
+restart fields are not active output requirements.
 
 The active output contract remains `objective1_audit_v4`.
 
@@ -175,8 +175,8 @@ marker:
 ```
 
 It is **not** sourced from case YAML and does not expose restart functionality.
-Removing or changing that manifest shape would require an explicit output-schema
-version decision.
+Removing or changing that manifest shape requires an explicit output-schema
+version change.
 
 ## 7. `diagnostics.json`
 
@@ -225,10 +225,8 @@ kinetic_precondition_requested
 warnings
 ```
 
-Do not add `smart_backend_used`, `smart_backend_fallback_used`,
-`restart_enabled`, or `restart_used` as active requirements unless those
-features are actually implemented and the output schema is deliberately
-updated.
+`smart_backend_used`, `smart_backend_fallback_used`, `restart_enabled`, and
+`restart_used` are not active diagnostic requirements.
 
 ## 8. `timeseries.csv`
 
@@ -291,9 +289,8 @@ rate/sign/unit semantics.
 Current budget tables are configured inventories/reconstructions. Report their
 changes and errors honestly, but do not invent pass/fail tolerances.
 
-A future authoritative component/material/charge-balance feature must define
-its own baseline, open/closed-system semantics, and tolerances before it can be
-used as a scientific acceptance criterion.
+They are not authoritative whole-state component, material, or charge-balance
+checks and must not be used as scientific acceptance criteria on that basis.
 
 ## 13. Validation Ledger
 
