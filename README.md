@@ -129,8 +129,9 @@ Relative paths in a case config are resolved from the project root. Absolute
 paths also work. A missing path stops the run and reports the exact resolved
 path; the runner does not search other locations.
 
-Cation exchange is planned but not implemented in V1.
-Experiment validation is planned but not implemented in V1.
+Cation exchange is not implemented.
+Automatic experimental calibration or experiment-fitting is not implemented;
+the validation target/ledger machinery is reporting only.
 Transport is not implemented.
 
 `cases/source_supported_kinetic_case.yaml` is a runnable functional Calcite
