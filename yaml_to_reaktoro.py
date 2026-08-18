@@ -43,9 +43,8 @@ SCHEMA_KEYS = {
         "name", "role", "initial_amount", "surface_area",
         "surface_area_basis", "surface_area_provenance", "selection_reason",
     },
-    "solver": {"workflow", "timestep", "restart"},
+    "solver": {"workflow", "timestep"},
     "workflow": {"mode", "precondition_kinetics"},
-    "restart": {"enabled", "from_checkpoint"},
     "timestep_fixed": {
         "mode", "time", "step_size", "max_internal_steps",
         "output_schedule", "checkpoint_schedule",
@@ -246,9 +245,6 @@ def _validate_structure(cfg: dict[str, Any]) -> None:
     workflow = _expect_keys(solver["workflow"], SCHEMA_KEYS["workflow"], "solver.workflow")
     if workflow["mode"] not in WORKFLOW_MODES:
         raise ValueError(f"unsupported solver.workflow.mode: {workflow['mode']}")
-    restart = _expect_keys(solver.get("restart", {}), SCHEMA_KEYS["restart"], "solver.restart")
-    if restart.get("enabled", False) or restart.get("from_checkpoint") is not None:
-        raise ValueError("automatic restart is not supported by the current runner or generator")
 
     timestep = _expect_mapping(solver["timestep"], "solver.timestep")
     mode = timestep.get("mode")
