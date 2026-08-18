@@ -8,7 +8,8 @@ accepted-state checkpoints, standard Reaktoro solvers, and the current
 postprocessing/output blocks.
 
 This document describes only fields accepted by the strict runtime schema.
-Unsupported roadmap ideas must not appear as disabled YAML placeholders.
+Unsupported or unimplemented concepts must not appear as disabled YAML
+placeholders.
 
 In particular, there is currently no active:
 
@@ -20,8 +21,8 @@ solver.conservation
 solver.geochemical_controls
 ```
 
-A future feature must be introduced through `IDEA -> READY -> DONE`; it must not
-be predeclared in case YAML before implementation.
+A schema field belongs here only when the same implementation change provides
+and verifies its runtime behaviour.
 
 ## 1. Purpose
 
@@ -330,9 +331,8 @@ checkpoint_schedule.enabled: true
 Human-readable year units are supported only with explicit
 `year_definition_days`.
 
-`adaptive_long_horizon` is implemented today. Whether it should later become a
-policy layered on `adaptive` is a separate design decision, not a schema-cleanup
-change.
+`adaptive_long_horizon` is an implemented timestep mode using the same adaptive
+controller plus these additional schema requirements.
 
 ## 9. Time Units
 
@@ -388,6 +388,5 @@ solver.conservation
 solver.geochemical_controls
 ```
 
-They were roadmap placeholders, not implemented features. If any is proposed
-again, it starts as a new `IDEA` and must have an explicit scientific/runtime
-contract before entering the schema.
+They were placeholders without implemented runtime behaviour and remain invalid
+configuration fields.
