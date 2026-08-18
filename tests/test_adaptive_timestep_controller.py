@@ -74,7 +74,6 @@ def _raw_adaptive_case(
         },
         "checkpoint_schedule": {"enabled": False, "times": []},
     }
-    raw["solver"]["restart"] = {"enabled": False, "from_checkpoint": None}
     return raw
 
 
@@ -344,15 +343,10 @@ def test_adaptive_long_horizon_requires_sparse_output_final_and_checkpoints(
     assert case.config.solver.timestep.mode == "adaptive_long_horizon"
 
 
-def test_unverified_rate_criterion_and_restart_are_rejected(tmp_path: Path) -> None:
+def test_unverified_rate_criterion_is_rejected(tmp_path: Path) -> None:
     raw = _raw_adaptive_case(tmp_path)
     raw["solver"]["timestep"]["acceptance"]["max_relative_rate_change"] = 0.1
     with pytest.raises(ValidationError, match="rate-based adaptive acceptance is not verified"):
-        CaseConfig.model_validate(raw)
-
-    raw = _raw_adaptive_case(tmp_path)
-    raw["solver"]["restart"] = {"enabled": True, "from_checkpoint": "state.txt"}
-    with pytest.raises(ValidationError, match="automatic restart is not implemented or validated"):
         CaseConfig.model_validate(raw)
 
 

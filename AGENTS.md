@@ -1,4 +1,4 @@
-# Project Guidance
+# Repository Agent Guidance
 
 ## Purpose
 
@@ -7,6 +7,9 @@ CO2-brine-mineral systems. Keep the scientific execution path explicit,
 reproducible, and maintainable without Codex.
 
 Scientific correctness takes precedence over software abstraction.
+
+This file governs agents working inside the repository. It is not a product
+roadmap or feature-planning process.
 
 ## Supported Scope
 
@@ -19,7 +22,8 @@ Supported runtime scope:
 - optional custom Kinec kinetics when explicitly selected;
 - optional fixed-fugacity CO2 or finite-amount CO2;
 - optional pE-based redox;
-- fixed and adaptive timestep execution as implemented by the active schema.
+- fixed, adaptive, and `adaptive_long_horizon` timestep execution as implemented
+  by the active schema.
 
 Not currently supported as authoritative runtime features:
 
@@ -27,6 +31,9 @@ Not currently supported as authoritative runtime features:
 - automatic restart;
 - cation exchange;
 - automatic experimental calibration or experiment-fitting workflows.
+
+These are current scope boundaries only. Do not turn unsupported capabilities
+into roadmap items, disabled placeholders, or speculative configuration.
 
 The existing validation target/ledger machinery is a reporting capability; it
 must not be described as automated experimental validation or calibration.
@@ -98,12 +105,31 @@ silent fallbacks, or broad exception swallowing.
 
 The project models batch geochemistry. Do not infer reactive-transport,
 permeability, capillary-entry-pressure, or fracture-sealing behaviour from batch
-mineral changes unless an explicit model for those quantities is implemented.
+mineral changes unless an explicit implemented model provides those quantities.
+
+## Implementation Discipline
+
+When the user explicitly asks for an agreed change to be implemented, implement
+it directly in the existing architecture. Do not re-stage the work as a feature
+proposal, status workflow, roadmap, or separate design phase.
+
+Do not create repository artifacts for speculative or unimplemented features,
+including proposal documents, roadmap entries, feature-status labels, placeholder
+schema blocks, or future-behaviour specifications.
+
+Active documentation, schema templates, and configuration contracts describe
+implemented behaviour and current limitations. Add or change them in the same
+implementation change that provides the corresponding runtime behaviour and
+focused verification.
+
+For a cross-module implementation, inspect the affected ownership boundaries and
+make the smallest clean integrated change. Do not create a separate planning
+artifact as a prerequisite.
 
 ## Guidance Routing
 
-Use one primary project skill by default. Add a second skill only when the task
-actually crosses that boundary.
+Use one primary repository skill by default. Add a second skill only when the
+task actually crosses that boundary.
 
 - Case YAML, schema, preprocessing, or config documentation:
   `case-config-discipline`.
@@ -117,8 +143,6 @@ actually crosses that boundary.
   `reaktoro-simple-syntax`.
 - Existing output-package audit:
   `objective1-output-auditor`.
-- Cross-module feature/architecture design:
-  `user-editable-project-design`.
 - Changes that can alter scientific/runtime behaviour, configuration semantics,
   solver behaviour, output interpretation, or Reaktoro integration:
   `scientific-change-verification` before claiming completion.
@@ -126,7 +150,7 @@ actually crosses that boundary.
 Do not load `scientific-change-verification` for documentation-only, formatting,
 UI-only, or other changes that cannot alter the scientific/runtime contract.
 
-## Design Documents
+## Active Contracts
 
 Read only the contract directly affected by the change:
 
@@ -138,8 +162,9 @@ Read only the contract directly affected by the change:
 Read all three only when the change crosses those boundaries. Do not require all
 three for a local change confined to one contract.
 
-Treat large migration/historical design documents as task-specific references,
-not mandatory background reading.
+Treat migration, historical review, and old target-design documents as
+non-authoritative references. Do not use them to introduce unimplemented
+behaviour into current code or active contracts.
 
 ## Verification
 
@@ -161,13 +186,3 @@ runtime probe answers the question.
 Passing tests establish software behaviour only. Do not claim calibration,
 timestep convergence, conservation, experimental agreement, or scientific
 validity unless those checks were actually performed.
-
-## Feature Status
-
-Use only:
-
-- `IDEA` - discussed;
-- `READY` - behaviour agreed and compactly specified;
-- `DONE` - implemented and verified.
-
-Do not leave unimplemented roadmap items presented as active V1 functionality.

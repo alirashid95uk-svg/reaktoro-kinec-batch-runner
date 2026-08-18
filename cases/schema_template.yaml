@@ -67,9 +67,6 @@ solver:
     checkpoint_schedule:
       enabled: OPTIONAL
       times: []
-  restart:
-    enabled: false  # true is rejected until restart reconstruction is validated
-    from_checkpoint: null
 
 # For adaptive or adaptive_long_horizon, replace step_size.dt with
 # dt_initial/dt_min/dt_max, growth_factor, shrink_factor, and

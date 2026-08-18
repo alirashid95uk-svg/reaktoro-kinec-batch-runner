@@ -106,7 +106,7 @@ def build_manifest(
             "output_state_rule": "accepted states only; no interpolation",
             "output_schedule": case.output_schedule_summary(),
             "checkpoint_schedule": case.checkpoint_schedule_summary(),
-            "restart": config.solver.restart.model_dump(mode="json"),
+            "restart": {"enabled": False, "from_checkpoint": None},
         },
         "output_configuration": config.outputs.model_dump(mode="json"),
         "software_environment": {

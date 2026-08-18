@@ -203,19 +203,6 @@ class AdaptiveTimestepConfig(StrictModel):
         return self
 
 
-class RestartConfig(StrictModel):
-    enabled: bool = False
-    from_checkpoint: str | None = None
-
-    @model_validator(mode="after")
-    def validate_restart(self) -> "RestartConfig":
-        if self.enabled:
-            raise ValueError("automatic restart is not implemented or validated")
-        if self.from_checkpoint is not None:
-            raise ValueError("disabled restart forbids from_checkpoint")
-        return self
-
-
 TimestepConfig = Annotated[
     FixedTimestepConfig | AdaptiveTimestepConfig,
     Field(discriminator="mode"),
@@ -225,4 +212,3 @@ TimestepConfig = Annotated[
 class SolverConfig(StrictModel):
     workflow: SolverWorkflowConfig
     timestep: TimestepConfig
-    restart: RestartConfig = Field(default_factory=RestartConfig)

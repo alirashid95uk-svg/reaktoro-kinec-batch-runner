@@ -1,143 +1,50 @@
-# Output Package Design — Final Codex Contract
+# Output Package Design — Active Contract
 
-## Runtime V1 Status
+## Runtime Status
 
-The active runner schema implements the base V1 output package, streamed
-scheduled timeseries/solver-history staging, explicit accepted-state
-checkpoints, machine-readable fixed/adaptive failure diagnostics, and optional
-Objective 1 audit outputs for reaction rates, reaction-rate sign checks, carbon
-inventory, element budgets, mineral-volume change, regime classification,
-surface-area audit, workflow comparison, secondary-mineral assemblage,
-surrogate-dataset export, validation ledger, and porosity/permeability
-inference status. Adaptive and adaptive-long-horizon control are implemented;
-automatic restart and smart solvers remain disabled.
+The active runner writes the base output package plus the currently implemented
+optional Objective 1 diagnostics. Fixed, adaptive, and
+`adaptive_long_horizon` execution are represented through the same output
+package and solver-history contract.
 
-The active output contract is `objective1_audit_v4`. Earlier packages are
-rejected because the kinetic model, parameter provenance, and mineral-name
-contracts changed.
+Only implemented output fields belong in this document. Smart-solver and
+restart fields are not active output requirements.
+
+The active output contract remains `objective1_audit_v4`.
 
 ## 1. Purpose
 
-This file defines the simulation-output design for the Reaktoro batch runner.
+This document defines what the simulator writes, how those artifacts are
+interpreted, and which information belongs in manifest/diagnostic metadata
+rather than scientific result tables.
 
-It answers:
+Solver behaviour is defined in `solver_workflow_and_long_horizon_timestep.md`.
+YAML configuration is defined in `config_schema_feature_options.md`.
 
-```text
-What files should the simulator write?
-What should each output file contain?
-What should remain out of scientific result tables?
-How should outputs support AI-assisted analysis, PhD interpretation, reproducibility, and long-horizon simulation review?
-```
-
-This file does **not** define solver algorithms. Solver workflows and timestep control are defined in:
+## 2. Output Principles
 
 ```text
-solver_workflow_and_long_horizon_timestep.md
+case YAML      = editable source of truth
+manifest.json  = compact traceability and configuration context
+diagnostics.json = lifecycle/runtime status
+CSV/plots      = numerical/scientific results and solver behaviour
+debug/         = troubleshooting artifacts
+checkpoints/   = accepted intermediate state records
 ```
 
-The YAML options controlling this output design are defined in:
+Rules:
 
-```text
-config_schema_feature_options.md
-```
+- outputs must describe what the simulator actually produced;
+- scientific inputs should not be repeated across every result table;
+- accepted-state runtime baselines may appear in result tables;
+- output column order must be deterministic;
+- disabled optional outputs must not be written;
+- no result should imply transport, calibration, restart, or unsupported solver
+  behaviour that did not occur.
 
----
+## 3. Base Output Package
 
-## 2. Output Philosophy
-
-### 2.1 Core Principle
-
-```text
-case YAML      = full editable source of truth
-manifest.json = compact case card + input snapshot + traceability
-CSV/plots     = simulation results and numerical behaviour
-debug/        = validation and troubleshooting artifacts
-checkpoints/  = long-horizon diagnostic/recovery state records
-```
-
-Outputs should show what the simulator actually produced.
-
-They should not scatter repeated input configuration values across every result table.
-
-### 2.2 Correct Use of Input Information
-
-Input information is allowed in one place:
-
-```text
-manifest.json
-```
-
-This is intentional. The manifest should be self-contained enough that an external AI agent, examiner, collaborator, or future user can understand the simulated case without opening the original YAML.
-
-Input information should **not** be repeated across:
-
-```text
-timeseries.csv
-mineral_summary.csv
-aqueous_summary.csv
-solver_history.csv
-plots
-```
-
-### 2.3 Runtime Baselines Are Allowed
-
-Initial runtime values are not considered input duplication when they come from the constructed or conditioned Reaktoro state.
-
-Allowed examples:
-
-```text
-initial pH
-initial ionic strength
-initial species amounts/molalities
-initial mineral amounts
-initial saturation indices
-initial state after CO₂ equilibrium conditioning
-```
-
-These are runtime baselines, not raw YAML copies.
-
----
-
-## 3. Recommended Output Folder Structure
-
-For each run:
-
-```text
-outputs/
-└── <case_name>/
-    ├── manifest.json
-    ├── diagnostics.json
-    ├── timeseries.csv
-    ├── mineral_summary.csv
-    ├── aqueous_summary.csv
-    ├── solver_history.csv
-    ├── reaction_rates.csv                 # optional
-    ├── carbon_inventory.csv               # optional
-    ├── element_budget.csv                 # optional
-    ├── plots/
-    │   ├── pH_vs_time.png
-    │   ├── mineral_change_vs_time.png
-    │   ├── saturation_index_vs_time.png
-    │   ├── species_molality_vs_time.png   # optional
-    │   ├── reaction_rate_vs_time.png      # optional
-    │   ├── solver_dt_vs_time.png          # optional
-    │   └── solver_iterations_vs_time.png  # optional
-    ├── debug/
-    │   ├── mineral_connection.csv
-    │   ├── resolved_config.yaml           # optional
-    │   └── final_state.txt                # optional
-    └── checkpoints/                       # optional for long-horizon runs
-```
-
-All files must be controlled from the YAML config.
-
-No output file should be blindly written if its feature is disabled.
-
----
-
-## 4. Required Base Outputs
-
-The core output package should support these files:
+The base package supports:
 
 ```text
 manifest.json
@@ -146,948 +53,270 @@ timeseries.csv
 mineral_summary.csv
 aqueous_summary.csv
 solver_history.csv
-plots/pH_vs_time.png
-plots/mineral_change_vs_time.png
-plots/saturation_index_vs_time.png
 debug/mineral_connection.csv
+plots/
 ```
 
-These files should still be configurable. The code should not force all outputs if the user turns them off.
-
----
-
-## 5. Optional Outputs
-
-The output system should also support optional files when requested by config:
+Optional debug files include:
 
 ```text
-reaction_rates.csv
-carbon_inventory.csv
-element_budget.csv
-plots/species_molality_vs_time.png
-plots/reaction_rate_vs_time.png
-plots/solver_dt_vs_time.png
-plots/solver_iterations_vs_time.png
 debug/resolved_config.yaml
 debug/final_state.txt
-checkpoints/
 ```
 
-If an optional output requires extra postprocessing configuration, validation must fail if that configuration is missing.
+Accepted-state checkpoints are written under `checkpoints/` only when the
+configured checkpoint schedule requires them.
 
-Examples:
+## 4. Optional Objective 1 Outputs
+
+The current writer may also emit, when explicitly enabled and configured:
 
 ```text
 reaction_rates.csv
-→ requires reaction_rates extraction to be enabled and verified
-
+reaction_rate_validation.csv
 carbon_inventory.csv
-→ requires carbon inventory postprocessing config
-
 element_budget.csv
-→ requires element budget postprocessing config
-
-reaction_rate plot
-→ requires reaction_rates.csv or equivalent verified rate data
-
-solver_dt plot
-→ requires solver_history enabled
-
-solver_iterations plot
-→ requires solver_history enabled
+mineral_volume_change.csv
+regime_classification.csv
+surface_area_audit.csv
+workflow_comparison.csv
+secondary_mineral_assemblage.csv
+surrogate_dataset.csv
+validation_ledger.csv
+porosity_permeability.csv
 ```
 
----
+These files are reporting/postprocessing products. They do not add solver
+physics.
 
-## 6. Deterministic CSV Column-Ordering Rule
+Existing carbon and element budgets are reconstructed from explicitly
+configured species/mineral/gas mappings. They must not be described as an
+authoritative full-state material-conservation proof.
 
-CSV column order must be deterministic and stable across runs.
+## 5. Deterministic Tables
 
-Recommended order:
+Column order must remain stable. Use:
 
 ```text
-1. fixed core columns;
-2. requested species in YAML order;
-3. requested minerals in YAML order;
-4. solver columns;
-5. optional diagnostics;
-6. optional conservation/budget columns.
+1. fixed core columns
+2. requested species in YAML order
+3. requested minerals in YAML order
+4. solver columns
+5. optional diagnostics
+6. optional budget/conservation columns
 ```
 
-Do not allow output column order to depend on Python dictionary iteration, set ordering, database species ordering, or filesystem ordering.
+Do not let set ordering, database species ordering, or filesystem ordering
+change CSV schemas.
 
----
+Percent-change calculations must handle zero initial values explicitly. Do not
+divide by zero or invent a percentage for precipitation from zero.
 
-## 7. Zero-Initial-Value Handling
+## 6. `manifest.json`
 
-Percent-change calculations must explicitly handle zero initial values.
+The manifest is the compact, self-contained case context and traceability file.
 
-For mineral and aqueous summaries:
-
-```text
-if initial_amount_mol > 0:
-    delta_percent = 100 * delta_mol / initial_amount_mol
-
-if initial_amount_mol = 0 and final_amount_mol > 0:
-    delta_percent = null
-    interpretation = precipitation_from_zero or increase_from_zero
-
-if initial_amount_mol = 0 and final_amount_mol = 0:
-    delta_percent = null
-    interpretation = unchanged_zero
-```
-
-For normalized mineral-change plots:
+Required logical groups include:
 
 ```text
-if n0 > 0:
-    plot 100 * (n(t) - n0) / n0
-
-if n0 = 0:
-    do not plot percent change;
-    use absolute delta_mol or omit that mineral from the normalized plot with a warning.
-```
-
-Do not divide by zero.
-
----
-
-## 8. `manifest.json`
-
-### 8.1 Purpose
-
-`manifest.json` is the self-contained case context file.
-
-It should record enough input information, file hashes, software versions, selected solver settings, and output-file locations for an external AI agent or reviewer to understand what was simulated without opening the original YAML.
-
-### 8.2 Required Manifest Groups
-
-Recommended top-level groups:
-
-```text
+output_schema_version
 run_identity
 traceability
 input_snapshot
 solver_configuration
+time_semantics
 output_configuration
 software_environment
 output_files
 ```
 
-### 8.3 `run_identity`
+### 6.1 Traceability
 
-Include:
-
-```text
-case_name
-run_id, if available
-run_started_at
-run_finished_at
-simulation_completed
-```
-
-### 8.4 `traceability`
-
-Include:
+Record, where available:
 
 ```text
 source_config_path
 source_config_sha256
-database_path
+database path/name
 database_sha256
 kinetic_model
 kinetic_parameter_path
 kinetic_parameter_sha256
-code_version or git commit, if available
+Python version
+Reaktoro version
+platform
 ```
 
-### 8.5 `input_snapshot`
+### 6.2 Solver Configuration
 
-Include compact input context.
-
-Recommended groups:
+The active manifest records:
 
 ```text
-model_scope
-physical_conditions
-CO₂ setup
-redox setup
-brine setup
-mineral setup
-kinetics setup
+backend_type = standard
+workflow
+kinetic_precondition_applied
+timestep configuration
+redox_apply_during
 ```
 
-The mineral snapshot may include:
+There is no configurable smart backend.
 
-```text
-mineral display name
-thermodynamic name
-kinetic name
-role
-initial amount
-surface area, if kinetic
+### 6.3 Time Semantics
+
+Record canonical seconds, resolved duration, mode-specific timestep bounds,
+resolved output/checkpoint schedules, accepted-state output rule, and internal
+step metadata where applicable.
+
+For schema compatibility, `time_semantics.restart` remains a fixed capability
+marker:
+
+```json
+{"enabled": false, "from_checkpoint": null}
 ```
 
-The brine snapshot may include:
+It is **not** sourced from case YAML and does not expose restart functionality.
+Removing or changing that manifest shape requires an explicit output-schema
+version change.
 
-```text
-aqueous elements
-specified species amounts
-water amount
-deterministic preprocessing summary, if used
-```
+## 7. `diagnostics.json`
 
-Do not insert an uncontrolled raw YAML dump unless explicitly placed under debug.
-
-### 8.6 Long-Horizon Metadata
-
-For long-horizon runs, also include:
-
-```text
-year_definition_days
-timestep_mode
-output_schedule_mode
-acceptance_thresholds
-checkpointing_enabled
-restart_enabled
-backend_type
-smart_backend_fallback_status
-```
-
-The active manifest records a `time_semantics` group containing the canonical
-second, resolved duration, mode-specific timestep bounds, output-state rule,
-resolved output schedule, independent checkpoint schedule, and disabled
-restart configuration.
-Explicit/logarithmic/hybrid schedules list their sorted unique timestamps in
-seconds. The compatibility `every_internal_step` schedule is recorded as every
-actual accepted solver step, including target-split steps, rather than expanded
-into a large manifest array.
-
-### 8.7 Rules
-
-```text
-manifest.json may include compact input context.
-CSV files should not repeat the input snapshot.
-Use hashes for reproducibility.
-Keep manifest structure stable for AI parsing.
-```
-
----
-
-## 9. `diagnostics.json`
-
-### 9.1 Purpose
-
-Report run status, failure location, termination reason, solver backend, workflow mode, and high-level runtime facts.
-
-### 9.2 Recommended Fields
+Diagnostics report lifecycle and solver status. Current fields include the
+runtime case identity/provenance plus facts such as:
 
 ```text
 simulation_completed
 failed_stage
+exception_type
 error_message
 termination_reason
 final_time_reached_s
 final_time_reached_days
-final_time_reached_years
 number_of_accepted_steps
 number_of_rejected_steps
-number_of_result_rows
+number_of_failed_steps
+number_of_internal_attempts
+number_of_solver_failed_attempts
 requested_internal_steps
+base_internal_steps
 max_internal_steps
 minimum_possible_accepted_steps
 estimated_solver_calls
 estimated_result_rows
-partial_run
-number_of_failed_steps
+requested_output_rows
+requested_checkpoint_count
+checkpoint_count
+smallest_dt_s
+largest_dt_s
+average_dt_s
 failed_attempt_target_time_s
 failed_attempt_dt_s
 accepted_state_restored
-largest_dt_s
-smallest_dt_s
-average_dt_s
-checkpoint_count
-restart_enabled
-restart_used
+partial_run
+partial_outputs_written
+scientific_outputs_omitted
+output_completeness
 solver_backend_type
-smart_backend_used
-smart_backend_fallback_used
 workflow_mode
+timestep_mode
 co2_runtime_workflow
 redox_enabled_runtime
 redox_apply_during_runtime
+kinetic_precondition_requested
 warnings
-exception_type
-output_completeness
 ```
 
-If conservation diagnostics are enabled:
+`smart_backend_used`, `smart_backend_fallback_used`, `restart_enabled`, and
+`restart_used` are not active diagnostic requirements.
+
+## 8. `timeseries.csv`
+
+Timeseries rows represent accepted Reaktoro states only.
+
+Rules:
+
+- never interpolate chemical states;
+- fixed mode writes according to its configured output schedule;
+- adaptive modes shorten attempted steps as needed to land exactly on forced
+  output times;
+- rejected adaptive trials never become chemistry rows;
+- output times are canonical seconds after resolution.
+
+Requested species/mineral values and enabled runtime diagnostics must use stable
+column naming and ordering.
+
+## 9. `solver_history.csv`
+
+`solver_history.csv` is the numerical-control audit trail. It records every
+solver attempt required by the active controller, including rejected adaptive
+attempts and failed fixed attempts.
+
+At minimum the record must preserve enough information to reconstruct:
 
 ```text
-element_balance_error
-charge_balance_error
-water_mass_change
-carbon_balance_error
-```
-
-### 9.3 Rules
-
-```text
-Report runtime facts.
-Do not repeat the full input snapshot.
-Include failure stage and error message whenever possible.
-Keep machine-readable JSON.
-```
-
-Lifecycle failures use the exact stage names `database_loading`,
-`kinetics_loading`, `mapping`, `system_construction`, `state_construction`,
-`solver_execution`, and `output_writing`. Diagnostics retain the exception
-type/message, last accepted time, and an `output_completeness` object listing
-the files actually written.
-`simulation_completed` describes chemistry preparation and solver completion;
-an output-writing failure must not change a completed simulation to false. Any
-output-writing failure is stored under `output_failure`, while the primary
-`failed_stage` and exception remain unchanged. `output_completeness` records
-whether the package is complete or partial.
-
-The Windows launcher writes `diagnosis.txt` beside the run YAML and launch log,
-outside the result package. It summarizes the existing diagnostics, mapping,
-child-process exit code, and safe next actions. Python and native crash stacks
-remain in `launch_log.txt`; they are not duplicated in scientific result files.
-
-For an incomplete fixed or adaptive run, write diagnostics plus configured partial
-timeseries and solver history from accepted states. Record the failed trial in
-solver history with `accepted: false` and no advance in `time_end_s`. Do not
-write scientific summaries, plots, validation ledgers, or surrogate datasets
-from an incomplete trajectory.
-
----
-
-## 10. `timeseries.csv`
-
-### 10.1 Purpose
-
-Store computed geochemical and numerical results through time.
-
-### 10.2 Recommended Core Columns
-
-```text
-time_s
-time_days
-time_years, if long-horizon mode is used
 stage
-pH
-ionic_strength_molal
-alkalinity_eq_per_l, if available and reliable
-solver_succeeded
-solver_iterations
-dt_s, if solver columns enabled
+attempt start time
+attempt target/end time
+attempt dt
+solver success
+accepted/rejected status
+iterations when available
+rejection/failure reason when available
 ```
 
-### 10.3 Selected Species Columns
+Rejected adaptive attempts keep accepted time unchanged. A solver history record
+is numerical evidence; it is not scientific validation.
 
-For selected species:
+## 10. Checkpoints
+
+Checkpoint files are written only after an accepted state reaches a configured
+checkpoint time.
+
+Checkpointing provides diagnostics/evidence and possible manual inspection. It
+does not provide resumable execution. There is no active `solver.restart` YAML
+block.
+
+## 11. Reaction-Rate Outputs
+
+When reaction-rate diagnostics are enabled, use Reaktoro accepted-state runtime
+properties and the live total surface area. Do not independently recompute the
+kinetic equations for routine diagnostics.
+
+The custom Kinec and native Palandri-Kharaka paths must preserve their verified
+rate/sign/unit semantics.
+
+## 12. Carbon and Element Budgets
+
+Current budget tables are configured inventories/reconstructions. Report their
+changes and errors honestly, but do not invent pass/fail tolerances.
+
+They are not authoritative whole-state component, material, or charge-balance
+checks and must not be used as scientific acceptance criteria on that basis.
+
+## 13. Validation Ledger
+
+Configured validation targets are reporting checks against supplied targets and
+uncertainties. A failed target is not permission to tune scientific inputs.
+
+The ledger does not make the runner an automatic experiment-calibration system.
+
+## 14. Porosity, Permeability, and Capillary Fields
+
+Where required source-supported inputs/update laws are absent, these outputs
+must report `not_evaluated`. Batch mineral changes alone must not be converted
+into transport or sealing claims.
+
+## 15. Output Completeness
+
+A clean output package establishes traceability and package coherence only. It
+does not prove:
 
 ```text
-species_amount_mol::<species>
-species_molality_mol_kgw::<species>
+calibration
+experimental agreement
+timestep convergence
+full material conservation
+reactive transport
+fracture sealing
 ```
 
-Molality is important for aqueous geochemical interpretation and later comparison against experimental or literature concentration data.
-
-### 10.4 Mineral Columns
-
-For configured/requested minerals:
-
-```text
-mineral_amount_mol::<mineral>
-mineral_delta_mol::<mineral>
-saturation_index::<mineral>
-```
-
-### 10.5 Saturation Index Definition
-
-```text
-SI = log10(saturation_ratio)
-```
-
-Interpretation:
-
-```text
-SI < 0  undersaturated
-SI = 0  equilibrium
-SI > 0  supersaturated
-```
-
-A near-equilibrium band may be used, but the tolerance must be explicit and configurable.
-
-### 10.6 Rules
-
-```text
-Do not repeat constant input values.
-Include time-zero state because it is the actual initialized state.
-When `include_initial` is false, retain the initialized state internally for summaries but omit its timeseries row.
-Write rows only at resolved output timestamps, not every internal or checkpoint step.
-When `include_final` is false, the solver still reaches duration exactly but the final row is omitted.
-Track only requested species, not every species automatically.
-Keep units in column names.
-Prefer molality plus amount for selected species.
-Use deterministic column ordering.
-```
-
----
-
-## 11. `mineral_summary.csv`
-
-### 11.1 Purpose
-
-Summarize initial-to-final mineral changes and final saturation-state interpretation.
-
-### 11.2 Recommended Columns
-
-```text
-mineral
-initial_amount_mol
-final_amount_mol
-delta_mol
-delta_percent
-initial_SI
-final_SI
-final_saturation_state
-net_change
-```
-
-### 11.3 Allowed `net_change` Values
-
-```text
-dissolution
-precipitation
-unchanged
-precipitation_from_zero
-unchanged_zero
-```
-
-### 11.4 Allowed `final_saturation_state` Values
-
-```text
-undersaturated
-near_equilibrium
-supersaturated
-```
-
-The near-equilibrium tolerance must be documented if used.
-
-### 11.5 Rules
-
-```text
-Initial/final values must come from simulation state.
-Do not include mineral surface area; it belongs in manifest input snapshot.
-Do not include kinetic-source metadata; it belongs in debug/mineral_connection.csv.
-Amount change alone is not enough; include saturation-state interpretation.
-Handle zero initial amount explicitly.
-```
-
----
-
-## 12. `aqueous_summary.csv`
-
-### 12.1 Purpose
-
-Summarize initial-to-final changes in selected aqueous species.
-
-### 12.2 Recommended Columns
-
-```text
-species
-initial_amount_mol
-final_amount_mol
-delta_amount_mol
-initial_molality_mol_kgw
-final_molality_mol_kgw
-delta_molality_mol_kgw
-delta_percent
-interpretation
-```
-
-### 12.3 Rules
-
-```text
-Include only requested species.
-Initial/final values must come from simulation state.
-Do not output every species automatically.
-Add mg/L later only if density and molar-mass assumptions are explicit.
-Handle zero initial amount explicitly.
-```
-
----
-
-## 13. `solver_history.csv`
-
-### 13.1 Purpose
-
-Record every solver attempt, accepted or rejected.
-
-### 13.2 Recommended Columns
-
-```text
-step_index
-attempt_index
-time_start_s
-time_end_s
-dt_s
-stage
-accepted
-solver_succeeded
-iterations
-wall_time_s
-failure_reason
-acceptance_reason
-next_dt_s
-delta_pH
-max_delta_saturation_index
-max_selected_species_change_mol
-max_selected_species_tolerance_ratio
-worst_selected_species
-max_mineral_change_mol
-max_mineral_tolerance_ratio
-worst_mineral
-minimum_species_amount_mol
-tolerated_negative_species_count
-most_negative_tolerated_amount_mol
-max_element_balance_error_mol
-max_element_balance_error_ratio
-worst_element
-trial_charge_mol
-```
-
-### 13.3 Rules
-
-```text
-Numerical information only.
-Do not include chemistry variables here.
-Support fixed, adaptive, and adaptive_long_horizon modes.
-```
-
----
-
-## 14. Rejected attempt view
-
-### 14.1 Purpose
-
-Rejected adaptive attempts are rows in `solver_history.csv` with
-`accepted: false`; no duplicate `rejected_steps.csv` is written.
-
-### 14.2 Recommended Columns
-
-```text
-attempt_index
-time_start_s
-dt_attempt_s
-reason
-solver_succeeded
-delta_pH
-max_delta_SI
-max_mineral_tolerance_ratio
-max_selected_species_tolerance_ratio
-wall_time_s
-next_dt_s
-```
-
-### 14.3 Rules
-
-```text
-Every rejected trial is written.
-Rejected steps must not corrupt accepted state.
-```
-
----
-
-## 15. `reaction_rates.csv`
-
-### 15.1 Purpose
-
-Store diagnostic mineral reaction rates for accepted states.
-
-This file supports reaction-rate plots and optional rate-based timestep acceptance.
-
-### 15.2 Recommended Columns
-
-```text
-time_s
-time_days
-time_years
-mineral
-rate_mol_s
-rate_mol_m2_s, if surface-normalized rate is available
-saturation_index
-surface_area_value
-surface_area_unit
-rate_evaluation_status
-```
-
-### 15.3 Rules
-
-```text
-Only write if postprocessing.reaction_rates: true.
-Read total rates from `ChemicalProps.reactionRate(mineral.name)` in mol/s.
-Normalize only by the live `ChemicalProps.surfaceArea(mineral.name)` in m².
-Do not independently recompute either kinetic model's equations.
-Plots should be generated from reaction_rates.csv.
-If rate extraction is unavailable, fail validation or disable rate outputs explicitly.
-```
-
----
-
-## 16. `carbon_inventory.csv`
-
-### 16.1 Purpose
-
-Track carbon distribution and balance when carbon inventory is explicitly requested.
-
-### 16.2 Recommended Columns
-
-```text
-time_s
-time_days
-time_years
-aqueous_carbon_mol
-gas_carbon_mol
-mineral_carbon_mol
-total_carbon_mol
-initial_total_carbon_mol
-carbon_balance_error_mol
-carbon_balance_error_percent
-```
-
-### 16.3 Rules
-
-```text
-Only write if postprocessing.carbon_inventory.enabled: true.
-Requires explicit carbon species and carbon-bearing minerals.
-Do not infer carbon-bearing minerals automatically unless explicitly configured.
-Do not write this file by default.
-```
-
----
-
-## 17. `element_budget.csv`
-
-### 17.1 Purpose
-
-Track selected element budgets through time.
-
-### 17.2 Recommended Columns
-
-```text
-time_s
-time_days
-time_years
-element
-aqueous_mol
-mineral_mol
-gas_mol
-total_mol
-initial_total_mol
-delta_mol
-relative_error_percent
-```
-
-### 17.3 Rules
-
-```text
-Only write if postprocessing.element_budget.enabled: true.
-Requires explicit selected elements.
-Do not compute every database element automatically.
-Do not write this file by default.
-```
-
----
-
-## 18. `debug/mineral_connection.csv`
-
-### 18.1 Purpose
-
-Record runtime validation of exact mineral naming and kinetic attachment.
-
-This file supports debugging of thermodynamic minerals, selected-model
-parameter records, and surface-area availability.
-
-### 18.2 Recommended Columns
-
-```text
-mineral_name
-role
-kinetic_model
-thermodynamic_mineral_found
-kinetic_parameter_record_found
-surface_area_present
-status
-reason
-```
-
-### 18.3 Rules
-
-```text
-Debug/validation output, not a scientific result table.
-Identify missing thermodynamic phases, parameter records, and surface areas.
-Configured mineral names must exactly match thermodynamic species names.
-Use only supported mineral roles.
-```
-
----
-
-## 19. Plots
-
-### 19.1 Required First-Version Plots
-
-```text
-pH_vs_time.png
-mineral_change_vs_time.png
-saturation_index_vs_time.png
-```
-
-### 19.2 Optional Plots
-
-```text
-species_molality_vs_time.png
-reaction_rate_vs_time.png
-solver_dt_vs_time.png
-solver_iterations_vs_time.png
-```
-
-### 19.3 Plot Definitions
-
-#### `pH_vs_time.png`
-
-```text
-x-axis: time
-y-axis: pH
-```
-
-Use days or years depending on simulation duration.
-
-#### `mineral_change_vs_time.png`
-
-Plot normalized mineral change:
-
-```text
-100 * (n(t) - n0) / n0
-```
-
-If `n0 = 0`, do not plot percent change. Use absolute `delta_mol` or omit that mineral from the normalized plot with a warning.
-
-#### `saturation_index_vs_time.png`
-
-Plot saturation index for each requested mineral.
-
-Include a reference line:
-
-```text
-SI = 0
-```
-
-#### `solver_dt_vs_time.png`
-
-Requires solver history.
-
-#### `solver_iterations_vs_time.png`
-
-Requires solver history.
-
-#### `reaction_rate_vs_time.png`
-
-Requires `reaction_rates.csv`.
-
-### 19.4 Rules
-
-```text
-Do not generate all plots automatically.
-Keep one plot per concept.
-Plots should be reproducible from CSV files.
-```
-
----
-
-## 20. Checkpoints and Restart Distinction
-
-### 20.1 Checkpointing
-
-Checkpointing means:
-
-```text
-save readable intermediate state for diagnostics, evidence, and possible manual recovery.
-```
-
-Suggested path:
-
-```text
-outputs/<case_name>/checkpoints/
-```
-
-Restart-ready long-horizon checkpoint target:
-
-```text
-checkpoint metadata
-current time
-current timestep
-latest accepted timeseries row
-readable ChemicalState export
-solver-controller state
-```
-
-The active fixed/adaptive implementation writes `checkpoints/index.jsonl` and one
-readable `checkpoint_<index>_state.txt` per configured accepted checkpoint.
-The index records checkpoint index, absolute `time_s`, preceding accepted
-`dt_s`, and state filename. Checkpoint times do not create timeseries rows
-unless they also occur in the output schedule. It is a diagnostic checkpoint,
-not yet the full restart-ready controller-state package listed above.
-
-### 20.2 Restart
-
-Restart means:
-
-```text
-automatically resume simulation from a checkpoint.
-```
-
-First implementation:
-
-```text
-checkpointing required for long-horizon mode when enabled;
-automatic restart optional and disabled by default.
-```
-
-Suggested config placeholder:
-
-```yaml
-solver:
-  restart:
-    enabled: false
-    from_checkpoint: null
-```
-
-Validation:
-
-```text
-restart.enabled: true
-→ requires from_checkpoint
-→ fail clearly if restart support is not implemented
-```
-
-### 20.3 Rules
-
-```text
-Do not imply automatic restart support just because checkpoints exist.
-Checkpoint format must be documented.
-Readable checkpoints are acceptable for first implementation.
-Binary restart is optional only if straightforward and tested.
-```
-
----
-
-## 21. Output Configuration
-
-Output files must be controlled from YAML.
-
-Recommended structure:
-
-```yaml
-outputs:
-  manifest:
-    enabled: true
-    include_input_snapshot: true
-
-  diagnostics:
-    enabled: true
-
-  timeseries:
-    enabled: true
-    include_species_amounts: true
-    include_species_molalities: true
-    include_mineral_amounts: true
-    include_mineral_deltas: true
-    include_saturation_indices: true
-    include_solver_columns: true
-
-  summaries:
-    mineral_summary: true
-    aqueous_summary: true
-    carbon_inventory: false
-    element_budget: false
-
-  solver_history:
-    enabled: true
-    include_rejected_steps: true
-
-  plots:
-    enabled: true
-    pH: true
-    mineral_change: true
-    saturation_index: true
-    species_molality: false
-    reaction_rate: false
-    solver_dt: true
-    solver_iterations: true
-
-  debug:
-    enabled: true
-    mineral_connection: true
-    resolved_config: false
-    final_state: true
-
-  checkpoints:
-    enabled: true
-```
-
----
-
-## 22. Output Validation Rules
-
-```text
-plots.enabled: false
-→ no plot files written
-
-plots.enabled: true
-→ at least one plot flag must be true
-
-plots.solver_dt: true
-→ solver_history.enabled must be true
-
-plots.solver_iterations: true
-→ solver_history.enabled must be true
-
-plots.reaction_rate: true
-→ postprocessing.reaction_rates must be true
-→ reaction_rates.csv must be available
-
-summaries.carbon_inventory: true
-→ carbon inventory postprocessing must be enabled and configured
-
-summaries.element_budget: true
-→ element budget postprocessing must be enabled and configured
-
-outputs.checkpoints.enabled: true
-→ solver.timestep.checkpoint_schedule.enabled must be true for long-horizon checkpoint files
-```
-
----
-
-## 23. Success Criteria
-
-The output package is successful if:
-
-```text
-1. Output files can be enabled/disabled from YAML.
-2. manifest.json is AI-agent-ready and includes compact input context.
-3. CSV files report runtime results, not repeated input tables.
-4. timeseries.csv includes pH, ionic strength, selected species amounts/molalities, mineral amounts, and saturation indices when requested.
-5. mineral_summary.csv reports initial/final mineral change and saturation-state interpretation.
-6. aqueous_summary.csv reports initial/final amount and molality changes for selected species.
-7. solver_history.csv contains accepted and rejected attempts for numerical-method review.
-8. reaction_rates.csv, carbon_inventory.csv, and element_budget.csv are defined and only written when configured.
-9. plots are controlled by config and reproducible from CSV outputs.
-10. debug outputs are separated from scientific result tables.
-11. Checkpoints are available for long-horizon runs when enabled.
-12. CSV column order is deterministic.
-13. Zero initial values are handled without divide-by-zero.
-```
+Those claims require their own explicit evidence.
