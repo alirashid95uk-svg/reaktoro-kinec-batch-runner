@@ -1,61 +1,60 @@
 # Project Scope
 
-## What This Project Does
+## Runtime Scope
 
-This project is a simple Reaktoro batch simulation runner. It supports
-YAML-defined batch equilibrium and batch kinetic cases using PHREEQC-style
-thermodynamic databases. Cases may explicitly enable fixed-fugacity CO2,
-finite-amount CO2, and pE-based redox.
+This project is a Reaktoro batch geochemical simulator for YAML-defined batch
+equilibrium and kinetic cases using explicitly selected PHREEQC-style
+thermodynamic databases.
 
-Cation exchange is planned but not implemented in V1.
-Experiment validation is planned but not implemented in V1.
+Supported scientific/runtime capabilities include the features implemented by
+the active strict schema, including configured CO2 conditions, pE-based redox,
+mineral kinetics, timestep control, diagnostics, outputs, studies, and
+Workbench orchestration.
 
-The simple execution chain must remain explicit:
+Not currently supported as authoritative runtime features:
+
+- reactive transport;
+- cation exchange;
+- automatic restart;
+- automatic experimental calibration or experiment-fitting workflows.
+
+The existing validation target/ledger functionality compares configured runtime
+quantities with explicit targets; it is not an automated calibration system.
+
+## Execution Boundary
+
+Preserve the explicit batch-simulation chain:
 
 ```text
-YAML config
-→ validation/preprocessing
-→ PHREEQC database loading
-→ chemical system construction
-→ chemical state construction
-→ selected kinetic model attachment
-→ solver execution
-→ diagnostics/postprocessing
+YAML
+-> validation/resolution
+-> PHREEQC database + kinetic parameters
+-> chemical system
+-> chemical state
+-> solver
+-> observations
+-> outputs/diagnostics
 ```
 
-This is a design guide, not a reason to build complicated architecture.
+This is batch geochemistry, not reactive transport.
 
-## Thermodynamics and Kinetics
+## Scientific Inputs
 
-The user supplied these scientific files. They are now in their active project
-locations. Do not delete them or modify their scientific content:
+The protected user-supplied scientific files are:
 
 ```text
 data/thermo/Kinec_v3_4.dat
-= local PHREEQC-style thermodynamic database
-
 data/kinetics/kinec_rates_minimal.yaml
-= optional custom Kinec kinetic-rate parameter file
-
 data/kinetics/PalandriKharaka_local.yaml
-= default native Palandri-Kharaka parameter file
-
 batch_runner/simulator/kinetics/kinec.py
-= Kinec YAML -> Reaktoro kinetic-rate adapter
 ```
 
-Their scientific content must remain unchanged.
+`Kinec_v3_4.dat` is thermodynamic input. Runtime kinetic-rate inputs come from
+the explicitly selected kinetics parameter file/model.
 
-The current package boundaries and public imports are documented in
-`docs/dev/architecture.md`.
+Do not change scientific content, values, units, mappings, boundary conditions,
+or kinetic parameters without explicit scientific justification and
+authorization.
 
-## First Runner Milestone
-
-Run one YAML-defined batch kinetic case using:
-
-- local PHREEQC-style thermodynamic database;
-- native local Palandri-Kharaka parameters by default, or explicit custom Kinec parameters;
-- explicit mineral amounts;
-- explicit surface areas;
-- standard outputs;
-- no random scientific defaults.
+Project-wide development and verification rules live in `AGENTS.md`; do not
+duplicate them here.
