@@ -8,6 +8,7 @@ import yaml
 from batch_runner.run_directories import (
     is_managed_run_snapshot,
     prepare_fresh_run_config,
+    prepare_run_config_for_execution,
 )
 
 
@@ -67,7 +68,20 @@ def test_managed_run_snapshot_is_not_resnapshotted(tmp_path: Path) -> None:
     snapshot.write_text("paths:\n  output_dir: results\n", encoding="utf-8")
 
     assert is_managed_run_snapshot(snapshot, runs_dir=runs_dir)
+    assert prepare_run_config_for_execution(snapshot, runs_dir=runs_dir) == snapshot.resolve()
     assert not is_managed_run_snapshot(
         tmp_path / "outside" / "run_case.yaml",
         runs_dir=runs_dir,
     )
+
+
+def test_absolute_output_path_remains_caller_managed(tmp_path: Path) -> None:
+    raw = yaml.safe_load(SOURCE_CASE.read_text(encoding="utf-8"))
+    raw["paths"]["output_dir"] = str(tmp_path / "explicit-output")
+    source = tmp_path / "absolute-output.yaml"
+    source.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+
+    prepared = prepare_run_config_for_execution(source, runs_dir=tmp_path / "runs")
+
+    assert prepared == source.resolve()
+    assert not (tmp_path / "runs").exists()

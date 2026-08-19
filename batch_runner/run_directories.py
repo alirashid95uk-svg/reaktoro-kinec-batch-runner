@@ -18,6 +18,21 @@ from batch_runner.config._base import PROJECT_ROOT
 RUNS_DIR = PROJECT_ROOT / "runs"
 
 
+def prepare_run_config_for_execution(
+    case_config: str | Path,
+    *,
+    runs_dir: str | Path = RUNS_DIR,
+    now: datetime | None = None,
+) -> Path:
+    """Return a caller-managed config unchanged or create a fresh batch-run snapshot."""
+    source = Path(case_config).resolve()
+    if is_managed_run_snapshot(source, runs_dir=runs_dir):
+        return source
+    if _configured_output_is_absolute(source):
+        return source
+    return prepare_fresh_run_config(source, runs_dir=runs_dir, now=now)
+
+
 def is_managed_run_snapshot(
     case_config: str | Path,
     *,
@@ -82,6 +97,19 @@ def prepare_fresh_run_config(
         encoding="utf-8",
     )
     return snapshot
+
+
+def _configured_output_is_absolute(source: Path) -> bool:
+    if not source.is_file():
+        return False
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return False
+    paths = raw.get("paths")
+    if not isinstance(paths, dict):
+        return False
+    output_dir = paths.get("output_dir")
+    return isinstance(output_dir, str) and Path(output_dir).is_absolute()
 
 
 def _create_unique_directory(base: Path) -> Path:
