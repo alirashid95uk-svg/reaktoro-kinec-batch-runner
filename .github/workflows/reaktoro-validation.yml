@@ -1,0 +1,53 @@
+name: Reaktoro validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create pinned Micromamba environment
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+
+      - name: Report environment
+        shell: bash -el {0}
+        run: |
+          python validation/environment_probe.py
+
+      - name: Record exact package environment
+        shell: bash -el {0}
+        run: |
+          mkdir -p results
+          micromamba list > results/conda-packages.txt
+
+      - name: Run validation test suite
+        shell: bash -el {0}
+        run: |
+          pytest -v --junitxml=results/pytest.xml
+
+      - name: Run canonical Calcite validation
+        shell: bash -el {0}
+        run: |
+          python validation/calcite_validation.py
+
+      - name: Upload validation outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results-${{ github.sha }}
+          path: results/
+          if-no-files-found: warn

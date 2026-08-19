@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - reaktoro=2.13
+  - reaktoro=2.13.0
   - pydantic=2
   - pyyaml
   - pytest
