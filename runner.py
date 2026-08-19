@@ -23,6 +23,7 @@ from batch_runner.config._base import PROJECT_ROOT
 from batch_runner.integrity_monitor import IntegritySimulationMonitor
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.protocol import ProtocolEmitter, cancellation_requested
+from batch_runner.run_directories import prepare_run_config_for_execution
 from batch_runner.simulator import (
     preflight_case,
     run_simulation,
@@ -211,9 +212,12 @@ def _run_simulation(
     cancel,
 ) -> tuple[int, bool]:
     emitter.emit("stage_started", {"stage": "configuration_validation"})
+    case_config = Path(args.case_config).resolve()
     if args.overwrite:
-        _remove_existing_output_dir(args.case_config)
-    case = load_case(args.case_config)
+        _remove_existing_output_dir(case_config)
+    else:
+        case_config = prepare_run_config_for_execution(case_config)
+    case = load_case(case_config)
     emitter.emit("stage_completed", {"stage": "configuration_validation"})
     _emit_environment(emitter)
     emitter.emit("simulation_started", {"case_name": case.config.case.name})
