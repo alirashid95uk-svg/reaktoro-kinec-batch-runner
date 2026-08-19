@@ -50,6 +50,8 @@ from .reporting import (
 )
 from .resolution import ResolvedCase, resolve_case
 from .timestep import (
+    AdaptiveErrorControlConfig,
+    AdaptiveEventControlConfig,
     AdaptiveStepSizeConfig,
     AdaptiveTimestepConfig,
     CheckpointScheduleConfig,
@@ -66,6 +68,8 @@ from .timestep import (
 
 __all__ = [
     "ActivityModelsConfig",
+    "AdaptiveErrorControlConfig",
+    "AdaptiveEventControlConfig",
     "AdaptiveStepSizeConfig",
     "AdaptiveTimestepConfig",
     "Amount",
