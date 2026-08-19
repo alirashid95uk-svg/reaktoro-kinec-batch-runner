@@ -254,6 +254,10 @@ def _run_simulation(
         accepted_row_ready=monitor.handle_accepted_row,
     )
     monitor.activate_log()
+    if monitor.log_error:
+        result.diagnostics["warnings"].append(
+            f"simulation.log unavailable: {monitor.log_error}"
+        )
     event_ready("stage_started", {"stage": "output_writing"})
     output_dir = write_outputs(case, result, cancel_requested=cancel)
     event_ready(
