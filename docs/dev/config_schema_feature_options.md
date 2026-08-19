@@ -333,8 +333,30 @@ experiment fitting, or permission to alter scientific inputs.
 ## 12. Outputs
 
 The `outputs` block controls the active manifest, diagnostics, timeseries,
-summaries, solver history, plots, and debug artifacts. Output meanings and
-completeness rules are defined in `output_package_design.md`.
+summaries, solver history, plots, debug artifacts, and terminal monitor. Output
+meanings and completeness rules are defined in `output_package_design.md`.
+
+The optional presentation block defaults to an enabled pH monitor:
+
+```yaml
+outputs:
+  monitor:
+    enabled: true
+    refresh_interval_s: 0.5
+    scalars: [pH]
+    species: [Ca+2, HCO3-]
+    minerals: [Calcite]
+    result_times:
+      - {value: 14, unit: days}
+```
+
+Allowed scalar names are `pH`, `ionic_strength_molal`, and
+`alkalinity_eq_per_l`. Monitor species and minerals must already be selected by
+`postprocessing.requested_species` and `postprocessing.requested_minerals`.
+Each monitor result time must already exist in the resolved scientific output
+schedule; it is rejected otherwise and never becomes a solver target. These
+fields select presentation only and do not change accepted states or output
+times.
 
 ## 13. Removed and Unsupported Fields
 

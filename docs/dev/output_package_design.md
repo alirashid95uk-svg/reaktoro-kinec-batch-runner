@@ -48,6 +48,7 @@ The base package supports:
 ```text
 manifest.json
 diagnostics.json
+simulation.log
 timeseries.csv
 mineral_summary.csv
 aqueous_summary.csv
@@ -65,6 +66,13 @@ debug/final_state.txt
 
 Accepted-state checkpoints are written under `checkpoints/` only when the
 configured checkpoint schedule requires them.
+
+`simulation.log` is the concise chronological human-run record. It contains
+stage changes, retry/recovery warnings, configured accepted-result milestones,
+checkpoint/output status, and final status. Per-attempt numerical detail remains
+in `solver_history.csv`; the log does not record each successful solver call.
+The runner also writes this file in JSONL machine mode, but never mixes its text
+into machine stdout.
 
 ## 4. Optional Objective 1 Outputs
 
@@ -237,6 +245,9 @@ Rules:
   output times;
 - failed adaptive attempts never become chemistry rows;
 - output times are canonical seconds after resolution.
+
+The terminal monitor reads these accepted rows. It does not inspect failed trial
+states or calculate additional chemistry.
 
 Requested species/mineral values and enabled runtime diagnostics must use stable
 column naming and ordering.

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, model_validator
 
 from ._base import StrictModel
+from .timestep import TimeValue
 
 
 class PostprocessingConfig(StrictModel):
@@ -221,7 +224,30 @@ class DebugOutputsConfig(StrictModel):
     final_state: bool
 
 
+class MonitorConfig(StrictModel):
+    enabled: bool = True
+    refresh_interval_s: float = Field(default=0.5, gt=0, allow_inf_nan=False)
+    scalars: list[Literal["pH", "ionic_strength_molal", "alkalinity_eq_per_l"]] = Field(
+        default_factory=lambda: ["pH"]
+    )
+    species: list[str] = Field(default_factory=list)
+    minerals: list[str] = Field(default_factory=list)
+    result_times: list[TimeValue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_selections(self) -> "MonitorConfig":
+        for label, values in (
+            ("scalars", self.scalars),
+            ("species", self.species),
+            ("minerals", self.minerals),
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError(f"outputs.monitor.{label} must not contain duplicates")
+        return self
+
+
 class OutputsConfig(StrictModel):
+    monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     manifest: ManifestOutputConfig
     diagnostics: DiagnosticsOutputConfig
     timeseries: TimeseriesOutputConfig

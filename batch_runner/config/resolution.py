@@ -37,6 +37,7 @@ class ResolvedCase:
     full_steps: int
     final_step_s: float
     resolved_output_times_s: tuple[float, ...] | None
+    monitor_result_times_s: tuple[float, ...]
     checkpoint_times_s: tuple[float, ...]
     extra_solver_targets_s: tuple[float, ...]
     minimum_accepted_steps: int
@@ -168,6 +169,9 @@ class ResolvedCase:
         data["solver"]["timestep"]["resolved_checkpoint_schedule"] = (
             self.checkpoint_schedule_summary()
         )
+        data["outputs"]["monitor"]["resolved_result_times_s"] = list(
+            self.monitor_result_times_s
+        )
         data["source_config"] = str(self.config_path)
         return data
 
@@ -204,6 +208,7 @@ def resolve_case(
     full_steps = 0
     final_step_s = 0.0
     resolved_output_times_s = None
+    monitor_result_times_s: tuple[float, ...] = ()
     checkpoint_times_s: tuple[float, ...] = ()
     extra_solver_targets_s: tuple[float, ...] = ()
     minimum_accepted_steps = 0
@@ -297,6 +302,20 @@ def resolve_case(
                     f"duration_s={duration_s}, dt_max_s={dt_max_s}"
                 )
 
+        monitor_result_times_s = _resolve_monitor_result_times(
+            config,
+            duration,
+            year_days,
+            resolved_output_times_s,
+            checkpoint_times_s,
+            dt_s,
+        )
+    elif config.outputs.monitor.result_times:
+        raise ValueError(
+            "outputs.monitor.result_times require kinetic output times; "
+            "monitor times do not create solver targets"
+        )
+
     return ResolvedCase(
         config=config,
         config_path=config_path,
@@ -312,6 +331,7 @@ def resolve_case(
         full_steps=full_steps,
         final_step_s=final_step_s,
         resolved_output_times_s=resolved_output_times_s,
+        monitor_result_times_s=monitor_result_times_s,
         checkpoint_times_s=checkpoint_times_s,
         extra_solver_targets_s=extra_solver_targets_s,
         minimum_accepted_steps=minimum_accepted_steps,
@@ -401,6 +421,55 @@ def _resolve_checkpoint_schedule(
             for index, item in enumerate(schedule.times)
         }
     )
+
+
+def _resolve_monitor_result_times(
+    config: CaseConfig,
+    duration_s: Decimal,
+    year_definition_days: float | None,
+    resolved_output_times_s: tuple[float, ...] | None,
+    checkpoint_times_s: tuple[float, ...],
+    dt_s: float,
+) -> tuple[float, ...]:
+    requested = _unique_float_times(
+        {
+            _bounded_time_seconds(
+                item,
+                duration_s,
+                year_definition_days,
+                f"outputs.monitor.result_times[{index}]",
+            )
+            for index, item in enumerate(config.outputs.monitor.result_times)
+        }
+    )
+    if not requested:
+        return ()
+
+    schedule = config.solver.timestep.output_schedule
+    if resolved_output_times_s is not None:
+        available = set(resolved_output_times_s)
+    elif config.solver.timestep.mode == "fixed":
+        step = Decimal(str(dt_s))
+        full_steps, remainder = divmod(duration_s, step)
+        available = {float(step * index) for index in range(1, int(full_steps) + 1)}
+        if remainder > 0:
+            available.add(float(duration_s))
+        available.update(checkpoint_times_s)
+        if not schedule.include_final:
+            available.discard(float(duration_s))
+    else:
+        available = set(checkpoint_times_s)
+        if schedule.include_final:
+            available.add(float(duration_s))
+
+    missing = [value for value in requested if value not in available]
+    if missing:
+        raise ValueError(
+            "outputs.monitor.result_times must already exist in the configured output schedule; "
+            f"missing resolved time(s): {', '.join(f'{value:g} s' for value in missing)}; "
+            "monitor times do not create solver targets"
+        )
+    return requested
 
 
 def _bounded_time_seconds(

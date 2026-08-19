@@ -70,6 +70,10 @@ Use the locally verified environment:
 conda run -n fypr-reaktoro python runner.py path\to\case_input.yaml
 ```
 
+Normal execution shows a compact live terminal monitor. On an interactive
+terminal it redraws in place; redirected output is plain line-oriented text.
+Use `--events-jsonl` for the separate machine-readable stdout protocol.
+
 Or create a separate environment:
 
 ```powershell
@@ -83,6 +87,7 @@ the case YAML. The base package supports:
 ```text
 manifest.json
 diagnostics.json
+simulation.log
 timeseries.csv
 mineral_summary.csv
 aqueous_summary.csv

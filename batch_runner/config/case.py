@@ -184,6 +184,22 @@ class CaseConfig(StrictModel):
         if _mineral_outputs_enabled(self.outputs) and not self.postprocessing.requested_minerals:
             raise ValueError("enabled mineral outputs require postprocessing.requested_minerals")
 
+        monitor = self.outputs.monitor
+        missing_monitor_species = set(monitor.species).difference(
+            self.postprocessing.requested_species
+        )
+        if missing_monitor_species:
+            raise ValueError(
+                "outputs.monitor.species are not postprocessing.requested_species: "
+                + ", ".join(sorted(missing_monitor_species))
+            )
+        missing_monitor_minerals = set(monitor.minerals).difference(requested_minerals)
+        if missing_monitor_minerals:
+            raise ValueError(
+                "outputs.monitor.minerals are not postprocessing.requested_minerals: "
+                + ", ".join(sorted(missing_monitor_minerals))
+            )
+
         if self.outputs.plots.solver_dt and not self.outputs.solver_history.enabled:
             raise ValueError("solver_dt plot requires solver_history output")
         if self.outputs.plots.solver_iterations and not self.outputs.solver_history.enabled:

@@ -20,6 +20,7 @@ import yaml
 
 from batch_runner.config import load_case
 from batch_runner.config._base import PROJECT_ROOT
+from batch_runner.monitor import SimulationMonitor
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.protocol import ProtocolEmitter, cancellation_requested
 from batch_runner.simulator import (
@@ -67,7 +68,19 @@ def main() -> None:
             if args.events_jsonl:
                 traceback.print_exc(file=sys.stderr)
                 raise SystemExit(1)
-            raise
+            print(
+                "ERROR   FAILED | stage=configuration_validation | last accepted=0 s | "
+                f"{error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            print(
+                "INFO    No output package was initialized; rerun with --events-jsonl "
+                "for a technical traceback.",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise SystemExit(1)
 
     if immediate_exit:
         os._exit(return_code)
@@ -204,37 +217,58 @@ def _run_simulation(
     _emit_environment(emitter)
     emitter.emit("simulation_started", {"case_name": case.config.case.name})
 
+    monitor = SimulationMonitor(
+        case,
+        display_enabled=case.config.outputs.monitor.enabled and not emitter.enabled,
+        stream=sys.stdout,
+    )
+    monitor.start(
+        python_version=sys.version.split()[0],
+        reaktoro_version=rkt.__version__,
+    )
+
     last_progress_at = None
+
+    def event_ready(event_type: str, payload: dict) -> None:
+        emitter.emit(event_type, payload)
+        monitor.handle_event(event_type, payload)
+
+    def mapping_ready(mapping: list[dict]) -> None:
+        write_kinetic_mapping(case, mapping)
+        monitor.activate_log()
 
     def progress_ready(payload: dict) -> None:
         nonlocal last_progress_at
+        monitor.handle_progress(payload)
         now = monotonic()
-        if last_progress_at is None or now - last_progress_at >= 0.5:
+        if emitter.enabled and (last_progress_at is None or now - last_progress_at >= 0.5):
             emitter.emit("progress_summary", payload)
             last_progress_at = now
 
     result = run_simulation(
         case,
-        mapping_ready=lambda mapping: write_kinetic_mapping(case, mapping),
-        event_ready=emitter.emit,
-        progress_ready=progress_ready if emitter.enabled else None,
+        mapping_ready=mapping_ready,
+        event_ready=event_ready,
+        progress_ready=progress_ready,
         cancel_requested=cancel,
+        accepted_row_ready=monitor.handle_accepted_row,
     )
-    emitter.emit("stage_started", {"stage": "output_writing"})
+    monitor.activate_log()
+    event_ready("stage_started", {"stage": "output_writing"})
     output_dir = write_outputs(case, result, cancel_requested=cancel)
-    emitter.emit(
+    event_ready(
         "output_written",
         {
             "output_dir": str(output_dir),
             "output_completeness": result.diagnostics["output_completeness"],
         },
     )
-    emitter.emit("stage_completed", {"stage": "output_writing"})
+    event_ready("stage_completed", {"stage": "output_writing"})
 
     simulation_completed = result.diagnostics["simulation_completed"]
     package_complete = result.diagnostics["output_completeness"]["status"] == "complete"
     completed = simulation_completed and package_complete
-    if result.exception_traceback:
+    if result.exception_traceback and emitter.enabled:
         print("Technical traceback:", file=sys.stderr, flush=True)
         print(result.exception_traceback, file=sys.stderr, flush=True)
     status = (
@@ -246,7 +280,8 @@ def _run_simulation(
         if simulation_completed
         else "Failed"
     )
-    print(f"{status} case '{case.config.case.name}'. Outputs: {output_dir}", flush=True)
+    if not monitor.display_enabled:
+        print(f"{status} case '{case.config.case.name}'. Outputs: {output_dir}", flush=True)
 
     finish_payload = {
         "simulation_completed": simulation_completed,
@@ -266,6 +301,7 @@ def _run_simulation(
                 "output_failure": result.diagnostics.get("output_failure"),
             },
         )
+    monitor.finish(result, output_dir)
 
     return (0 if completed else 1), uses_python_rate_callback(case)
 

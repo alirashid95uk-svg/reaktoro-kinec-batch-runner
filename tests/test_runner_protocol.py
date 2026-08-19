@@ -62,6 +62,22 @@ def test_legacy_preflight_stdout_and_exit_code_remain_compatible(tmp_path: Path)
     assert '"ready":false' in completed.stdout
 
 
+def test_human_configuration_failure_is_concise(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [sys.executable, str(RUNNER), str(tmp_path / "missing.yaml")],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert completed.returncode == 1
+    assert "ERROR   FAILED | stage=configuration_validation | last accepted=0 s" in completed.stderr
+    assert "No output package was initialized" in completed.stderr
+    assert "Traceback" not in completed.stderr
+
+
 def test_event_mode_stdout_contains_jsonl_protocol_only(tmp_path: Path) -> None:
     completed = subprocess.run(
         [

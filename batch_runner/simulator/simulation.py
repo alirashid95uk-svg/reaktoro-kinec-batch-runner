@@ -119,6 +119,7 @@ def run_simulation(
     event_ready: Callable[[str, dict[str, Any]], None] | None = None,
     progress_ready: Callable[[dict[str, Any]], None] | None = None,
     cancel_requested: Callable[[], bool] | None = None,
+    accepted_row_ready: Callable[[dict[str, Any]], None] | None = None,
 ) -> SimulationResult:
     run_started_at = datetime.now(timezone.utc).isoformat()
     prepared = prepare_simulation(case, mapping_ready, event_ready)
@@ -180,6 +181,8 @@ def run_simulation(
                 first_row = first_row or row
                 last_row = row
                 result_rows += 1
+                if accepted_row_ready is not None:
+                    accepted_row_ready(row)
                 stage = "solver_execution"
 
             def boundary_row_ready(which: str, row: dict[str, Any]) -> None:
@@ -211,9 +214,11 @@ def run_simulation(
                             "accepted_time_s": accepted_time_s,
                             "requested_duration_s": case.duration_s,
                             "current_dt_s": record["dt_s"],
+                            "next_dt_s": record.get("next_dt_s"),
                             "accepted_attempts": accepted_steps,
                             "rejected_attempts": rejected_steps,
                             "latest_accepted": record["accepted"],
+                            "solver_succeeded": record["solver_succeeded"],
                             "latest_reason": record.get("failure_reason") or None,
                             "solver_iterations": record.get("iterations"),
                             "stage": record["stage"],

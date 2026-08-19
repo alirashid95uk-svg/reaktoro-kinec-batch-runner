@@ -113,6 +113,13 @@ validation:
   targets: []
 
 outputs:
+  monitor:
+    enabled: true
+    refresh_interval_s: 0.5
+    scalars: [pH]
+    species: []
+    minerals: []
+    result_times: []
   manifest: REQUIRED
   diagnostics: REQUIRED
   timeseries: REQUIRED
