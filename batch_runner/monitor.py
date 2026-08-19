@@ -61,6 +61,10 @@ class SimulationMonitor:
     def eta_s(self) -> float | None:
         return self._eta_s
 
+    @property
+    def log_error(self) -> str | None:
+        return self._log_error
+
     def start(self, *, python_version: str, reaktoro_version: str) -> None:
         config = self.case.config
         database = self.case.database_path or config.database.name
@@ -89,6 +93,11 @@ class SimulationMonitor:
             self._log_active = True
         except OSError as error:
             self._log_error = str(error)
+            message = f"simulation.log unavailable: {error}"
+            self._recent_warnings.append(message)
+            if self.display_enabled:
+                self._clear_dashboard()
+                self._display(f"WARNING {message}\n")
 
     def handle_event(self, event_type: str, payload: dict[str, Any]) -> None:
         if event_type == "stage_started":
@@ -140,27 +149,53 @@ class SimulationMonitor:
         self._attempted_dt_s = float(payload["current_dt_s"])
         self._accepted_attempts = int(payload["accepted_attempts"])
         self._rejected_attempts = int(payload["rejected_attempts"])
-        self._latest_success = bool(payload.get("solver_succeeded"))
+        solver_succeeded = payload.get("solver_succeeded")
+        self._latest_success = solver_succeeded if isinstance(solver_succeeded, bool) else None
         self._solver_iterations = payload.get("solver_iterations")
         self._stage = str(payload["stage"])
 
         if not payload["latest_accepted"]:
             self._eta_samples.clear()
             self._eta_s = None
-            self._retry_count += 1
+            reason = payload.get("latest_reason") or None
+
+            if self._latest_success is True:
+                message = (
+                    f"Step not committed at {_format_time(accepted_time_s)}; state restored"
+                )
+                if reason:
+                    message += f": {reason}"
+                self._event("WARNING", message)
+                self._render(force=True, now=now)
+                return
+
+            next_dt_s = payload.get("next_dt_s")
             message = (
                 f"Reaktoro solve failed at {_format_time(accepted_time_s)}, "
                 f"attempted dt {_format_time(self._attempted_dt_s)}"
             )
-            if payload.get("latest_reason"):
-                message += f": {payload['latest_reason']}"
-            self._event("WARNING", message)
-            next_dt_s = payload.get("next_dt_s")
+            if reason:
+                message += f": {reason}"
+
             if next_dt_s is not None:
+                self._retry_count += 1
+                self._event("WARNING", message)
                 self._event(
                     "INFO",
                     f"State restored; retrying from {_format_time(accepted_time_s)} "
                     f"with dt {_format_time(float(next_dt_s))}",
+                )
+            else:
+                self._event(
+                    "ERROR",
+                    f"Reaktoro solve failed during {_stage_label(self._stage)} at "
+                    f"{_format_time(accepted_time_s)}"
+                    + (
+                        f", attempted dt {_format_time(self._attempted_dt_s)}"
+                        if self._attempted_dt_s > 0.0
+                        else ""
+                    )
+                    + (f": {reason}" if reason else ""),
                 )
             self._render(force=True, now=now)
             return
