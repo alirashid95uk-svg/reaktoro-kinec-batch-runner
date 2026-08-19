@@ -20,6 +20,7 @@ def run_fixed_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
             dt_s=dt_s,
             conditions=run.conditions,
         )
+        run.kinetic_solve_calls += 1
         cancel_after_attempt = run.is_cancelled()
         run.kinetic_attempts += 1
         reason = failure_reason(
