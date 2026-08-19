@@ -1,4 +1,42 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+
+    "terminal.integrated.cwd": "${workspaceFolder}",
+
+    "terminal.integrated.profiles.windows": {
+        "PowerShell (fypr-reaktoro)": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "conda activate fypr-reaktoro"
+            ]
+        }
+    },
+
+    "terminal.integrated.defaultProfile.windows": "PowerShell (fypr-reaktoro)",
+
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.cwd": "${workspaceFolder}",
+
+    "python.analysis.autoImportCompletions": true,
+
+    "search.exclude": {
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "runs/**": true
+    },
+
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true
+    },
+
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true
 }
