@@ -26,6 +26,7 @@ class SolverRun:
     next_checkpoint_time: float | None = field(init=False)
     output_every_accepted_step: bool = field(init=False)
     kinetic_solver: Any | None = None
+    richardson_half_solver: Any | None = None
     conditions: Any | None = None
     initial_state: Any | None = None
     last_record: dict[str, Any] | None = None
@@ -38,9 +39,15 @@ class SolverRun:
     dt_total_s: float = 0.0
     checkpoint_count: int = 0
     kinetic_attempts: int = 0
+    kinetic_solve_calls: int = 0
     solver_failed_attempts: int = 0
     retries_at_current_time: int = 0
     rejection_reason_counts: dict[str, int] = field(default_factory=dict)
+    last_temporal_error_norm: float | None = None
+    largest_temporal_error_norm: float | None = None
+    temporal_error_rejections: int = 0
+    event_limited_steps: int = 0
+    event_corrections: int = 0
 
     def __post_init__(self) -> None:
         self.timestep = self.case.config.solver.timestep
@@ -107,14 +114,22 @@ class SolverRun:
             "accepted_state_restored": accepted_state_restored,
             "checkpoint_count": self.checkpoint_count,
             "number_of_internal_attempts": self.kinetic_attempts,
+            "number_of_kinetic_solve_calls": self.kinetic_solve_calls,
             "number_of_solver_failed_attempts": self.solver_failed_attempts,
             "retries_at_final_accepted_time": self.retries_at_current_time,
             "rejection_reason_counts": self.rejection_reason_counts,
+            "last_temporal_error_norm": self.last_temporal_error_norm,
+            "largest_temporal_error_norm": self.largest_temporal_error_norm,
+            "number_of_temporal_error_rejections": self.temporal_error_rejections,
+            "number_of_event_limited_steps": self.event_limited_steps,
+            "number_of_event_corrections": self.event_corrections,
             "cancellation_requested": cancellation_requested,
             "cancellation_boundary": cancellation_boundary,
         }
 
-    def cancelled(self, boundary: str, *, restored: bool | None = True) -> dict[str, Any]:
+    def cancelled(
+        self, boundary: str, *, restored: bool | None = True
+    ) -> dict[str, Any]:
         return self.progress(
             completed=False,
             termination_reason="cancelled_cleanly",
@@ -130,3 +145,11 @@ class SolverRun:
         self.dt_max_s = dt_s if self.dt_max_s is None else max(self.dt_max_s, dt_s)
         self.dt_total_s += dt_s
         self.step_index += 1
+
+    def note_temporal_error(self, error_norm: float) -> None:
+        self.last_temporal_error_norm = float(error_norm)
+        self.largest_temporal_error_norm = (
+            float(error_norm)
+            if self.largest_temporal_error_norm is None
+            else max(self.largest_temporal_error_norm, float(error_norm))
+        )
