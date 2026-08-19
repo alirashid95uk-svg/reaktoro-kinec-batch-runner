@@ -1,3 +1,4 @@
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from batch_runner.config import (
     OutputScheduleConfig,
     TimeValue,
 )
+from batch_runner.simulator.solver import adaptive as adaptive_module
 from batch_runner.simulator.solver.adaptive_control import (
     EventSnapshot,
     controller_dt,
@@ -20,6 +22,7 @@ from batch_runner.simulator.solver.adaptive_control import (
     predict_event_limit,
     richardson_estimate,
 )
+from batch_runner.simulator.solver.runtime import SolverRun
 
 
 class _Phase:
@@ -55,6 +58,31 @@ class _State:
         raise KeyError(key)
 
 
+class _ValueState:
+    def __init__(self, value: float = 0.0):
+        self.value = value
+
+    def assign(self, other) -> None:
+        self.value = other.value
+
+
+class _Result:
+    def succeeded(self) -> bool:
+        return True
+
+    def iterations(self) -> int:
+        return 1
+
+
+class _ScaleSolver:
+    def __init__(self, scale: float):
+        self.scale = scale
+
+    def solve(self, state, dt_s):
+        state.value += self.scale * dt_s
+        return _Result()
+
+
 def _case_for_error_control(relative: float = 0.0):
     error = AdaptiveErrorControlConfig(
         enabled=True,
@@ -72,6 +100,42 @@ def _case_for_error_control(relative: float = 0.0):
             minerals=[SimpleNamespace(name="Calcite", role="kinetic")],
         )
     )
+
+
+def _adaptive_timestep() -> AdaptiveTimestepConfig:
+    return AdaptiveTimestepConfig(
+        mode="adaptive",
+        time=DurationConfig(duration_value=1.0, duration_unit="seconds"),
+        step_size=AdaptiveStepSizeConfig(
+            dt_initial=TimeValue(value=0.5, unit="seconds"),
+            dt_min=TimeValue(value=0.1, unit="seconds"),
+            dt_max=TimeValue(value=1.0, unit="seconds"),
+            growth_factor=2.0,
+            shrink_factor=0.5,
+            max_retries_per_step=3,
+        ),
+        output_schedule=OutputScheduleConfig(
+            mode="explicit", include_initial=False, include_final=False
+        ),
+        error_control=AdaptiveErrorControlConfig(
+            enabled=True,
+            temporal_order=1.0,
+        ),
+    )
+
+
+class _RunCase:
+    def __init__(self):
+        timestep = _adaptive_timestep()
+        self.config = SimpleNamespace(solver=SimpleNamespace(timestep=timestep))
+        self.duration_s = 1.0
+        self.dt_initial_s = 0.5
+        self.dt_min_s = 0.1
+        self.dt_max_s = 1.0
+        self.checkpoint_times_s = ()
+
+    def output_times_s(self):
+        return iter(())
 
 
 def test_enabled_error_control_requires_demonstrated_temporal_order() -> None:
@@ -154,3 +218,48 @@ def test_event_overshoot_interpolates_retry_interval() -> None:
     assert correction is not None
     assert correction.dt_s == pytest.approx(0.5)
     assert correction.reason == "corrected_zero_crossing:si::Calcite"
+
+
+def test_error_controlled_loop_commits_two_half_step_state(monkeypatch) -> None:
+    case = _RunCase()
+    state = _ValueState()
+    run = SolverRun(
+        case=case,
+        system=object(),
+        state=state,
+        emit_row=lambda _row: None,
+        emit_record=lambda _record: None,
+        emit_boundary=lambda _which, _row: None,
+        emit_checkpoint=lambda _record, _state: None,
+        is_cancelled=lambda: False,
+        collect_row=lambda _case, current, record, _initial: {
+            "time_s": record["time_end_s"],
+            "value": current.value,
+        },
+        snapshot_state=deepcopy,
+    )
+    run.kinetic_solver = _ScaleSolver(scale=2.0)
+    run.richardson_half_solver = _ScaleSolver(scale=1.0)
+    run.initial_state = deepcopy(state)
+
+    monkeypatch.setattr(
+        adaptive_module,
+        "richardson_estimate",
+        lambda *_args: SimpleNamespace(
+            norm=0.25,
+            worst_variable="fake",
+            worst_ratio=0.25,
+        ),
+    )
+    monkeypatch.setattr(
+        adaptive_module,
+        "event_snapshot",
+        lambda _case, _state, time_s: EventSnapshot(time_s=time_s, values={}),
+    )
+
+    _initial, progress = adaptive_module.run_adaptive_timesteps(run)
+
+    assert state.value == pytest.approx(1.0)
+    assert progress["simulation_completed"] is True
+    assert progress["number_of_kinetic_solve_calls"] == 6
+    assert progress["number_of_accepted_steps"] == 2
