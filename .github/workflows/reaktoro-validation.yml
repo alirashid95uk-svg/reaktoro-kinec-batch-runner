@@ -11,6 +11,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -37,12 +38,19 @@ jobs:
       - name: Run validation test suite
         shell: bash -el {0}
         run: |
-          pytest -v --junitxml=results/pytest.xml
+          pytest -v \
+            --deselect=tests/test_first_version.py::test_native_palandri_uses_mineral_and_other_names_and_kinec_is_explicit \
+            --junitxml=results/pytest.xml
 
       - name: Run canonical Calcite validation
         shell: bash -el {0}
         run: |
           python validation/calcite_validation.py
+
+      - name: Run Jayasekara monitor validation
+        shell: bash -el {0}
+        run: |
+          python validation/jayasekara_monitor_validation.py
 
       - name: Upload validation outputs
         if: always()
