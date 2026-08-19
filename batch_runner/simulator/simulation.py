@@ -120,6 +120,7 @@ def run_simulation(
     progress_ready: Callable[[dict[str, Any]], None] | None = None,
     cancel_requested: Callable[[], bool] | None = None,
     accepted_row_ready: Callable[[dict[str, Any]], None] | None = None,
+    accepted_state_ready: Callable[[Any, dict[str, Any]], None] | None = None,
 ) -> SimulationResult:
     run_started_at = datetime.now(timezone.utc).isoformat()
     prepared = prepare_simulation(case, mapping_ready, event_ready)
@@ -189,6 +190,18 @@ def run_simulation(
                 nonlocal first_row, last_row
                 if which == "initial":
                     first_row = row
+                    if accepted_state_ready is not None:
+                        accepted_state_ready(
+                            state,
+                            {
+                                "time_start_s": 0.0,
+                                "time_end_s": 0.0,
+                                "dt_s": 0.0,
+                                "stage": "initial_state",
+                                "accepted": True,
+                                "solver_succeeded": None,
+                            },
+                        )
                 else:
                     last_row = row
 
@@ -208,6 +221,12 @@ def run_simulation(
                 json.dump(record, solver_history_stream, separators=(",", ":"))
                 solver_history_stream.write("\n")
                 solver_history_stream.flush()
+                if (
+                    accepted_state_ready is not None
+                    and record["accepted"]
+                    and record["dt_s"] > 0.0
+                ):
+                    accepted_state_ready(state, record)
                 if progress_ready is not None:
                     progress_ready(
                         {

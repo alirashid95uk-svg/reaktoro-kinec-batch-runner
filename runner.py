@@ -20,7 +20,7 @@ import yaml
 
 from batch_runner.config import load_case
 from batch_runner.config._base import PROJECT_ROOT
-from batch_runner.monitor import SimulationMonitor
+from batch_runner.integrity_monitor import IntegritySimulationMonitor
 from batch_runner.outputs import write_kinetic_mapping, write_outputs
 from batch_runner.protocol import ProtocolEmitter, cancellation_requested
 from batch_runner.simulator import (
@@ -28,6 +28,7 @@ from batch_runner.simulator import (
     run_simulation,
     uses_python_rate_callback,
 )
+from batch_runner.simulator.integrity import NumericalIntegrityObserver
 
 
 PREFLIGHT_PREFIX = "PREFLIGHT_RESULT:"
@@ -217,7 +218,7 @@ def _run_simulation(
     _emit_environment(emitter)
     emitter.emit("simulation_started", {"case_name": case.config.case.name})
 
-    monitor = SimulationMonitor(
+    monitor = IntegritySimulationMonitor(
         case,
         display_enabled=case.config.outputs.monitor.enabled and not emitter.enabled,
         stream=sys.stdout,
@@ -226,6 +227,7 @@ def _run_simulation(
         python_version=sys.version.split()[0],
         reaktoro_version=rkt.__version__,
     )
+    integrity = NumericalIntegrityObserver(case)
 
     last_progress_at = None
 
@@ -245,6 +247,14 @@ def _run_simulation(
             emitter.emit("progress_summary", payload)
             last_progress_at = now
 
+    def accepted_state_ready(state, record: dict) -> None:
+        snapshot = integrity.observe(
+            state,
+            time_s=float(record["time_end_s"]),
+            initialize=record["stage"] == "initial_state",
+        )
+        monitor.handle_numerical_integrity(snapshot)
+
     result = run_simulation(
         case,
         mapping_ready=mapping_ready,
@@ -252,7 +262,14 @@ def _run_simulation(
         progress_ready=progress_ready,
         cancel_requested=cancel,
         accepted_row_ready=monitor.handle_accepted_row,
+        accepted_state_ready=accepted_state_ready,
     )
+    result.diagnostics["numerical_integrity"] = integrity.summary()
+    if integrity.unavailable_reason:
+        result.diagnostics["warnings"].append(
+            "numerical-integrity diagnostics unavailable: "
+            f"{integrity.unavailable_reason}"
+        )
     monitor.activate_log()
     if monitor.log_error:
         result.diagnostics["warnings"].append(
