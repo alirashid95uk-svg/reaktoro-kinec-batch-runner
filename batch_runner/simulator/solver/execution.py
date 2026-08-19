@@ -3,15 +3,12 @@
 from typing import Any, Callable
 
 from batch_runner.config import AdaptiveTimestepConfig, ResolvedCase
-from batch_runner.simulator.chemistry.observations import collect_row
 from batch_runner.simulator.chemistry.conditions import build_conditions
+from batch_runner.simulator.chemistry.observations import collect_row
 
 from .adaptive import run_adaptive_timesteps
 from .calls import kinetics_solver
-from .equilibrium import (
-    finish_equilibrium_only,
-    run_initial_equilibrium,
-)
+from .equilibrium import finish_equilibrium_only, run_initial_equilibrium
 from .fixed import run_fixed_timesteps
 from .records import unsolved_record
 from .runtime import SolverRun
@@ -48,10 +45,16 @@ def execute_solver(
     if case.config.solver.workflow.mode == "equilibrium_only":
         return finish_equilibrium_only(run)
 
-    specs, run.conditions = build_conditions(
-        case, system, state, "kinetic_steps"
-    )
+    specs, run.conditions = build_conditions(case, system, state, "kinetic_steps")
     run.kinetic_solver = kinetics_solver(system, specs)
+
+    if (
+        isinstance(run.timestep, AdaptiveTimestepConfig)
+        and run.timestep.error_control.enabled
+    ):
+        # Keep the full-step and half-step Richardson paths on independent solver
+        # instances so the error estimate does not depend on cross-path solver state.
+        run.richardson_half_solver = kinetics_solver(system, specs)
 
     run.initial_state = snapshot_state(state)
     initial_record = unsolved_record(run.step_index, "initial_state", 0.0)
