@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from batch_runner.monitor import SimulationMonitor, _format_time, _number
@@ -37,6 +38,39 @@ class IntegritySimulationMonitor(SimulationMonitor):
                 )
         super().handle_accepted_row(row)
 
+    def finish(self, result: Any, output_dir: Path) -> None:
+        """Finish the base monitor, then report final accepted-state integrity."""
+        super().finish(result, output_dir)
+        snapshot = self._numerical_integrity
+        if not snapshot:
+            return
+
+        time_s = snapshot.get("time_s")
+        if time_s is None:
+            return
+        final_values = self._integrity_log_values(float(time_s))
+        if not final_values:
+            return
+
+        category = "WARNING" if snapshot.get("status") == "unavailable" else "RESULT"
+        self._event(
+            category,
+            "Final accepted-state numerical integrity at "
+            f"{_format_time(float(time_s))} | {final_values}",
+        )
+
+    def _display(self, text: str) -> None:
+        """Insert compact accepted-state integrity metrics into progress rendering."""
+        if "Progress [" in text and " | wall " in text:
+            compact = self._progress_integrity_values()
+            if compact:
+                text = text.replace(
+                    " | wall ",
+                    f" | {compact} | wall ",
+                    1,
+                )
+        super()._display(text)
+
     def _render(self, *, force: bool = False, now: float | None = None) -> None:
         previous_render_at = self._last_render_at
         super()._render(force=force, now=now)
@@ -53,6 +87,35 @@ class IntegritySimulationMonitor(SimulationMonitor):
         self._display(line)
         if self.is_tty:
             self._dashboard_lines += 1
+
+    def _progress_integrity_values(self) -> str:
+        """Return compact current material/charge checks for the progress line."""
+        snapshot = self._numerical_integrity
+        if not snapshot:
+            return ""
+        if snapshot.get("status") == "unavailable":
+            return "balance n/a | charge n/a"
+
+        material = snapshot.get("material_balance", {})
+        if material.get("status") == "evaluated":
+            worst = material.get("worst_component")
+            balance = (
+                f"balance {_number(material['max_relative_residual'])} rel"
+                + (f" ({worst})" if worst else "")
+            )
+        else:
+            balance = "balance n/a"
+
+        charge = snapshot.get("charge", {})
+        charge_status = charge.get("status")
+        if charge_status == "evaluated":
+            charge_text = f"charge {_number(charge['residual_mol'])} mol"
+        elif charge_status == "open_boundary":
+            charge_text = "charge open boundary"
+        else:
+            charge_text = "charge n/a"
+
+        return f"{balance} | {charge_text}"
 
     def _integrity_display_values(self) -> str:
         snapshot = self._numerical_integrity
@@ -122,6 +185,7 @@ class IntegritySimulationMonitor(SimulationMonitor):
             values.extend(
                 [
                     f"component max={_number(material['max_relative_residual'])}",
+                    f"worst component={material.get('worst_component') or 'n/a'}",
                     f"RMS={_number(material['rms_relative_residual'])}",
                     "cumulative max="
                     f"{_number(material['cumulative_max_relative_residual'])}",
