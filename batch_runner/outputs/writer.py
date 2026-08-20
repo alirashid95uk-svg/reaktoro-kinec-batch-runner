@@ -43,9 +43,9 @@ from .plots import write_plots
 from .tables import (
     AQUEOUS_SUMMARY_COLUMNS,
     MINERAL_SUMMARY_COLUMNS,
-    SOLVER_HISTORY_COLUMNS,
     aqueous_summary_rows,
     mineral_summary_rows,
+    solver_history_columns,
     timeseries_columns,
     timeseries_rows,
 )
@@ -195,7 +195,7 @@ def _write_outputs(
         written.append(path)
     if outputs.solver_history.enabled:
         path = output_dir / "solver_history.csv"
-        csv_writer(path, SOLVER_HISTORY_COLUMNS, result.iter_solver_history())
+        csv_writer(path, solver_history_columns(case), result.iter_solver_history())
         written.append(path)
     scientific_output_allowed()
     if outputs.summaries.mineral_summary and scientific_output_allowed():

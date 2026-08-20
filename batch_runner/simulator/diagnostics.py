@@ -21,9 +21,12 @@ def build_diagnostics(
     database_sha256: str | None,
     kinetic_parameter_sha256: str | None,
 ) -> dict[str, Any]:
+    mode = case.config.solver.timestep.mode
     estimated_solver_calls = (
         case.internal_step_count + int(requires_initial_equilibrium(case))
-        if case.config.solver.timestep.mode == "fixed"
+        if mode == "fixed"
+        else 3 * case.minimum_accepted_steps + int(requires_initial_equilibrium(case))
+        if mode == "adaptive_error_controlled"
         else None
     )
     final_time_s = solver_progress["final_time_reached_s"]
@@ -95,6 +98,7 @@ def exception_progress(
     rejected_steps: int = 0,
     internal_attempts: int = 0,
     solver_failed_attempts: int = 0,
+    reaktoro_solve_calls: int = 0,
     checkpoint_count: int = 0,
 ) -> dict[str, Any]:
     return {
@@ -116,6 +120,9 @@ def exception_progress(
         "checkpoint_count": checkpoint_count,
         "number_of_internal_attempts": internal_attempts,
         "number_of_solver_failed_attempts": solver_failed_attempts,
+        "number_of_reaktoro_solve_calls": reaktoro_solve_calls,
+        "number_of_temporal_error_rejections": 0,
+        "number_of_event_localizations": 0,
         "retries_at_final_accepted_time": None,
         "rejection_reason_counts": {},
         "cancellation_requested": False,

@@ -6,7 +6,7 @@ The active runner implements:
 
 - standard Reaktoro equilibrium and kinetics solvers;
 - explicit equilibrium/kinetics workflow staging;
-- fixed and adaptive timestep modes;
+- fixed, legacy adaptive, and explicit Richardson error-controlled timestep modes;
 - scheduled output times;
 - accepted-state checkpoints;
 - adaptive rollback and retry;
@@ -201,6 +201,7 @@ The active modes are:
 ```text
 fixed
 adaptive
+adaptive_error_controlled
 ```
 
 ### 8.1 Fixed Timestep
@@ -266,6 +267,85 @@ steps. Cases that cannot fit within `max_internal_steps` are rejected.
 
 Long simulations use ordinary adaptive mode with the same duration, output,
 checkpoint, and timestep controls.
+
+### 8.3 Richardson Error-Controlled Adaptive Timestep
+
+`mode: adaptive_error_controlled` is a separate controller. It does not replace
+or reinterpret `mode: adaptive`.
+
+The current implementation supports direct kinetic workflows. Configurations
+that require an initial-equilibrium stage are rejected so the saved time-zero
+row and the runtime state cannot disagree.
+
+Each outer trial follows:
+
+```text
+copy the last accepted state independently for full and half branches
+-> solve one full h branch with a fresh KineticsSolver
+-> solve h/2 then h/2 with a second fresh KineticsSolver
+-> accept the genuine two-half-step state only when E <= 1
+```
+
+The controller makes no separate startup call. Each branch uses the ordinary
+`KineticsSolver.solve(...)` path so Reaktoro retains ownership of its native
+solver startup behaviour.
+
+When time-zero reaction rates are enabled, their extraction uses a disposable
+but identically configured system because Reaktoro 2.13 shares rate-model cache
+state at the system level. The kinetic branches use a fresh system/state with
+the same resolved case configuration.
+
+The controlled quantities are configured kinetic-mineral amounts in mol. The
+installed Reaktoro 2.13 Python API does not expose integrated reaction extent as
+a clean public state quantity.
+
+For mineral `j`:
+
+```text
+e_j = abs(n_H,j - n_F,j) / (2**p - 1)
+T_j = atol_j + rtol * max(abs(n_H,j), floor_j)
+E_j = e_j / T_j
+E = max(E_j)
+```
+
+All three branch solves must succeed and `E <= 1` before accepted time advances.
+The I-controller is:
+
+```text
+h_next = safety_factor * h * E**(-1/(p + 1))
+```
+
+with explicit zero-error handling and configured shrink, growth, `dt_min`, and
+`dt_max` bounds. Non-finite error rejects. A temporal-error rejection cannot
+increase its effective trial step.
+
+Solver failure and temporal-error rejection are disjoint:
+
+```text
+branch solver failure -> restore accepted state -> solver_failure_shrink_factor
+valid branches with E > 1 -> restore accepted state -> I-controller shrink
+```
+
+A temporally acceptable fine branch is still rejected independently when its
+observed pH, mineral amounts, saturation indices, or reaction rates are
+non-finite, or when a mineral amount is more negative than the explicit molar
+`negative_amount_tolerance`. This state-admissibility rejection restores the
+accepted state and uses the configured controller shrink.
+
+`max_internal_steps` counts outer Richardson trials. Actual Reaktoro calls are
+tracked separately; a complete Richardson trial uses three.
+
+Hard kinetic-mineral exhaustion may reject a valid trial and retry at a
+linearly localised event interval. A crossing detected exactly at the trial
+endpoint is treated as landed. Exhausting the configured localisation limit
+fails without accepting the crossing state. An accepted exhaustion resets the
+proposal to the explicit configured restart timestep. Soft SI, pH,
+reaction-rate, and first secondary-mineral appearance indications only cap a
+subsequent proposal; they are not LTE acceptance variables.
+
+The same exact output/checkpoint/final target helpers used by legacy adaptive
+execution cap the new trial. Chemistry is never interpolated. Half-step solves
+are branch work, not accepted physical timesteps.
 
 ## 9. Checkpoint Semantics
 

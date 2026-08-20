@@ -2,7 +2,11 @@
 
 from typing import Any, Callable
 
-from batch_runner.config import AdaptiveTimestepConfig, ResolvedCase
+from batch_runner.config import (
+    AdaptiveErrorControlledTimestepConfig,
+    AdaptiveTimestepConfig,
+    ResolvedCase,
+)
 from batch_runner.simulator.chemistry.observations import collect_row
 from batch_runner.simulator.chemistry.conditions import build_conditions
 
@@ -12,6 +16,7 @@ from .equilibrium import (
     finish_equilibrium_only,
     run_initial_equilibrium,
 )
+from .error_controlled import run_error_controlled_timesteps
 from .fixed import run_fixed_timesteps
 from .records import unsolved_record
 from .runtime import SolverRun
@@ -27,6 +32,8 @@ def execute_solver(
     boundary_row_ready: Callable[[str, dict[str, Any]], None] | None = None,
     checkpoint_ready: Callable[[dict[str, Any], Any], None] | None = None,
     cancel_requested: Callable[[], bool] | None = None,
+    raw_initial_state: Any | None = None,
+    raw_initial_row: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     run = SolverRun(
         case=case,
@@ -48,22 +55,31 @@ def execute_solver(
     if case.config.solver.workflow.mode == "equilibrium_only":
         return finish_equilibrium_only(run)
 
-    specs, run.conditions = build_conditions(
+    run.kinetic_specs, run.conditions = build_conditions(
         case, system, state, "kinetic_steps"
     )
-    run.kinetic_solver = kinetics_solver(system, specs)
+    if not isinstance(run.timestep, AdaptiveErrorControlledTimestepConfig):
+        run.kinetic_solver = kinetics_solver(system, run.kinetic_specs)
+    run.initial_state = (
+        raw_initial_state if raw_initial_state is not None else snapshot_state(state)
+    )
 
-    run.initial_state = snapshot_state(state)
     initial_record = unsolved_record(run.step_index, "initial_state", 0.0)
     if run.is_cancelled():
         return run.initial_state, run.cancelled("before_initial_output_extraction")
-    initial_row = collect_row(case, state, initial_record, run.initial_state)
+    initial_row = (
+        raw_initial_row
+        if raw_initial_row is not None
+        else collect_row(case, state, initial_record, run.initial_state)
+    )
     run.emit_boundary("initial", initial_row)
     if run.output_due(0.0):
         run.emit_row(initial_row)
 
     if run.timestep.mode == "fixed":
         return run_fixed_timesteps(run)
-    if not isinstance(run.timestep, AdaptiveTimestepConfig):
-        raise TypeError(f"unsupported timestep config: {type(run.timestep).__name__}")
-    return run_adaptive_timesteps(run)
+    if isinstance(run.timestep, AdaptiveTimestepConfig):
+        return run_adaptive_timesteps(run)
+    if isinstance(run.timestep, AdaptiveErrorControlledTimestepConfig):
+        return run_error_controlled_timesteps(run)
+    raise TypeError(f"unsupported timestep config: {type(run.timestep).__name__}")

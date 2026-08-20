@@ -26,6 +26,7 @@ class SolverRun:
     next_checkpoint_time: float | None = field(init=False)
     output_every_accepted_step: bool = field(init=False)
     kinetic_solver: Any | None = None
+    kinetic_specs: Any | None = None
     conditions: Any | None = None
     initial_state: Any | None = None
     last_record: dict[str, Any] | None = None
@@ -39,6 +40,9 @@ class SolverRun:
     checkpoint_count: int = 0
     kinetic_attempts: int = 0
     solver_failed_attempts: int = 0
+    reaktoro_solve_calls: int = 0
+    temporal_error_rejections: int = 0
+    event_localizations: int = 0
     retries_at_current_time: int = 0
     rejection_reason_counts: dict[str, int] = field(default_factory=dict)
 
@@ -108,6 +112,11 @@ class SolverRun:
             "checkpoint_count": self.checkpoint_count,
             "number_of_internal_attempts": self.kinetic_attempts,
             "number_of_solver_failed_attempts": self.solver_failed_attempts,
+            "number_of_reaktoro_solve_calls": (
+                self.reaktoro_solve_calls or self.kinetic_attempts
+            ),
+            "number_of_temporal_error_rejections": self.temporal_error_rejections,
+            "number_of_event_localizations": self.event_localizations,
             "retries_at_final_accepted_time": self.retries_at_current_time,
             "rejection_reason_counts": self.rejection_reason_counts,
             "cancellation_requested": cancellation_requested,

@@ -170,9 +170,10 @@ are closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
 - `solver.workflow` explicitly controls equilibrium and kinetic constraint
   staging.
 - `solver.timestep` owns duration and timestep control.
-- Fixed, adaptive, and adaptive-long-horizon timesteps are implemented with
-  standard solvers. Checkpoint writing is implemented; automatic restart and
-  smart solver backends remain unavailable.
+- Fixed, legacy solver-feasibility `adaptive`, and explicit Richardson
+  `adaptive_error_controlled` timesteps use standard solvers. Existing
+  `mode: adaptive` cases retain their original controller. Checkpoint writing
+  is implemented; automatic restart and smart solver backends remain unavailable.
 - Objective 1 audit outputs are active case-YAML fields. Budgets and
   inventories use only explicitly configured species/mineral stoichiometry.
   Reaction-rate diagnostics use Reaktoro's attached runtime rates and live

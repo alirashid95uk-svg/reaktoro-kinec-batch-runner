@@ -81,6 +81,93 @@ class AdaptiveStepSizeConfig(StrictModel):
     max_retries_per_step: int = Field(ge=0)
 
 
+class ErrorControlledStepSizeConfig(StrictModel):
+    dt_initial: TimeValue
+    dt_min: TimeValue
+    dt_max: TimeValue
+    safety_factor: float = Field(gt=0, lt=1, allow_inf_nan=False)
+    growth_factor: float = Field(gt=1, allow_inf_nan=False)
+    shrink_factor: float = Field(gt=0, lt=1, allow_inf_nan=False)
+    solver_failure_shrink_factor: float = Field(gt=0, lt=1, allow_inf_nan=False)
+    max_retries_per_step: int = Field(ge=0)
+
+
+class MolarValue(StrictModel):
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: Literal["mol"]
+
+
+class MolarRateValue(StrictModel):
+    value: float = Field(gt=0, allow_inf_nan=False)
+    unit: Literal["mol/s"]
+
+
+class ControlledMineralTolerance(StrictModel):
+    name: str = Field(min_length=1)
+    absolute_tolerance: MolarValue
+    reference_floor: MolarValue
+
+
+class RichardsonErrorControlConfig(StrictModel):
+    temporal_order: float = Field(gt=0, allow_inf_nan=False)
+    relative_tolerance: float = Field(ge=0, allow_inf_nan=False)
+    negative_amount_tolerance: MolarValue
+    controlled_minerals: list[ControlledMineralTolerance] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_scales(self) -> "RichardsonErrorControlConfig":
+        names = [item.name for item in self.controlled_minerals]
+        if len(names) != len(set(names)):
+            raise ValueError("error-control mineral names must be unique")
+        for item in self.controlled_minerals:
+            if item.absolute_tolerance.value == 0 and (
+                self.relative_tolerance == 0 or item.reference_floor.value == 0
+            ):
+                raise ValueError(
+                    f"error-control tolerance scale for {item.name} can become zero"
+                )
+        return self
+
+
+class HardMineralExhaustionConfig(StrictModel):
+    amount_tolerance: MolarValue
+    time_tolerance: TimeValue
+    restart_dt: TimeValue
+    max_localizations: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_amount_tolerance(self) -> "HardMineralExhaustionConfig":
+        if self.amount_tolerance.value <= 0.0:
+            raise ValueError("hard exhaustion amount_tolerance must be positive")
+        return self
+
+
+class SoftEventConfig(StrictModel):
+    timestep_cap_factor: float = Field(gt=0, lt=1, allow_inf_nan=False)
+    saturation_index_crossing: bool
+    max_pH_change: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    secondary_mineral_appearance: MolarValue | None = None
+    max_reaction_rate_relative_change: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False
+    )
+    reaction_rate_floor: MolarRateValue | None = None
+
+    @model_validator(mode="after")
+    def validate_rate_fields(self) -> "SoftEventConfig":
+        if (self.max_reaction_rate_relative_change is None) != (
+            self.reaction_rate_floor is None
+        ):
+            raise ValueError(
+                "soft reaction-rate events require both threshold and mol/s floor"
+            )
+        return self
+
+
+class GeochemicalEventsConfig(StrictModel):
+    hard_mineral_exhaustion: HardMineralExhaustionConfig | None
+    soft: SoftEventConfig | None
+
+
 class FixedTimestepConfig(StrictModel):
     mode: Literal["fixed"]
     time: DurationConfig
@@ -142,8 +229,52 @@ class AdaptiveTimestepConfig(StrictModel):
         return self
 
 
+class AdaptiveErrorControlledTimestepConfig(StrictModel):
+    mode: Literal["adaptive_error_controlled"]
+    time: DurationConfig
+    step_size: ErrorControlledStepSizeConfig
+    error_control: RichardsonErrorControlConfig
+    events: GeochemicalEventsConfig
+    max_internal_steps: int = Field(default=100_000, gt=0)
+    output_schedule: OutputScheduleConfig
+    checkpoint_schedule: CheckpointScheduleConfig = Field(
+        default_factory=CheckpointScheduleConfig
+    )
+
+    @model_validator(mode="after")
+    def validate_mode(self) -> "AdaptiveErrorControlledTimestepConfig":
+        units = [
+            self.time.duration_unit,
+            self.step_size.dt_initial.unit,
+            self.step_size.dt_min.unit,
+            self.step_size.dt_max.unit,
+        ]
+        units.extend(item.unit for item in self.output_schedule.explicit_times)
+        if self.output_schedule.logarithmic is not None:
+            units.extend(
+                [
+                    self.output_schedule.logarithmic.start.unit,
+                    self.output_schedule.logarithmic.end.unit,
+                ]
+            )
+        units.extend(item.unit for item in self.checkpoint_schedule.times)
+        hard = self.events.hard_mineral_exhaustion
+        if hard is not None:
+            units.extend([hard.time_tolerance.unit, hard.restart_dt.unit])
+        uses_years = any(unit in {"year", "years"} for unit in units)
+        if uses_years and self.time.year_definition_days is None:
+            raise ValueError(
+                "year_definition_days is required when error-controlled times use years"
+            )
+        if not uses_years and self.time.year_definition_days is not None:
+            raise ValueError(
+                "year_definition_days is only valid when an error-controlled time uses years"
+            )
+        return self
+
+
 TimestepConfig = Annotated[
-    FixedTimestepConfig | AdaptiveTimestepConfig,
+    FixedTimestepConfig | AdaptiveTimestepConfig | AdaptiveErrorControlledTimestepConfig,
     Field(discriminator="mode"),
 ]
 

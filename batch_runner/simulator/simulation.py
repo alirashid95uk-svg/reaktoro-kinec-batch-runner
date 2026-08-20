@@ -10,9 +10,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from batch_runner.config import ResolvedCase
+from batch_runner.config import AdaptiveErrorControlledTimestepConfig, ResolvedCase
 
-from .chemistry import build_chemical_state, build_chemical_system, load_database
+from .chemistry import (
+    build_chemical_state,
+    build_chemical_system,
+    collect_row,
+    load_database,
+)
 from .diagnostics import build_diagnostics, exception_progress, failed_result
 from .kinetics import (
     build_kinetic_mapping,
@@ -21,6 +26,7 @@ from .kinetics import (
 )
 from .results import PreparedSimulation, SimulationResult
 from .solver import execute_solver
+from .solver.records import unsolved_record
 
 
 def prepare_simulation(
@@ -154,10 +160,28 @@ def run_simulation(
     rejected_steps = 0
     internal_attempts = 0
     solver_failed_attempts = 0
+    reaktoro_solve_calls = 0
     initial_state = None
     exception_traceback = None
 
     try:
+        raw_initial_state = None
+        raw_initial_row = None
+        if isinstance(
+            case.config.solver.timestep, AdaptiveErrorControlledTimestepConfig
+        ):
+            raw_initial_state = state
+            raw_initial_row = collect_row(
+                case,
+                state,
+                unsolved_record(0, "initial_state", 0.0),
+                state,
+            )
+            database = load_database(case)
+            params = load_kinetic_parameters(case)
+            system = build_chemical_system(case, database, params)
+            state = build_chemical_state(case, system)
+
         stage = "output_writing"
         case.output_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as stack:
@@ -207,7 +231,11 @@ def run_simulation(
 
             def solver_record_ready(record: dict[str, Any]) -> None:
                 nonlocal stage, accepted_time_s, accepted_steps, rejected_steps
-                nonlocal internal_attempts, solver_failed_attempts
+                nonlocal internal_attempts, solver_failed_attempts, reaktoro_solve_calls
+                reaktoro_solve_calls += int(
+                    record.get("reaktoro_solve_calls")
+                    or record.get("solver_succeeded") is not None
+                )
                 if record["dt_s"] > 0.0:
                     internal_attempts += 1
                     if record["accepted"]:
@@ -215,8 +243,8 @@ def run_simulation(
                         accepted_time_s = record["time_end_s"]
                     else:
                         rejected_steps += 1
-                    if record["solver_succeeded"] is False:
-                        solver_failed_attempts += 1
+                if record["solver_succeeded"] is False and record["dt_s"] > 0.0:
+                    solver_failed_attempts += 1
                 stage = "output_writing"
                 json.dump(record, solver_history_stream, separators=(",", ":"))
                 solver_history_stream.write("\n")
@@ -283,9 +311,14 @@ def run_simulation(
                 "boundary_row_ready": boundary_row_ready,
                 "checkpoint_ready": checkpoint_ready,
             }
+            if raw_initial_state is not None:
+                solver_kwargs["raw_initial_state"] = raw_initial_state
+                solver_kwargs["raw_initial_row"] = raw_initial_row
             if cancel_requested is not None:
                 solver_kwargs["cancel_requested"] = cancel_requested
-            initial_state, solver_progress = execute_solver(case, system, state, **solver_kwargs)
+            initial_state, solver_progress = execute_solver(
+                case, system, state, **solver_kwargs
+            )
             if event_ready is not None:
                 event_ready(
                     "stage_completed",
@@ -306,6 +339,7 @@ def run_simulation(
             rejected_steps=rejected_steps,
             internal_attempts=internal_attempts,
             solver_failed_attempts=solver_failed_attempts,
+            reaktoro_solve_calls=reaktoro_solve_calls,
             checkpoint_count=checkpoint_index,
         )
 

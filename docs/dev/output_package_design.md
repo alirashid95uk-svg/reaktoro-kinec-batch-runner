@@ -3,8 +3,9 @@
 ## Runtime Status
 
 The active runner writes the base output package plus the currently implemented
-optional Objective 1 diagnostics. Fixed and adaptive execution use the same
-output package and solver-history contract.
+optional Objective 1 diagnostics. Fixed and legacy adaptive execution retain
+the original solver-history columns. The explicit Richardson mode adds its
+branch/controller fields to the same `solver_history.csv` artifact.
 
 Only implemented output fields belong in this document. Smart-solver and
 restart fields are not active output requirements.
@@ -202,6 +203,9 @@ number_of_rejected_steps
 number_of_failed_steps
 number_of_internal_attempts
 number_of_solver_failed_attempts
+number_of_reaktoro_solve_calls
+number_of_temporal_error_rejections
+number_of_event_localizations
 requested_internal_steps
 base_internal_steps
 max_internal_steps
@@ -270,6 +274,26 @@ accepted/failed status
 iterations when available
 failure reason when available
 ```
+
+For `mode: adaptive_error_controlled`, the mode-specific extension also records:
+
+```text
+accepted time before/after the outer trial
+controller-proposed and effective h
+full, first-half, and second-half success/iterations/wall time
+actual Reaktoro calls in the outer record
+Richardson E, worst controlled mineral, raw molar error, and molar scale
+rejection reason and separate solver_failure/temporal_error_rejection flags
+event cap or detection type and its predicted/detected target time
+retry count, next h, solver reconstruction, and controller-history reset
+```
+
+One composite outer-trial row contains the subsolve evidence. The two half-step
+calls are not emitted as accepted physical timesteps. The time-zero state is
+emitted through the same boundary path as the other timestep modes.
+For `adaptive_error_controlled`, enabled time-zero reaction rates are extracted
+on a disposable identically configured system so observation cannot change the
+system-level rate cache used by the kinetic branches.
 
 Failed adaptive attempts keep accepted time unchanged. A solver history record
 is numerical evidence; it is not scientific validation.

@@ -152,6 +152,31 @@ class CaseConfig(StrictModel):
         timestep = self.solver.timestep
         if not self.kinetics.enabled and timestep.mode != "fixed":
             raise ValueError("adaptive timestep modes require kinetics.enabled: true")
+        if timestep.mode == "adaptive_error_controlled":
+            if (
+                workflow.mode
+                == "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
+                or (
+                    self.redox.enabled
+                    and self.redox.apply_during == "initial_equilibrium_only"
+                )
+            ):
+                raise ValueError(
+                    "adaptive_error_controlled does not support an initial-equilibrium stage"
+                )
+            kinetic_names = {
+                mineral.name for mineral in self.minerals if mineral.role == "kinetic"
+            }
+            controlled_names = {
+                item.name for item in timestep.error_control.controlled_minerals
+            }
+            if controlled_names != kinetic_names:
+                missing = sorted(kinetic_names - controlled_names)
+                extra = sorted(controlled_names - kinetic_names)
+                raise ValueError(
+                    "error_control.controlled_minerals must exactly match kinetic minerals; "
+                    f"missing={missing}, extra={extra}"
+                )
 
         fixed_fugacity_workflows = {
             "fixed_fugacity_initial_equilibrium_then_closed_kinetics",

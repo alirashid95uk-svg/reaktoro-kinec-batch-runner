@@ -36,6 +36,36 @@ SOLVER_HISTORY_COLUMNS = [
     "failure_reason",
     "next_dt_s",
 ]
+ERROR_CONTROL_SOLVER_HISTORY_COLUMNS = SOLVER_HISTORY_COLUMNS + [
+    "timestep_mode",
+    "accepted_time_before_s",
+    "accepted_time_after_s",
+    "proposed_dt_s",
+    "effective_dt_s",
+    "full_step_succeeded",
+    "first_half_step_succeeded",
+    "second_half_step_succeeded",
+    "full_step_iterations",
+    "first_half_step_iterations",
+    "second_half_step_iterations",
+    "full_step_wall_time_s",
+    "first_half_step_wall_time_s",
+    "second_half_step_wall_time_s",
+    "reaktoro_solve_calls",
+    "richardson_error",
+    "worst_controlled_mineral",
+    "raw_error_mol",
+    "error_tolerance_mol",
+    "scaled_error",
+    "rejection_reason",
+    "solver_failure",
+    "temporal_error_rejection",
+    "event_cap_type",
+    "event_target_time_s",
+    "retry_count",
+    "solver_reconstruction",
+    "controller_history_reset",
+]
 MINERAL_SUMMARY_COLUMNS = [
     "mineral",
     "initial_amount_mol",
@@ -87,6 +117,14 @@ def timeseries_columns(case: ResolvedCase) -> list[str]:
     if output.include_solver_columns:
         columns.extend(TIMESERIES_SOLVER_COLUMNS)
     return columns
+
+
+def solver_history_columns(case: ResolvedCase) -> list[str]:
+    return (
+        ERROR_CONTROL_SOLVER_HISTORY_COLUMNS
+        if case.config.solver.timestep.mode == "adaptive_error_controlled"
+        else SOLVER_HISTORY_COLUMNS
+    )
 
 
 def timeseries_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:

@@ -2,9 +2,11 @@
 
 ## Runtime Status
 
-The active `CaseConfig` implements fixed and adaptive timesteps, scheduled
-timeseries output, explicit accepted-state checkpoints, standard Reaktoro
-solvers, and the current postprocessing/output blocks.
+The active `CaseConfig` implements fixed timesteps, the legacy solver-feasibility
+adaptive controller, and an explicitly selected Richardson error-controlled
+adaptive controller. It also implements scheduled timeseries output, explicit
+accepted-state checkpoints, standard Reaktoro solvers, and the current
+postprocessing/output blocks.
 
 This document describes only fields accepted by the strict runtime schema.
 Unsupported or unimplemented concepts must not appear as disabled YAML
@@ -183,9 +185,12 @@ Active modes:
 ```text
 fixed
 adaptive
+adaptive_error_controlled
 ```
 
 Each mode uses strict fields. Fields from another mode are rejected.
+`adaptive_error_controlled` currently supports direct kinetic workflows only;
+configurations that require an initial-equilibrium stage are rejected.
 
 ### 8.1 Fixed
 
@@ -294,6 +299,67 @@ Rules:
   timestep, and retry from the same accepted time;
 - adaptive preflight rejects cases whose lower bound on accepted steps exceeds
   `max_internal_steps`.
+
+`mode: adaptive` retains this solver-feasibility algorithm. It does not invoke
+Richardson trials and requires no configuration migration.
+
+### 8.5 Richardson Error-Controlled Adaptive
+
+```yaml
+solver:
+  timestep:
+    mode: adaptive_error_controlled
+    time:
+      duration_value: REQUIRED
+      duration_unit: REQUIRED
+    step_size:
+      dt_initial: {value: REQUIRED, unit: REQUIRED}
+      dt_min: {value: REQUIRED, unit: REQUIRED}
+      dt_max: {value: REQUIRED, unit: REQUIRED}
+      safety_factor: REQUIRED
+      growth_factor: REQUIRED
+      shrink_factor: REQUIRED
+      solver_failure_shrink_factor: REQUIRED
+      max_retries_per_step: REQUIRED
+    error_control:
+      temporal_order: REQUIRED
+      relative_tolerance: REQUIRED
+      negative_amount_tolerance: {value: REQUIRED, unit: mol}
+      controlled_minerals:
+        - name: REQUIRED_KINETIC_MINERAL
+          absolute_tolerance: {value: REQUIRED, unit: mol}
+          reference_floor: {value: REQUIRED, unit: mol}
+    events:
+      hard_mineral_exhaustion: null
+      soft: null
+    max_internal_steps: 100000
+    output_schedule: REQUIRED
+    checkpoint_schedule: {enabled: false, times: []}
+```
+
+Rules:
+
+- every configured kinetic mineral appears exactly once in
+  `error_control.controlled_minerals`;
+- `temporal_order` is required, finite, positive, and has no default; it is a
+  configured estimator assumption until representative temporal-convergence
+  evidence establishes it;
+- absolute tolerances, reference floors, and the non-negative admissibility
+  tolerance are explicit finite molar values;
+- the tolerance scale must remain positive at zero mineral amount;
+- `0 < safety_factor < 1`, `growth_factor > 1`, and both shrink factors lie
+  strictly between zero and one;
+- `dt_min <= dt_initial <= dt_max` after unit resolution;
+- solver-failure shrinkage is distinct from temporal-error rejection;
+- `events.hard_mineral_exhaustion` and `events.soft` are explicitly configured
+  or set to `null`; no event thresholds are hidden defaults;
+- a hard-exhaustion block requires a strictly positive molar amount tolerance,
+  time tolerance, post-event restart timestep, and localisation limit;
+- a soft-event block may enable SI crossings, a maximum pH change, secondary
+  mineral appearance in mol, and paired reaction-rate threshold/floor values in
+  mol/s; all soft events cap only a subsequent proposal;
+- output/checkpoint/final target landing can shorten a trial below `dt_min`, but
+  a rejected sub-minimum exact-landing trial is never retried with a larger step.
 
 ## 9. Time Units
 

@@ -14,6 +14,7 @@ from typing import Any
 from ._base import PROJECT_ROOT, TimeUnit
 from .case import CaseConfig
 from .timestep import (
+    AdaptiveErrorControlledTimestepConfig,
     CheckpointScheduleConfig,
     FixedTimestepConfig,
     OutputScheduleConfig,
@@ -41,6 +42,8 @@ class ResolvedCase:
     checkpoint_times_s: tuple[float, ...]
     extra_solver_targets_s: tuple[float, ...]
     minimum_accepted_steps: int
+    hard_event_time_tolerance_s: float
+    hard_event_restart_dt_s: float
 
     @property
     def base_internal_step_count(self) -> int:
@@ -161,6 +164,13 @@ class ResolvedCase:
             data["solver"]["timestep"]["derived_dt_initial_s"] = self.dt_initial_s
             data["solver"]["timestep"]["derived_dt_min_s"] = self.dt_min_s
             data["solver"]["timestep"]["derived_dt_max_s"] = self.dt_max_s
+            if self.config.solver.timestep.mode == "adaptive_error_controlled":
+                data["solver"]["timestep"]["derived_hard_event_time_tolerance_s"] = (
+                    self.hard_event_time_tolerance_s or None
+                )
+                data["solver"]["timestep"]["derived_hard_event_restart_dt_s"] = (
+                    self.hard_event_restart_dt_s or None
+                )
         data["solver"]["timestep"]["estimated_result_rows"] = self.requested_output_row_count
         data["solver"]["timestep"]["minimum_possible_accepted_steps"] = (
             self.minimum_accepted_steps
@@ -212,6 +222,8 @@ def resolve_case(
     checkpoint_times_s: tuple[float, ...] = ()
     extra_solver_targets_s: tuple[float, ...] = ()
     minimum_accepted_steps = 0
+    hard_event_time_tolerance_s = 0.0
+    hard_event_restart_dt_s = 0.0
     if config.kinetics.enabled:
         timestep = config.solver.timestep
         year_days = timestep.time.year_definition_days
@@ -281,6 +293,33 @@ def resolve_case(
                 raise ValueError("resolved adaptive timestep values must be finite")
             if not dt_min <= dt_initial <= dt_max:
                 raise ValueError("adaptive timestep requires dt_min <= dt_initial <= dt_max")
+            if isinstance(timestep, AdaptiveErrorControlledTimestepConfig):
+                hard = timestep.events.hard_mineral_exhaustion
+                if hard is not None:
+                    event_time_tolerance = _time_to_seconds_decimal(
+                        hard.time_tolerance.value,
+                        hard.time_tolerance.unit,
+                        year_days,
+                    )
+                    event_restart_dt = _time_to_seconds_decimal(
+                        hard.restart_dt.value,
+                        hard.restart_dt.unit,
+                        year_days,
+                    )
+                    hard_event_time_tolerance_s = float(event_time_tolerance)
+                    hard_event_restart_dt_s = float(event_restart_dt)
+                    if not all(
+                        isfinite(value)
+                        for value in (
+                            hard_event_time_tolerance_s,
+                            hard_event_restart_dt_s,
+                        )
+                    ):
+                        raise ValueError("resolved hard-event times must be finite")
+                    if not dt_min <= event_restart_dt <= dt_max:
+                        raise ValueError(
+                            "hard-event restart_dt requires dt_min <= restart_dt <= dt_max"
+                        )
             forced_targets = set(checkpoint_times_s)
             if resolved_output_times_s is not None:
                 forced_targets.update(resolved_output_times_s)
@@ -335,6 +374,8 @@ def resolve_case(
         checkpoint_times_s=checkpoint_times_s,
         extra_solver_targets_s=extra_solver_targets_s,
         minimum_accepted_steps=minimum_accepted_steps,
+        hard_event_time_tolerance_s=hard_event_time_tolerance_s,
+        hard_event_restart_dt_s=hard_event_restart_dt_s,
     )
 
 

@@ -56,6 +56,36 @@ SOLVER_HISTORY_COLUMNS = [
     "failure_reason",
     "next_dt_s",
 ]
+ERROR_CONTROL_SOLVER_HISTORY_COLUMNS = SOLVER_HISTORY_COLUMNS + [
+    "timestep_mode",
+    "accepted_time_before_s",
+    "accepted_time_after_s",
+    "proposed_dt_s",
+    "effective_dt_s",
+    "full_step_succeeded",
+    "first_half_step_succeeded",
+    "second_half_step_succeeded",
+    "full_step_iterations",
+    "first_half_step_iterations",
+    "second_half_step_iterations",
+    "full_step_wall_time_s",
+    "first_half_step_wall_time_s",
+    "second_half_step_wall_time_s",
+    "reaktoro_solve_calls",
+    "richardson_error",
+    "worst_controlled_mineral",
+    "raw_error_mol",
+    "error_tolerance_mol",
+    "scaled_error",
+    "rejection_reason",
+    "solver_failure",
+    "temporal_error_rejection",
+    "event_cap_type",
+    "event_target_time_s",
+    "retry_count",
+    "solver_reconstruction",
+    "controller_history_reset",
+]
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -233,7 +263,13 @@ def audit(output_dir: Path) -> dict[str, Any]:
     if "solver_history.csv" in actual:
         with (output_dir / "solver_history.csv").open(newline="", encoding="utf-8") as stream:
             columns = csv.DictReader(stream).fieldnames or []
-        if columns != SOLVER_HISTORY_COLUMNS:
+        expected_history_columns = (
+            ERROR_CONTROL_SOLVER_HISTORY_COLUMNS
+            if manifest.get("time_semantics", {}).get("timestep_mode")
+            == "adaptive_error_controlled"
+            else SOLVER_HISTORY_COLUMNS
+        )
+        if columns != expected_history_columns:
             errors.append("solver_history columns or ordering disagree with schema v4")
         solver_rows = _read_csv(output_dir / "solver_history.csv", errors)
         accepted_positive_dt = 0
