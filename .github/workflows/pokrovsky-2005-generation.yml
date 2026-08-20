@@ -3,6 +3,8 @@ name: Pokrovsky 2005 case generation
 on:
   push:
     branches: [pokrovsky-2005-batch-reproduction]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
