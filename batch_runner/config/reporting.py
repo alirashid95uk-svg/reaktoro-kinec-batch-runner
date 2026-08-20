@@ -12,6 +12,7 @@ from .timestep import TimeValue
 
 class PostprocessingConfig(StrictModel):
     requested_species: list[str]
+    requested_elements: list[str] = Field(default_factory=list)
     requested_minerals: list[str]
     aqueous_molalities: bool
     saturation_indices: bool
