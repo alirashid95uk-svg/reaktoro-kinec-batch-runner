@@ -56,6 +56,24 @@ Only the time-zero reaction rate is used for the Pokrovsky initial-rate
 diagnostic, so the later integration interval is not interpreted as part of
 the experiment.
 
+## Postprocessing the experimental comparison
+
+Run `tools/postprocess_pokrovsky_2005.py` after the three batch cases. It writes:
+
+- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison.csv`;
+- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison_summary.json`.
+
+The postprocessor does not overwrite or rescale the batch-runner rate. It keeps
+three quantities distinct: the raw time-zero PHREEQC bulk-state Calcite rate,
+the transport-corrected Pokrovsky intrinsic benchmark, and a Weiss acid-term
+diagnostic evaluated using Pokrovsky's published surface proton activity.
+
+This is the maximum source-supported postprocessing correction currently made.
+A full surface-state Palandri-Kharaka rate is not generated because the complete
+surface carbonate speciation is not supplied by the benchmark. Likewise, a
+postprocessor cannot replace the underlying PHREEQC thermodynamics with
+MINTEQA2/Davies or reconstruct the rotating-disc hydrodynamic boundary layer.
+
 ## Explicit compatibility limitations
 
 These cases reproduce the source-supported bulk temperature, NaCl preparation,
@@ -78,11 +96,12 @@ Accordingly, agreement or disagreement with the intrinsic benchmark must be
 reported as a **batch-model diagnostic**, not as a complete reproduction of the
 rotating-disc experiment.
 
-## Generate and run
+## Generate, run, and postprocess
 
 ```bash
 python tools/generate_pokrovsky_2005_cases.py
 python runner.py cases/pokrovsky_2005/pokrovsky_2005_2atm.yaml
 python runner.py cases/pokrovsky_2005/pokrovsky_2005_10atm.yaml
 python runner.py cases/pokrovsky_2005/pokrovsky_2005_50atm.yaml
+python tools/postprocess_pokrovsky_2005.py
 ```
