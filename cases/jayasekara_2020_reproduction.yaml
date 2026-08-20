@@ -188,14 +188,13 @@ solver:
         - {value: 63.0, unit: days}
         - {value: 126.0, unit: days}
         - {value: 259.0, unit: days}
-  
 
 postprocessing:
-  # Element-total ICP-OES concentrations are experimental observables, but this
-  # runner's requested_species field is species-based. Keep the species request
-  # conservative rather than pretending a single aqueous species equals an
-  # analytical element total.
+  # Element-total ICP-OES concentrations are experimental observables. Keep
+  # requested_species species-based and record element totals independently via
+  # Reaktoro AqueousProps.elementMolality for the validation figures.
   requested_species: [H2O]
+  requested_elements: [Na, Ca, Mg, Si, Al, Fe, K]
   requested_minerals:
     [Quartz, Illite, Clinochlore-14A, Anorthite, Albite, K-Feldspar,
      Kaolinite, Goethite, Pyrite, Montmor-Ca, Gibbsite, Chalcedony, Fe(OH)3]
