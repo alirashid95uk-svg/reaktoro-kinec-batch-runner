@@ -28,6 +28,11 @@ def collect_row(
         row[f"species_amount_mol::{species_name}"] = float(state.speciesAmount(species_name))
         row[f"species_molality_mol_kgw::{species_name}"] = float(aqueous.speciesMolality(species_name))
 
+    for element_name in case.config.postprocessing.requested_elements:
+        row[f"element_molality_mol_kgw::{element_name}"] = float(
+            aqueous.elementMolality(element_name)
+        )
+
     for species_name in _budget_species_names(case):
         row.setdefault(f"species_amount_mol::{species_name}", float(state.speciesAmount(species_name)))
 
