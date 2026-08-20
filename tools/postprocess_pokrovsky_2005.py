@@ -26,6 +26,7 @@ import json
 import math
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,8 @@ KINETICS = ROOT / "data" / "kinetics" / "PalandriKharaka_pokrovsky_2005_weiss_ca
 OUTPUT_ROOT = ROOT / "outputs" / "pokrovsky_2005"
 RESULT_CSV = OUTPUT_ROOT / "pokrovsky_2005_intrinsic_comparison.csv"
 RESULT_JSON = OUTPUT_ROOT / "pokrovsky_2005_intrinsic_comparison_summary.json"
+FIGURE_PNG = OUTPUT_ROOT / "pokrovsky_2005_intrinsic_comparison.png"
+FIGURE_PDF = OUTPUT_ROOT / "pokrovsky_2005_intrinsic_comparison.pdf"
 
 POKROVSKY_DOI = "10.1016/j.chemgeo.2004.12.012"
 WEISS_DOI = "10.1016/j.apgeochem.2025.106611"
@@ -95,6 +98,80 @@ def log10_residual(model: float, target: float) -> float:
 
 def log10_rmse(residuals: list[float]) -> float:
     return math.sqrt(sum(value * value for value in residuals) / len(residuals))
+
+
+def make_comparison_figure(rows: list[dict[str, object]]) -> None:
+    """Write an academic-style experimental/model flux comparison figure."""
+    pressures = [float(row["pCO2_atm"]) for row in rows]
+    experimental = [float(row["experimental_intrinsic_flux_mol_m2_s"]) for row in rows]
+    experimental_low = [float(row["experimental_flux_low_from_kC"]) for row in rows]
+    experimental_high = [float(row["experimental_flux_high_from_kC"]) for row in rows]
+    runner = [float(row["runner_time0_flux_mol_m2_s"]) for row in rows]
+    weiss_surface_acid = [float(row["weiss_surface_acid_flux_mol_m2_s"]) for row in rows]
+
+    yerr_lower = [value - low for value, low in zip(experimental, experimental_low)]
+    yerr_upper = [high - value for value, high in zip(experimental, experimental_high)]
+
+    fig, ax = plt.subplots(figsize=(7.2, 5.2))
+
+    # Experimental observations are discrete benchmark points, not a fitted
+    # or interpolated curve; no line is drawn between them.
+    ax.errorbar(
+        pressures,
+        experimental,
+        yerr=[yerr_lower, yerr_upper],
+        fmt="o",
+        linestyle="none",
+        markersize=6.5,
+        elinewidth=1.1,
+        capsize=3,
+        label="Pokrovsky intrinsic flux",
+        zorder=3,
+    )
+
+    # Model outputs are connected only to guide the eye across the three
+    # evaluated pCO2 conditions.
+    ax.plot(
+        pressures,
+        runner,
+        marker="s",
+        linewidth=1.8,
+        markersize=6,
+        label="Batch-runner time-zero Calcite flux",
+        zorder=2,
+    )
+    ax.plot(
+        pressures,
+        weiss_surface_acid,
+        marker="^",
+        linestyle="--",
+        linewidth=1.8,
+        markersize=6,
+        label=r"Weiss acid term at published surface $a_{H^+}$",
+        zorder=2,
+    )
+
+    ax.set_yscale("log")
+    ax.set_xlabel(r"$p_{CO_2}$ (atm)")
+    ax.set_ylabel(r"Dissolution flux (mol m$^{-2}$ s$^{-1}$)")
+    ax.set_title("Calcite dissolution: Pokrovsky et al. (2005) benchmark")
+    ax.set_xticks(pressures, [str(int(value)) for value in pressures])
+    ax.grid(True, which="major", axis="y", alpha=0.35)
+    ax.legend(frameon=False, fontsize=8.5)
+
+    fig.text(
+        0.5,
+        0.018,
+        r"Error bars: reported $k_C$ regression uncertainty. "
+        r"Weiss surface-$H^+$ curve is an acid-mechanism diagnostic, not a full surface-state total rate.",
+        ha="center",
+        va="bottom",
+        fontsize=8,
+    )
+    fig.tight_layout(rect=(0.0, 0.065, 1.0, 1.0))
+    fig.savefig(FIGURE_PNG, dpi=300, bbox_inches="tight")
+    fig.savefig(FIGURE_PDF, bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> None:
@@ -161,6 +238,8 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
 
+    make_comparison_figure(rows)
+
     summary = {
         "pokrovsky_source_doi": POKROVSKY_DOI,
         "weiss_source_doi": WEISS_DOI,
@@ -169,6 +248,8 @@ def main() -> None:
         "runner_time0_log10_rmse": log10_rmse(raw_residuals),
         "weiss_surface_acid_log10_rmse": log10_rmse(surface_acid_residuals),
         "max_abs_runner_minus_published_bulk_pH": max(abs(value) for value in bulk_pH_deltas),
+        "figure_png": str(FIGURE_PNG.relative_to(ROOT)),
+        "figure_pdf": str(FIGURE_PDF.relative_to(ROOT)),
         "interpretation": (
             "The postprocessor does not alter runner outputs or reconstruct rotating-disc transport. "
             "It separates the raw PHREEQC bulk-state prediction from a source-supported surface-H+ "
@@ -179,6 +260,8 @@ def main() -> None:
 
     print(f"wrote {RESULT_CSV.relative_to(ROOT)}")
     print(f"wrote {RESULT_JSON.relative_to(ROOT)}")
+    print(f"wrote {FIGURE_PNG.relative_to(ROOT)}")
+    print(f"wrote {FIGURE_PDF.relative_to(ROOT)}")
     print(f"runner_time0_log10_rmse={summary['runner_time0_log10_rmse']:.6g}")
     print(f"weiss_surface_acid_log10_rmse={summary['weiss_surface_acid_log10_rmse']:.6g}")
     print(
