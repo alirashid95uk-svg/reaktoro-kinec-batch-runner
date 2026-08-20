@@ -31,6 +31,10 @@ jobs:
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_10atm.yaml --overwrite
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_50atm.yaml --overwrite
 
+      - name: Postprocess committed Pokrovsky comparison
+        shell: bash -el {0}
+        run: python tools/postprocess_pokrovsky_2005.py
+
       - name: Generate source-traced Pokrovsky cases
         shell: bash -el {0}
         run: python tools/generate_pokrovsky_2005_cases.py
@@ -41,6 +45,10 @@ jobs:
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_2atm.yaml --overwrite
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_10atm.yaml --overwrite
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_50atm.yaml --overwrite
+
+      - name: Postprocess regenerated Pokrovsky comparison
+        shell: bash -el {0}
+        run: python tools/postprocess_pokrovsky_2005.py
 
       - name: Upload generated cases and outputs
         uses: actions/upload-artifact@v4
