@@ -61,12 +61,27 @@ the experiment.
 Run `tools/postprocess_pokrovsky_2005.py` after the three batch cases. It writes:
 
 - `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison.csv`;
-- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison_summary.json`.
+- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison_summary.json`;
+- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison.png`;
+- `outputs/pokrovsky_2005/pokrovsky_2005_intrinsic_comparison.pdf`.
 
 The postprocessor does not overwrite or rescale the batch-runner rate. It keeps
 three quantities distinct: the raw time-zero PHREEQC bulk-state Calcite rate,
 the transport-corrected Pokrovsky intrinsic benchmark, and a Weiss acid-term
 diagnostic evaluated using Pokrovsky's published surface proton activity.
+
+The generated figure is designed as an academic model-versus-experiment plot:
+
+- experimental intrinsic data are discrete points with **no joining line**;
+- vertical error bars are the stored reported `kC` regression bounds;
+- batch-runner time-zero Calcite flux is a solid model curve with markers;
+- the Weiss surface-H+ acid-term diagnostic is a dashed curve with markers;
+- the dissolution-flux axis is logarithmic;
+- the figure caption explicitly states that the Weiss surface-H+ curve is a
+  partial acid-mechanism diagnostic, not a full surface-state total rate.
+
+The model lines connect only the three explicitly evaluated pCO2 conditions to
+guide the eye; they are not fitted interpolation functions.
 
 This is the maximum source-supported postprocessing correction currently made.
 A full surface-state Palandri-Kharaka rate is not generated because the complete
