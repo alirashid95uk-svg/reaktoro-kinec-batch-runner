@@ -11,7 +11,7 @@ DOI `10.1016/j.chemgeo.2004.12.012`.
 
 Kinetic formulation used for the model comparison: Weiss et al. (2026),
 *Applied Geochemistry* 196, 106611, DOI
-`10.1016/j.apgeochem.2025.106611`.  The Calcite-only parameter file is
+`10.1016/j.apgeochem.2025.106611`. The Calcite-only parameter file is
 `data/kinetics/PalandriKharaka_pokrovsky_2005_weiss_calcite.yaml`.
 
 ## Conditions represented
@@ -25,24 +25,36 @@ conditions used by the Validation-Pokrovsky project:
 | 10 atm | 25 degC | 0.1 mol/L | 3.45 | 4.19 |
 | 50 atm | 25 degC | 0.1 mol/L | 3.15 | 4.30 |
 
+The batch-runner schema requires pressure in bar. The stored 2.0265, 10.1325,
+and 50.6625 bar values use the `ATM_TO_PA = 101325.0` conversion already present
+in the Validation-Pokrovsky calculation code; no additional pressure correction
+is introduced here.
+
 The exact intrinsic-flux targets and the narrow reported kC regression
-uncertainty bounds are in the benchmark CSV.  The flux values are project
+uncertainty bounds are in the benchmark CSV. The flux values are project
 benchmark values derived from the published kC and surface proton activity;
 they are not directly tabulated as fluxes in the paper.
 
 ## Why the cases are pre-generated
 
-The batch runner constructs Calcite as a kinetic phase.  Running its
+The batch runner constructs Calcite as a kinetic phase. Running its
 `fixed_fugacity_initial_equilibrium_then_closed_kinetics` workflow would put
 that Calcite phase into the initial equilibrium calculation, which is not the
-Pokrovsky experimental preparation.  The generator therefore equilibrates the
+Pokrovsky experimental preparation. The generator therefore equilibrates the
 CO2-NaCl fluid **without Calcite**, writes the resulting aqueous species amounts
 and remaining pure-CO2 gas amount into each case YAML, and only then adds
 Calcite as a kinetic mineral.
 
 The generated cases use the runner's normal `closed_kinetics` workflow with a
-finite pure-CO2 gas reservoir.  The time-zero row in `reaction_rates.csv` is
-the intended batch-model rate comparison point.
+finite pure-CO2 gas reservoir. The time-zero row in `reaction_rates.csv` is the
+intended batch-model rate comparison point.
+
+The required numerical run controls are **not experimental values**. The 60 s
+duration and 10 s fixed timestep are copied from the repository's existing
+`cases/calcite_quartz_illite_development.yaml` canonical Calcite software case.
+Only the time-zero reaction rate is used for the Pokrovsky initial-rate
+diagnostic, so the later integration interval is not interpreted as part of
+the experiment.
 
 ## Explicit compatibility limitations
 
@@ -58,8 +70,9 @@ They do **not** reproduce all of Pokrovsky's experimental physics:
 - the 1 mol Calcite amount and 1 m2 surface are the same computational
   rate-normalisation probe used by the Validation-Pokrovsky code, not measured
   rotating-disc mass or area values;
-- the 1 second step is a project numerical observation interval; only the
-  time-zero reaction rate should be treated as the initial-rate diagnostic.
+- the finite 10 mol pure-CO2 reservoir is likewise the Validation-Pokrovsky
+  computational gas-reservoir choice and is checked to remain present during
+  fluid pre-equilibration; it is not a reported experimental gas inventory.
 
 Accordingly, agreement or disagreement with the intrinsic benchmark must be
 reported as a **batch-model diagnostic**, not as a complete reproduction of the
