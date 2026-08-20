@@ -22,10 +22,10 @@
 #   an experimental parameter.
 
 case:
-  name: jayasekara_2020_reproduction
+  name: jayasekara_2020_reproduction_Abrine
 
 paths:
-  output_dir: outputs/jayasekara_2020_reproduction
+  output_dir: outputs/jayasekara_2020_reproduction_Abrine
 
 database:
   source: embedded
@@ -40,12 +40,12 @@ physical:
 
 brine:
   aqueous_elements: [H, O, Na, Cl, Si, Al, Fe, K, Ca, Mg, S, C]
-  species_amounts:
-    H2O: {value: 1.0, unit: kg}
-    # 4.5 wt% NaCl interpreted on a solution-mass basis:
-    # (45 g / 58.44277 g mol-1) / 0.955 kg H2O = 0.8062660077 mol kgw-1.
-    Na+: {value: 0.8062660077228978, unit: mol}
-    Cl-: {value: 0.8062660077228978, unit: mol}
+  element_amounts:
+    H:  {value: 111.05065020155693, unit: mol}
+    O:  {value: 57.854747959971405, unit: mol}
+    C:  {value: 1.1647114295964651, unit: mol}
+    Na: {value: 0.8062660077228982, unit: mol}
+    Cl: {value: 0.8062660077228987, unit: mol}
 
 co2:
   mode: fixed_fugacity
