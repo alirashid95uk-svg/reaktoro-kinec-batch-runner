@@ -255,14 +255,14 @@ def test_native_palandri_uses_mineral_and_other_names_and_kinec_is_explicit(
 
     raw = _source_case_with_output(tmp_path / "missing-palandri")
     raw["kinetics"] = {"enabled": True}
-    raw["minerals"][0]["name"] = "Montmor-Ca"
-    raw["postprocessing"]["requested_minerals"] = ["Montmor-Ca"]
+    raw["minerals"][0]["name"] = "Chalcedony"
+    raw["postprocessing"]["requested_minerals"] = ["Chalcedony"]
     case = load_case(_write_case(tmp_path, raw))
     mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
     with pytest.raises(ValueError, match="missing palandri_kharaka parameter record"):
         require_valid_kinetic_mapping(mapping)
 
-    raw["paths"]["output_dir"] = str(tmp_path / "kinec-montmor")
+    raw["paths"]["output_dir"] = str(tmp_path / "kinec-chalcedony")
     raw["kinetics"] = {"enabled": True, "model": "kinec"}
     case = load_case(_write_case(tmp_path, raw))
     mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
