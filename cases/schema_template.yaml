@@ -20,8 +20,13 @@ physical:
 
 brine:
   aqueous_elements: [REQUIRED]
+  # Choose exactly one initialization mapping. species_amounts is the
+  # backward-compatible explicit-species form.
   species_amounts:
     REQUIRED_SPECIES_NAME: {value: TBD_SOURCE_REQUIRED, unit: REQUIRED}
+  # Alternative: remove species_amounts and use conserved aqueous totals.
+  # element_amounts:
+  #   REQUIRED_ELEMENT_SYMBOL: {value: TBD_SOURCE_REQUIRED, unit: REQUIRED}
 
 co2:
   mode: REQUIRED  # disabled | finite | fixed_fugacity

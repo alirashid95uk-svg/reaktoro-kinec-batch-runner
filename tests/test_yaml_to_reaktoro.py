@@ -98,6 +98,23 @@ def test_finite_co2_custom_kinec_equivalent():
     assert "kinetic_solver.precondition" not in code
 
 
+def test_element_total_brine_equivalent_uses_material_and_restrictions():
+    case = _case()
+    del case["brine"]["species_amounts"]
+    case["brine"]["element_amounts"] = {
+        "H": {"value": 2.0, "unit": "mol"},
+        "O": {"value": 1.0, "unit": "mol"},
+    }
+
+    code = _generate(case)
+
+    assert "material = rkt.Material(system)" in code
+    assert "rkt.ChemicalFormula('H'), 2.0, 'mol'" in code
+    assert "restrictions.cannotReact('Calcite')" in code
+    assert "state = material.equilibrate(" in code
+    assert "material.result().succeeded()" in code
+
+
 def test_adaptive_solver_failure_rollback_and_retry_are_emitted():
     case = _case()
     case["solver"]["workflow"] = {

@@ -48,9 +48,7 @@ brine:
     Cl: {value: 0.8062660077228987, unit: mol}
 
 co2:
-  mode: fixed_fugacity
-  gas_species: CO2(g)
-  fugacity_bar: 57.77
+  mode: disabled
 
 redox:
   enabled: false
@@ -161,7 +159,7 @@ minerals:
 
 solver:
   workflow:
-    mode: fixed_fugacity_during_kinetic_steps
+    mode: closed_kinetics
 
   timestep:
     mode: adaptive

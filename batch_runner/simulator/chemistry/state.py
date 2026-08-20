@@ -8,13 +8,16 @@ from batch_runner.config import ResolvedCase
 
 
 def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
-    state = rkt.ChemicalState(system)
-    state.temperature(case.config.physical.temperature_c, "celsius")
-    state.pressure(case.config.physical.pressure_bar, "bar")
+    if case.config.brine.species_amounts is not None:
+        state = rkt.ChemicalState(system)
+        state.temperature(case.config.physical.temperature_c, "celsius")
+        state.pressure(case.config.physical.pressure_bar, "bar")
 
-    for species_name, amount in case.config.brine.species_amounts.items():
-        _require_system_species(system, species_name)
-        state.set(species_name, amount.value, amount.unit)
+        for species_name, amount in case.config.brine.species_amounts.items():
+            _require_system_species(system, species_name)
+            state.set(species_name, amount.value, amount.unit)
+    else:
+        state = _equilibrate_element_brine(case, system)
 
     for mineral in case.config.minerals:
         if mineral.initial_amount is not None:
@@ -34,11 +37,44 @@ def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
     return state
 
 
+def _equilibrate_element_brine(case: ResolvedCase, system: Any) -> Any:
+    material = rkt.Material(system)
+    for element_name, amount in case.config.brine.element_amounts.items():
+        _require_system_element(system, element_name)
+        material.addSubstanceAmount(
+            rkt.ChemicalFormula(element_name), amount.value, amount.unit
+        )
+
+    restrictions = rkt.EquilibriumRestrictions(system)
+    for mineral in case.config.minerals:
+        restrictions.cannotReact(mineral.name)
+    if case.config.co2.mode == "finite":
+        restrictions.cannotReact(case.config.co2.gas_species)
+
+    state = material.equilibrate(
+        case.config.physical.temperature_c,
+        "celsius",
+        case.config.physical.pressure_bar,
+        "bar",
+        restrictions,
+    )
+    if not material.result().succeeded():
+        raise RuntimeError("element-total brine speciation failed during state construction")
+    return state
+
+
 def _require_system_species(system: Any, name: str) -> None:
     try:
         system.species().index(name)
     except RuntimeError as exc:
         raise ValueError(f"species is not present in the constructed chemical system: {name}") from exc
+
+
+def _require_system_element(system: Any, name: str) -> None:
+    try:
+        system.elements().index(name)
+    except RuntimeError as exc:
+        raise ValueError(f"element is not present in the constructed chemical system: {name}") from exc
 
 
 def _require_system_mineral(system: Any, name: str) -> int:

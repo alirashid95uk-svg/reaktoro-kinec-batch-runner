@@ -35,7 +35,7 @@ SCHEMA_KEYS = {
     "database": {"source", "name", "path"},
     "activity_models": {"aqueous", "gas"},
     "physical": {"temperature_c", "pressure_bar"},
-    "brine": {"aqueous_elements", "species_amounts"},
+    "brine": {"aqueous_elements", "species_amounts", "element_amounts"},
     "co2": {"mode", "gas_species", "initial_amount", "fugacity_bar"},
     "redox": {"enabled", "pe", "apply_during"},
     "kinetics": {"enabled", "model", "path"},
@@ -226,6 +226,20 @@ def _validate_structure(cfg: dict[str, Any]) -> None:
 
     for key in ("database", "activity_models", "physical", "brine", "co2", "redox", "kinetics"):
         _expect_keys(cfg[key], SCHEMA_KEYS[key], key)
+
+    brine = cfg["brine"]
+    if ("species_amounts" in brine) == ("element_amounts" in brine):
+        raise ValueError("brine requires exactly one of species_amounts or element_amounts")
+    amounts_key = "species_amounts" if "species_amounts" in brine else "element_amounts"
+    if not _expect_mapping(brine[amounts_key], f"brine.{amounts_key}"):
+        raise ValueError(f"brine.{amounts_key} must be non-empty")
+    if amounts_key == "element_amounts":
+        unknown = sorted(set(brine[amounts_key]) - set(brine["aqueous_elements"]))
+        if unknown:
+            raise ValueError(
+                "brine.element_amounts keys must be listed in brine.aqueous_elements: "
+                + ", ".join(unknown)
+            )
 
     for i, mineral in enumerate(cfg["minerals"]):
         _expect_keys(mineral, SCHEMA_KEYS["mineral"], f"minerals[{i}]")
@@ -444,16 +458,34 @@ def generate_reaktoro_code(cfg: dict[str, Any], source_path: Path) -> str:
     elif any(m["role"] == "kinetic" for m in minerals):
         raise ValueError("kinetic minerals present while kinetics.enabled is false")
 
-    lines += [
-        "system = rkt.ChemicalSystem(database, *components)",
-        "",
-        "# Initial chemical state",
-        "state = rkt.ChemicalState(system)",
-        f"state.temperature({_py(physical['temperature_c'])}, 'celsius')",
-        f"state.pressure({_py(physical['pressure_bar'])}, 'bar')",
-    ]
-    for species, amount in brine["species_amounts"].items():
-        lines += [f"state.set({_amount_code(_py(species), amount)})"]
+    lines += ["system = rkt.ChemicalSystem(database, *components)", "", "# Initial chemical state"]
+    if "species_amounts" in brine:
+        lines += [
+            "state = rkt.ChemicalState(system)",
+            f"state.temperature({_py(physical['temperature_c'])}, 'celsius')",
+            f"state.pressure({_py(physical['pressure_bar'])}, 'bar')",
+        ]
+        for species, amount in brine["species_amounts"].items():
+            lines += [f"state.set({_amount_code(_py(species), amount)})"]
+    else:
+        lines += ["material = rkt.Material(system)"]
+        for element, amount in brine["element_amounts"].items():
+            lines += [
+                "material.addSubstanceAmount("
+                f"rkt.ChemicalFormula({_py(element)}), {_py(amount['value'])}, {_py(amount['unit'])})"
+            ]
+        lines += ["restrictions = rkt.EquilibriumRestrictions(system)"]
+        for mineral in minerals:
+            lines += [f"restrictions.cannotReact({_py(mineral['name'])})"]
+        if co2["mode"] == "finite":
+            lines += [f"restrictions.cannotReact({_py(co2['gas_species'])})"]
+        lines += [
+            "state = material.equilibrate("
+            f"{_py(physical['temperature_c'])}, 'celsius', "
+            f"{_py(physical['pressure_bar'])}, 'bar', restrictions)",
+            "if not material.result().succeeded():",
+            "    raise RuntimeError('element-total brine speciation failed during state construction')",
+        ]
     for m in minerals:
         if m.get("initial_amount") is not None:
             lines += [f"state.set({_amount_code(_py(m['name']), m['initial_amount'])})"]

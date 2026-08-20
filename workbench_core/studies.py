@@ -37,6 +37,7 @@ APPROVED_PATHS = (
     (re.compile(r"^co2\.fugacity_bar$"), "number", "bar"),
     (re.compile(r"^co2\.initial_amount\.value$"), "number", None),
     (re.compile(r"^brine\.species_amounts\.[^.]+\.value$"), "number", None),
+    (re.compile(r"^brine\.element_amounts\.[^.]+\.value$"), "number", None),
     (re.compile(r"^minerals\.\d+\.initial_amount\.value$"), "number", None),
     (re.compile(r"^minerals\.\d+\.surface_area\.value$"), "number", None),
     (re.compile(r"^solver\.timestep\.time\.duration_value$"), "number", None),

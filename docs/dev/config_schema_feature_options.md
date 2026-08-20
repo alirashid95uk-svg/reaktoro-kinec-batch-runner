@@ -67,6 +67,29 @@ validation:
 outputs:
 ```
 
+### 3.1 `brine`
+
+`brine` requires exactly one non-empty initialization mapping:
+
+```yaml
+brine:
+  aqueous_elements: [H, O, Na, Cl, C]
+  species_amounts:
+    H2O: {value: 1.0, unit: kg}
+    Na+: {value: 0.8, unit: mol}
+    Cl-: {value: 0.8, unit: mol}
+```
+
+`species_amounts` sets explicit species and may represent a disequilibrium
+state. Alternatively, `element_amounts` supplies conserved aqueous element
+totals. Reaktoro equilibrates that aqueous inventory at the configured
+temperature and pressure during state construction, with configured minerals
+and finite gas excluded, before their configured amounts are set. Element keys
+must occur in `aqueous_elements` and the element inventory is electroneutral.
+Do not additionally specify H2O when H and O totals already include the water
+inventory. This state-construction speciation does not change the configured
+solver workflow or impose a fixed CO2 fugacity.
+
 ## 4. `kinetics`
 
 `kinetics` controls whether kinetic reactions exist, which supported rate model

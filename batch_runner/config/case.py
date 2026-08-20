@@ -46,7 +46,21 @@ class PhysicalConfig(StrictModel):
 
 class BrineConfig(StrictModel):
     aqueous_elements: list[str] = Field(min_length=1)
-    species_amounts: dict[str, Amount] = Field(min_length=1)
+    species_amounts: dict[str, Amount] | None = Field(default=None, min_length=1)
+    element_amounts: dict[str, Amount] | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_initialization(self) -> "BrineConfig":
+        if (self.species_amounts is None) == (self.element_amounts is None):
+            raise ValueError("brine requires exactly one of species_amounts or element_amounts")
+        if self.element_amounts is not None:
+            unknown = sorted(set(self.element_amounts) - set(self.aqueous_elements))
+            if unknown:
+                raise ValueError(
+                    "brine.element_amounts keys must be listed in brine.aqueous_elements: "
+                    + ", ".join(unknown)
+                )
+        return self
 
 
 class Co2Config(StrictModel):
