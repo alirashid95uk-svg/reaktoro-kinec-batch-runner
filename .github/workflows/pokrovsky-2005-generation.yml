@@ -24,11 +24,18 @@ jobs:
           cache-environment: true
           cache-downloads: true
 
+      - name: Run committed Pokrovsky batch cases
+        shell: bash -el {0}
+        run: |
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_2atm.yaml --overwrite
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_10atm.yaml --overwrite
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_50atm.yaml --overwrite
+
       - name: Generate source-traced Pokrovsky cases
         shell: bash -el {0}
         run: python tools/generate_pokrovsky_2005_cases.py
 
-      - name: Run generated batch cases
+      - name: Run regenerated batch cases
         shell: bash -el {0}
         run: |
           python runner.py cases/pokrovsky_2005/pokrovsky_2005_2atm.yaml --overwrite
