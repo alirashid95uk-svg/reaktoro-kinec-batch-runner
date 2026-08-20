@@ -17,15 +17,20 @@ three deterministic implementation choices that are not experimental values:
   aqueous volume;
 * 10 mol initial CO2 gas reservoir, checked to remain present;
 * 1 mol Calcite and 1 m2 total Calcite surface area as a rate-normalisation
-  probe.  At time zero, the numerical reaction rate in mol/s therefore equals
+  probe. At time zero, the numerical reaction rate in mol/s therefore equals
   the area-normalised flux in mol/m2/s.
 
+The 60 s duration and 10 s fixed timestep are copied from the batch runner's
+existing canonical Calcite development case. They are software-run controls,
+not Pokrovsky experimental values. The reproduction comparison uses the
+initial time-zero reaction rate only.
+
 The pre-equilibration is intentionally fluid-only: Calcite is added only after
-CO2/brine equilibrium has been calculated.  This avoids equilibrating the
+CO2/brine equilibrium has been calculated. This avoids equilibrating the
 kinetic mineral before the time-zero rate is observed.
 
 The batch runner currently supports PHREEQC activity modelling, not the
-MINTEQA2/Davies thermodynamic setup used by Pokrovsky et al.  Generated cases
+MINTEQA2/Davies thermodynamic setup used by Pokrovsky et al. Generated cases
 therefore reproduce the experimental bulk T/NaCl/pCO2 envelope inside the
 runner's current thermodynamic contract; they are not an exact reconstruction
 of the paper's thermodynamic or rotating-disc transport calculation.
@@ -51,6 +56,8 @@ CO2_RESERVOIR_MOL = 10.0
 CALCITE_AMOUNT_MOL = 1.0
 CALCITE_AREA_M2 = 1.0
 ATM_TO_PA = 101325.0
+RUN_DURATION_S = 60.0
+RUN_DT_S = 10.0
 
 
 def load_targets() -> list[dict[str, float | str]]:
@@ -164,8 +171,8 @@ def case_document(target: dict[str, float | str], aqueous_amounts, gas_amount: f
             "workflow": {"mode": "closed_kinetics"},
             "timestep": {
                 "mode": "fixed",
-                "time": {"duration_value": 1.0, "duration_unit": "seconds"},
-                "step_size": {"dt": {"value": 1.0, "unit": "seconds"}},
+                "time": {"duration_value": RUN_DURATION_S, "duration_unit": "seconds"},
+                "step_size": {"dt": {"value": RUN_DT_S, "unit": "seconds"}},
                 "output_schedule": {
                     "mode": "every_internal_step",
                     "include_initial": True,
