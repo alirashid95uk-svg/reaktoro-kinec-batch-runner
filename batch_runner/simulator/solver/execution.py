@@ -32,8 +32,7 @@ def execute_solver(
     boundary_row_ready: Callable[[str, dict[str, Any]], None] | None = None,
     checkpoint_ready: Callable[[dict[str, Any], Any], None] | None = None,
     cancel_requested: Callable[[], bool] | None = None,
-    raw_initial_state: Any | None = None,
-    raw_initial_row: dict[str, Any] | None = None,
+    initial_reaction_rate_fields: Callable[[Any], dict[str, Any]] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     run = SolverRun(
         case=case,
@@ -58,20 +57,23 @@ def execute_solver(
     run.kinetic_specs, run.conditions = build_conditions(
         case, system, state, "kinetic_steps"
     )
-    if not isinstance(run.timestep, AdaptiveErrorControlledTimestepConfig):
-        run.kinetic_solver = kinetics_solver(system, run.kinetic_specs)
-    run.initial_state = (
-        raw_initial_state if raw_initial_state is not None else snapshot_state(state)
-    )
+    run.kinetic_solver = kinetics_solver(system, run.kinetic_specs)
+    run.initial_state = snapshot_state(state)
 
     initial_record = unsolved_record(run.step_index, "initial_state", 0.0)
     if run.is_cancelled():
         return run.initial_state, run.cancelled("before_initial_output_extraction")
-    initial_row = (
-        raw_initial_row
-        if raw_initial_row is not None
-        else collect_row(case, state, initial_record, run.initial_state)
-    )
+    if initial_reaction_rate_fields is None:
+        initial_row = collect_row(case, state, initial_record, run.initial_state)
+    else:
+        initial_row = collect_row(
+            case,
+            state,
+            initial_record,
+            run.initial_state,
+            include_reaction_rates=False,
+        )
+        initial_row.update(initial_reaction_rate_fields(state))
     run.emit_boundary("initial", initial_row)
     if run.output_due(0.0):
         run.emit_row(initial_row)

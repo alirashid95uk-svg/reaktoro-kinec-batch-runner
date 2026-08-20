@@ -12,6 +12,8 @@ def collect_row(
     state: Any,
     solver_record: dict[str, Any],
     initial_state: Any,
+    *,
+    include_reaction_rates: bool = True,
 ) -> dict[str, Any]:
     time_s = float(solver_record["time_end_s"])
     aqueous = rkt.AqueousProps(state)
@@ -46,30 +48,37 @@ def collect_row(
         row[f"mineral_delta_mol::{name}"] = amount - initial_amount
         row[f"saturation_index::{name}"] = float(aqueous.saturationIndex(mineral.name))
 
-    if case.config.postprocessing.reaction_rates:
-        props = rkt.ChemicalProps(state)
-        for mineral in case.config.minerals:
-            if mineral.role != "kinetic":
-                continue
-            name = mineral.name
-            rate_mol_s = float(props.reactionRate(name))
-            surface_area_m2 = float(props.surfaceArea(name))
-            row[f"reaction_rate_mol_s::{name}"] = rate_mol_s
-            row[f"reaction_rate_mol_m2_s::{name}"] = (
-                rate_mol_s / surface_area_m2 if surface_area_m2 > 0.0 else None
-            )
-            row[f"reaction_rate_saturation_ratio::{name}"] = float(
-                aqueous.saturationRatio(name)
-            )
-            row[f"reaction_rate_surface_area_m2::{name}"] = surface_area_m2
-            row[f"reaction_rate_status::{name}"] = (
-                "evaluated" if surface_area_m2 > 0.0 else "zero_live_surface_area"
-            )
+    if include_reaction_rates and case.config.postprocessing.reaction_rates:
+        row.update(collect_reaction_rate_fields(case, state))
 
     row["solver_succeeded"] = solver_record["solver_succeeded"]
     row["solver_iterations"] = solver_record["iterations"]
     row["dt_s"] = solver_record["dt_s"]
     return row
+
+
+def collect_reaction_rate_fields(case: ResolvedCase, state: Any) -> dict[str, Any]:
+    aqueous = rkt.AqueousProps(state)
+    props = rkt.ChemicalProps(state)
+    fields: dict[str, Any] = {}
+    for mineral in case.config.minerals:
+        if mineral.role != "kinetic":
+            continue
+        name = mineral.name
+        rate_mol_s = float(props.reactionRate(name))
+        surface_area_m2 = float(props.surfaceArea(name))
+        fields[f"reaction_rate_mol_s::{name}"] = rate_mol_s
+        fields[f"reaction_rate_mol_m2_s::{name}"] = (
+            rate_mol_s / surface_area_m2 if surface_area_m2 > 0.0 else None
+        )
+        fields[f"reaction_rate_saturation_ratio::{name}"] = float(
+            aqueous.saturationRatio(name)
+        )
+        fields[f"reaction_rate_surface_area_m2::{name}"] = surface_area_m2
+        fields[f"reaction_rate_status::{name}"] = (
+            "evaluated" if surface_area_m2 > 0.0 else "zero_live_surface_area"
+        )
+    return fields
 
 
 def _budget_species_names(case: ResolvedCase) -> list[str]:

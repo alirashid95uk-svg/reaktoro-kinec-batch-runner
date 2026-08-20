@@ -4,20 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 import traceback
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Callable
 
-from batch_runner.config import AdaptiveErrorControlledTimestepConfig, ResolvedCase
+import reaktoro as rkt
+
+from batch_runner.config import ResolvedCase, load_case
 
 from .chemistry import (
     build_chemical_state,
     build_chemical_system,
-    collect_row,
     load_database,
 )
+from .chemistry.observations import collect_reaction_rate_fields
 from .diagnostics import build_diagnostics, exception_progress, failed_result
 from .kinetics import (
     build_kinetic_mapping,
@@ -26,7 +31,90 @@ from .kinetics import (
 )
 from .results import PreparedSimulation, SimulationResult
 from .solver import execute_solver
-from .solver.records import unsolved_record
+
+
+def _copy_state_values_to_system(
+    system: Any,
+    species_names: tuple[str, ...],
+    temperature_k: float,
+    pressure_pa: float,
+    species_amounts: list[float],
+) -> Any:
+    diagnostic_names = tuple(species.name() for species in system.species())
+    if diagnostic_names != species_names:
+        raise ValueError(
+            "initial reaction-rate diagnostic system has different ordered species"
+        )
+
+    state = rkt.ChemicalState(system)
+    state.temperature(temperature_k)
+    state.pressure(pressure_pa)
+    state.setSpeciesAmounts(species_amounts)
+    return state
+
+
+def _initial_reaction_rate_worker(payload: dict[str, Any]) -> dict[str, Any]:
+    case = load_case(
+        payload["config_path"], output_dir_override=payload["output_dir"]
+    )
+    database = load_database(case)
+    params = load_kinetic_parameters(case)
+    system = build_chemical_system(case, database, params)
+    state = _copy_state_values_to_system(
+        system,
+        tuple(payload["species_names"]),
+        payload["temperature_k"],
+        payload["pressure_pa"],
+        payload["species_amounts"],
+    )
+    return collect_reaction_rate_fields(case, state)
+
+
+def _isolated_initial_reaction_rate_fields(
+    case: ResolvedCase, live_state: Any
+) -> dict[str, Any]:
+    with TemporaryDirectory() as temporary_dir:
+        payload = {
+            "config_path": str(case.config_path),
+            "output_dir": str(Path(temporary_dir) / "output"),
+            "species_names": [
+                species.name() for species in live_state.system().species()
+            ],
+            "temperature_k": float(live_state.temperature()),
+            "pressure_pa": float(live_state.pressure()),
+            "species_amounts": [
+                float(amount) for amount in live_state.speciesAmounts()
+            ],
+        }
+        code = (
+            "import json,sys; "
+            "from batch_runner.simulator.simulation import "
+            "_initial_reaction_rate_worker as worker; "
+            "print('INITIAL_RATES_JSON:' + json.dumps(worker(json.load(sys.stdin))), "
+            "flush=True)"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).resolve().parents[2],
+            timeout=120,
+            check=False,
+        )
+    prefix = "INITIAL_RATES_JSON:"
+    result = next(
+        (
+            line[len(prefix) :]
+            for line in completed.stdout.splitlines()
+            if line.startswith(prefix)
+        ),
+        None,
+    )
+    if completed.returncode != 0 or result is None:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"initial reaction-rate diagnostic failed: {detail}")
+    return json.loads(result)
 
 
 def prepare_simulation(
@@ -165,23 +253,6 @@ def run_simulation(
     exception_traceback = None
 
     try:
-        raw_initial_state = None
-        raw_initial_row = None
-        if isinstance(
-            case.config.solver.timestep, AdaptiveErrorControlledTimestepConfig
-        ):
-            raw_initial_state = state
-            raw_initial_row = collect_row(
-                case,
-                state,
-                unsolved_record(0, "initial_state", 0.0),
-                state,
-            )
-            database = load_database(case)
-            params = load_kinetic_parameters(case)
-            system = build_chemical_system(case, database, params)
-            state = build_chemical_state(case, system)
-
         stage = "output_writing"
         case.output_dir.mkdir(parents=True, exist_ok=True)
         with ExitStack() as stack:
@@ -311,9 +382,10 @@ def run_simulation(
                 "boundary_row_ready": boundary_row_ready,
                 "checkpoint_ready": checkpoint_ready,
             }
-            if raw_initial_state is not None:
-                solver_kwargs["raw_initial_state"] = raw_initial_state
-                solver_kwargs["raw_initial_row"] = raw_initial_row
+            if case.config.postprocessing.reaction_rates:
+                solver_kwargs["initial_reaction_rate_fields"] = lambda live_state: (
+                    _isolated_initial_reaction_rate_fields(case, live_state)
+                )
             if cancel_requested is not None:
                 solver_kwargs["cancel_requested"] = cancel_requested
             initial_state, solver_progress = execute_solver(

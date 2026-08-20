@@ -136,7 +136,8 @@ def run_error_controlled_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]
         accepted_state = run.snapshot_state(run.state)
         full_state = run.snapshot_state(accepted_state)
         half_state = run.snapshot_state(accepted_state)
-        full_solver = kinetics_solver(run.system, run.kinetic_specs)
+        full_solver = run.kinetic_solver or kinetics_solver(run.system, run.kinetic_specs)
+        run.kinetic_solver = None
         half_solver = kinetics_solver(run.system, run.kinetic_specs)
 
         full_result, full_wall, full_error = timed_solve(

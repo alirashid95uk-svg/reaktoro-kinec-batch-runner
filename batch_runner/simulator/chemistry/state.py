@@ -30,6 +30,9 @@ def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
         _require_system_species(system, species_name)
         state.set(species_name, amount.value, amount.unit)
 
+    if case.config.brine.element_amounts is not None:
+        state.equilibrium().reset()
+
     for species_name in case.config.postprocessing.requested_species:
         _require_system_species(system, species_name)
     for species_name in _postprocessing_species_amount_names(case):

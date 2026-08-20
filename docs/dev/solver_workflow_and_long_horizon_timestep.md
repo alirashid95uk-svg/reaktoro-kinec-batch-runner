@@ -290,11 +290,6 @@ The controller makes no separate startup call. Each branch uses the ordinary
 `KineticsSolver.solve(...)` path so Reaktoro retains ownership of its native
 solver startup behaviour.
 
-When time-zero reaction rates are enabled, their extraction uses a disposable
-but identically configured system because Reaktoro 2.13 shares rate-model cache
-state at the system level. The kinetic branches use a fresh system/state with
-the same resolved case configuration.
-
 The controlled quantities are configured kinetic-mineral amounts in mol. The
 installed Reaktoro 2.13 Python API does not expose integrated reaction extent as
 a clean public state quantity.
@@ -376,6 +371,15 @@ ChemicalProps.surfaceArea(mineral.name)   -> live total area in m2
 
 Only divide by live surface area when it is nonzero. Do not independently
 recompute kinetic equations for routine diagnostics.
+
+For the time-zero row only, construct the live `KineticsSolver` before rate
+evaluation. Extract the non-rate observations from the live state, then rebuild
+the same configured system in a disposable process, verify ordered species
+identity, copy temperature, pressure, and the complete species-amount vector,
+and merge only the resulting rate fields into the live row. The process boundary
+isolates a reproducible state/order-dependent interaction in Reaktoro 2.13 whose
+exact internal mechanism is not established. Later accepted-state rates remain
+on the live state.
 
 Rate extraction does not control timestep acceptance.
 
