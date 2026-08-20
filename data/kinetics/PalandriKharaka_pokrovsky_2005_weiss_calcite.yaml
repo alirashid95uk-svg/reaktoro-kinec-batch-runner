@@ -1,0 +1,19 @@
+# Calcite-only Palandri-Kharaka parameter file for the Pokrovsky 2005 batch-runner cases.
+#
+# Published kinetic parameters: Weiss et al. (2026), Applied Geochemistry 196,
+# 106611, DOI 10.1016/j.apgeochem.2025.106611.
+# The parameter values and reaction orders are the same Calcite record already
+# present in data/kinetics/PalandriKharaka_local.yaml.  This separate file keeps
+# the reproduction case independent of unrelated mineral records.
+#
+# Batch-runner PHREEQC databases expose the dissolved carbon catalyst as CO2;
+# the existing project Calcite record therefore uses a(CO2).  No kinetic
+# parameter is fitted to Pokrovsky et al. (2005).
+ReactionRateModelParams:
+  PalandriKharaka:
+    Calcite:
+      Mineral: Calcite
+      Mechanisms:
+        Acid:      {lgk: -0.30, E: 14.4, a(H+): 1.000}
+        Neutral:   {lgk: -5.81, E: 23.5}
+        Carbonate: {lgk: -3.48, E: 35.4, a(CO2): 1.000}
