@@ -1,0 +1,20 @@
+name = "timestep_path_explorer"
+description = "Read-only explorer that maps the current timestep/config/solver/output execution path before the adaptive-error-control change."
+sandbox_mode = "read-only"
+developer_instructions = """
+Do not edit files.
+
+Map only the execution path relevant to timestep control in this repository. Start from AGENTS.md and active configuration/schema, then trace:
+YAML -> resolved timestep config -> simulation orchestration -> adaptive/fixed controller -> Reaktoro KineticsSolver calls -> accepted-state/time update -> output/checkpoint scheduling -> solver history/diagnostics.
+
+Return:
+1. exact files/functions/classes in execution order;
+2. current acceptance/rejection rules;
+3. all state-copy/rollback points;
+4. all timestep caps and exact-target logic;
+5. config fields/defaults and validation boundaries;
+6. tests protecting each behaviour;
+7. any historical docs that contradict current runtime.
+
+Use exact file/line evidence. Do not propose a new architecture, do not create planning artifacts, and do not infer unsupported behaviour.
+"""

@@ -1,0 +1,240 @@
+# Jayasekara et al. (2020) CO2-brine-mudstone reproduction case.
+#
+# Paper-supported experimental/model inputs:
+# - 40 degC, 10 MPa (100 bar), 4.5 wt% NaCl, 37 weeks.
+# - Table 4 mineral inventories, reactive surface areas, k40 values, and H+ orders.
+# - Experimental observation times: 2, 5, 9, 18, and 37 weeks.
+#
+# Repository compatibility decisions are stated explicitly below:
+# - The paper used PHREEQC 3.4.0 with LLNL.dat. This runner's verified local
+#   database is Kinec_v3_4.dat, whose header states that its thermodynamic data
+#   include llnl.dat data. Exact local phase identifiers are therefore used.
+# - The paper specifies 10 MPa CO2 pressure, not fugacity. This runner's
+#   fixed-pressure experimental analogue is fixed fugacity; 57.77 bar is the
+#   existing project conversion used by the Jayasekara software-test cases at
+#   40 degC and 100 bar. It is a compatibility transform, not a paper value.
+# - The paper does not report a fixed pE value, so no unsupported pE constraint
+#   is imposed here.
+# - The paper reports amorphous silica among secondary products. This local
+#   project uses Chalcedony as its configured secondary-silica compatibility
+#   phase; it is labelled below rather than treated as an exact identity.
+# - The fixed 2700 s solver step is an existing project numerical control, not
+#   an experimental parameter.
+
+case:
+  name: jayasekara_2020_reproduction
+
+paths:
+  output_dir: outputs/jayasekara_2020_reproduction
+
+database:
+  source: embedded
+  name: llnl.dat
+
+activity_models:
+  aqueous: phreeqc
+
+physical:
+  temperature_c: 40.0
+  pressure_bar: 100.0
+
+brine:
+  aqueous_elements: [H, O, Na, Cl, Si, Al, Fe, K, Ca, Mg, S, C]
+  species_amounts:
+    H2O: {value: 1.0, unit: kg}
+    # 4.5 wt% NaCl interpreted on a solution-mass basis:
+    # (45 g / 58.44277 g mol-1) / 0.955 kg H2O = 0.8062660077 mol kgw-1.
+    Na+: {value: 0.8062660077228978, unit: mol}
+    Cl-: {value: 0.8062660077228978, unit: mol}
+
+co2:
+  mode: fixed_fugacity
+  gas_species: CO2(g)
+  fugacity_bar: 57.77
+
+redox:
+  enabled: false
+
+kinetics:
+  enabled: true
+  model: palandri_kharaka
+  path: data/kinetics/PalandriKharaka_local.yaml
+
+minerals:
+  # Table 4 masses are mol per kg water. The case contains exactly 1 kg H2O,
+  # so the numerical mol/kgw values become the initial mole amounts below.
+  - name: Quartz
+    role: kinetic
+    initial_amount: {value: 4.26, unit: mol}
+    surface_area: {value: 0.036, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Quartz; exact local database identifier"
+
+  - name: Illite
+    role: kinetic
+    initial_amount: {value: 0.47, unit: mol}
+    surface_area: {value: 0.461, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Illite; exact local database identifier"
+
+  - name: Clinochlore-14A
+    role: kinetic
+    initial_amount: {value: 0.19, unit: mol}
+    surface_area: {value: 1.140, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Local database representative used for paper mineral Chlorite"
+
+  - name: Anorthite
+    role: kinetic
+    initial_amount: {value: 0.17, unit: mol}
+    surface_area: {value: 0.035, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Anorthite; exact local database identifier"
+
+  - name: Albite
+    role: kinetic
+    initial_amount: {value: 0.18, unit: mol}
+    surface_area: {value: 0.036, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Albite; exact local database identifier"
+
+  - name: K-Feldspar
+    role: kinetic
+    initial_amount: {value: 0.26, unit: mol}
+    surface_area: {value: 0.0373, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Local database identifier used for paper K-feldspar"
+
+  - name: Kaolinite
+    role: kinetic
+    initial_amount: {value: 0.19, unit: mol}
+    surface_area: {value: 1.160, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Kaolinite; allowed to dissolve or precipitate kinetically"
+
+  - name: Goethite
+    role: kinetic
+    initial_amount: {value: 0.54, unit: mol}
+    surface_area: {value: 0.022, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Goethite; exact local database identifier"
+
+  - name: Pyrite
+    role: kinetic
+    initial_amount: {value: 0.07, unit: mol}
+    surface_area: {value: 0.036, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Paper mineral Pyrite; exact local database identifier"
+
+  - name: Montmor-Ca
+    role: kinetic
+    initial_amount: {value: 0.02, unit: mol}
+    surface_area: {value: 0.045, unit: m2/g}
+    surface_area_basis: "Jayasekara Table 4 specific surface area"
+    surface_area_provenance: "Jayasekara et al. (2020), Table 4"
+    selection_reason: "Local Ca-montmorillonite representative used for paper Montmorillonite"
+
+  # Secondary phases reported/used in the Jayasekara interpretation.
+  - name: Gibbsite
+    role: equilibrium
+    initial_amount: {value: 0.0, unit: mol}
+    selection_reason: "Secondary Al phase reported by Jayasekara et al."
+
+  - name: Chalcedony
+    role: equilibrium
+    initial_amount: {value: 0.0, unit: mol}
+    selection_reason: "Repository compatibility silica phase; paper reports amorphous silica"
+
+  - name: Fe(OH)3
+    role: equilibrium
+    initial_amount: {value: 0.0, unit: mol}
+    selection_reason: "Secondary Fe(OH)3 phase reported by Jayasekara et al."
+
+solver:
+  workflow:
+    mode: fixed_fugacity_during_kinetic_steps
+
+  timestep:
+    mode: adaptive
+
+    time:
+      duration_value: 259.0
+      duration_unit: days
+
+    step_size:
+      dt_initial: {value: 2700.0, unit: seconds}
+      dt_min: {value: 60.0, unit: seconds}
+      dt_max: {value: 1.0, unit: days}
+      growth_factor: 1.5
+      shrink_factor: 0.5
+      max_retries_per_step: 8
+
+    output_schedule:
+      mode: explicit
+      include_initial: true
+      include_final: true
+      explicit_times:
+        - {value: 14.0, unit: days}
+        - {value: 35.0, unit: days}
+        - {value: 63.0, unit: days}
+        - {value: 126.0, unit: days}
+        - {value: 259.0, unit: days}
+
+
+postprocessing:
+  # Element-total ICP-OES concentrations are experimental observables, but this
+  # runner's requested_species field is species-based. Keep the species request
+  # conservative rather than pretending a single aqueous species equals an
+  # analytical element total.
+  requested_species: [H2O]
+  requested_minerals:
+    [Quartz, Illite, Clinochlore-14A, Anorthite, Albite, K-Feldspar,
+     Kaolinite, Goethite, Pyrite, Montmor-Ca, Gibbsite, Chalcedony, Fe(OH)3]
+  aqueous_molalities: true
+  saturation_indices: true
+  reaction_rates: true
+  element_budget: {enabled: false, elements: [], species: {}, minerals: {}, gas_species: {}}
+  carbon_inventory: {enabled: false, carbon_species: {}, carbon_minerals: {}, carbon_gas_species: {}}
+  mineral_volume_change: {enabled: false, molar_volumes_cm3_per_mol: {}, sources: {}}
+  regime_classification: {enabled: false}
+  surface_area_audit: {enabled: true}
+  workflow_comparison: {enabled: false}
+  secondary_mineral_assemblage: {enabled: true}
+  surrogate_dataset: {enabled: false}
+  porosity_permeability: {enabled: false}
+
+validation:
+  # The repository states experiment validation is not implemented in V1.
+  enabled: false
+  targets: []
+
+outputs:
+  monitor:
+    enabled: true
+    refresh_interval_s: 0.5
+    scalars: [pH]
+    species: [H2O]
+    minerals: [Quartz, Illite, Kaolinite, Montmor-Ca]
+    result_times:
+      - {value: 14.0, unit: days}
+      - {value: 35.0, unit: days}
+      - {value: 63.0, unit: days}
+      - {value: 126.0, unit: days}
+      - {value: 259.0, unit: days}
+
+  manifest: {enabled: true, include_input_snapshot: true}
+  diagnostics: {enabled: true}
+  timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
+  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: true, reaction_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: true, workflow_comparison: false, secondary_mineral_assemblage: true, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
+  solver_history: {enabled: true}
+  plots: {enabled: true, pH: true, mineral_change: true, saturation_index: true, solver_dt: false, solver_iterations: false}
+  debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}
