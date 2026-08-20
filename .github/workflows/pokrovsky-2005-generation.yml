@@ -1,0 +1,43 @@
+name: Pokrovsky 2005 case generation
+
+on:
+  push:
+    branches: [pokrovsky-2005-batch-reproduction]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create pinned Micromamba environment
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+
+      - name: Generate source-traced Pokrovsky cases
+        shell: bash -el {0}
+        run: python tools/generate_pokrovsky_2005_cases.py
+
+      - name: Run generated batch cases
+        shell: bash -el {0}
+        run: |
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_2atm.yaml --overwrite
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_10atm.yaml --overwrite
+          python runner.py cases/pokrovsky_2005/pokrovsky_2005_50atm.yaml --overwrite
+
+      - name: Upload generated cases and outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokrovsky-2005-batch-reproduction-${{ github.sha }}
+          path: |
+            cases/pokrovsky_2005/
+            outputs/pokrovsky_2005/
+          if-no-files-found: error
