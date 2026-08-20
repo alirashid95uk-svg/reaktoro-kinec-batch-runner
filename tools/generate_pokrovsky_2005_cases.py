@@ -67,8 +67,15 @@ def build_fluid_system():
     aqueous.setActivityModel(rkt.ActivityModelPhreeqc(db))
     gas = rkt.GaseousPhase(["CO2(g)"])
     gas.setActivityModel(rkt.ActivityModelPengRobinsonPhreeqc())
-    system = rkt.ChemicalSystem(db, aqueous, gas)
-    return system, aqueous
+    return rkt.ChemicalSystem(db, aqueous, gas)
+
+
+def aqueous_species(system):
+    """Return aqueous species from the constructed system, which owns the phase."""
+    for phase in system.phases():
+        if phase.name() == "AqueousPhase":
+            return list(phase.species())
+    raise RuntimeError("constructed fluid system has no AqueousPhase")
 
 
 def prepared_water_mass_kg(system) -> float:
@@ -94,7 +101,7 @@ def prepared_water_mass_kg(system) -> float:
     return water_mass_kg
 
 
-def equilibrated_fluid(system, aqueous, water_mass_kg: float, pressure_bar: float):
+def equilibrated_fluid(system, water_mass_kg: float, pressure_bar: float):
     state = rkt.ChemicalState(system)
     state.temperature(T_C, "celsius")
     state.pressure(pressure_bar, "bar")
@@ -110,8 +117,10 @@ def equilibrated_fluid(system, aqueous, water_mass_kg: float, pressure_bar: floa
         raise RuntimeError(f"CO2 gas phase exhausted at {pressure_bar} bar")
     aqueous_amounts = {
         species.name(): {"value": float(state.speciesAmount(species.name())), "unit": "mol"}
-        for species in aqueous.species()
+        for species in aqueous_species(system)
     }
+    if not aqueous_amounts:
+        raise RuntimeError("no aqueous species were extracted from the equilibrated fluid")
     return state, aqueous_amounts, gas_amount
 
 
@@ -233,7 +242,7 @@ def case_document(target: dict[str, float | str], aqueous_amounts, gas_amount: f
 
 
 def main() -> None:
-    system, aqueous = build_fluid_system()
+    system = build_fluid_system()
     water_mass = prepared_water_mass_kg(system)
     CASE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -241,7 +250,7 @@ def main() -> None:
     for target in load_targets():
         pressure_bar = float(target["pressure_bar"])
         state, aqueous_amounts, gas_amount = equilibrated_fluid(
-            system, aqueous, water_mass, pressure_bar
+            system, water_mass, pressure_bar
         )
         document = case_document(target, aqueous_amounts, gas_amount)
         label = f"{int(float(target['pCO2_atm']))}atm"
