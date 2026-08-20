@@ -72,6 +72,9 @@ def timeseries_columns(case: ResolvedCase) -> list[str]:
         columns.extend(
             f"species_molality_mol_kgw::{name}" for name in config.postprocessing.requested_species
         )
+    columns.extend(
+        f"element_molality_mol_kgw::{name}" for name in config.postprocessing.requested_elements
+    )
     if output.include_mineral_amounts:
         columns.extend(
             f"mineral_amount_mol::{name}" for name in config.postprocessing.requested_minerals
