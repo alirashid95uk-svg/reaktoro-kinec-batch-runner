@@ -176,11 +176,11 @@ solver:
   timestep:
     mode: fixed
     time:
-      duration_value: 1.0
+      duration_value: 60.0
       duration_unit: seconds
     step_size:
       dt:
-        value: 1.0
+        value: 10.0
         unit: seconds
     output_schedule:
       mode: every_internal_step
