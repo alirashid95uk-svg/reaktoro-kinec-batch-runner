@@ -1,0 +1,4 @@
+pCO2_atm,pressure_bar,pH_bulk,pH_surface,aH_surface,kC_m_s,kC_unc_m_s,intrinsic_flux_mol_m2_s,flux_low_from_kC,flux_high_from_kC,source_status
+2,2.0265,3.73,4.44,3.63078054770101e-05,9.0e-04,9.0e-05,3.2677024929309084e-05,2.9409322436378178e-05,3.594472742224e-05,project_benchmark_derived_from_Pokrovsky_2005_kC_and_surface_pH
+10,10.1325,3.45,4.19,6.456542290346549e-05,1.5e-03,2.0e-04,9.684813435519824e-05,8.393504977450514e-05,1.0976121893589134e-04,project_benchmark_derived_from_Pokrovsky_2005_kC_and_surface_pH
+50,50.6625,3.15,4.30,5.011872336272725e-05,2.8e-03,3.0e-04,1.4033242541563632e-04,1.2529680840681813e-04,1.5536804242445446e-04,project_benchmark_derived_from_Pokrovsky_2005_kC_and_surface_pH

@@ -1,0 +1,228 @@
+case:
+  name: pokrovsky_2005_calcite_10atm
+paths:
+  output_dir: outputs/pokrovsky_2005/10atm
+database:
+  source: local
+  path: data/thermo/Kinec_v3_4.dat
+activity_models:
+  aqueous: phreeqc
+  gas: peng_robinson_phreeqc
+physical:
+  temperature_c: 25.0
+  pressure_bar: 10.1325
+brine:
+  aqueous_elements:
+  - H
+  - O
+  - C
+  - Ca
+  - Na
+  - Cl
+  species_amounts:
+    H+:
+      value: 0.00046979190145213684
+      unit: mol
+    HCO3-:
+      value: 0.00045822909102179166
+      unit: mol
+    H2O:
+      value: 55.24974815903716
+      unit: mol
+    O2:
+      value: 1.0e-16
+      unit: mol
+    CH3COOH:
+      value: 1.0e-16
+      unit: mol
+    Cl-:
+      value: 0.09897552710742963
+      unit: mol
+    C2H4:
+      value: 1.0e-16
+      unit: mol
+    C2H6:
+      value: 1.0e-16
+      unit: mol
+    C3H8:
+      value: 1.0e-16
+      unit: mol
+    CH2O:
+      value: 1.0e-16
+      unit: mol
+    CH3CH2OH:
+      value: 1.0e-16
+      unit: mol
+    CH3COO-:
+      value: 1.0e-16
+      unit: mol
+    CH3OH:
+      value: 1.0e-16
+      unit: mol
+    CH4:
+      value: 1.0e-16
+      unit: mol
+    CO:
+      value: 1.0e-16
+      unit: mol
+    CO2:
+      value: 0.31636077274024915
+      unit: mol
+    CO3-2:
+      value: 1.1082073286507022e-10
+      unit: mol
+    Ca+2:
+      value: 1.0000000000000005e-16
+      unit: mol
+    Ca(CH3COO)2:
+      value: 1.0e-16
+      unit: mol
+    CaCH3COO+:
+      value: 1.0e-16
+      unit: mol
+    CaCO3:
+      value: 1.0e-16
+      unit: mol
+    CaCl+:
+      value: 1.0e-16
+      unit: mol
+    CaCl2:
+      value: 1.0e-16
+      unit: mol
+    CaHCO3+:
+      value: 1.0e-16
+      unit: mol
+    ClO4-:
+      value: 1.0e-16
+      unit: mol
+    ClO-:
+      value: 1.0e-16
+      unit: mol
+    ClO2-:
+      value: 1.0e-16
+      unit: mol
+    ClO3-:
+      value: 1.0e-16
+      unit: mol
+    H2:
+      value: 1.0e-16
+      unit: mol
+    HCOOH:
+      value: 1.0e-16
+      unit: mol
+    HCOO-:
+      value: 1.0e-16
+      unit: mol
+    HCl:
+      value: 6.69315670678412e-06
+      unit: mol
+    HClO:
+      value: 1.0e-16
+      unit: mol
+    HClO2:
+      value: 1.0e-16
+      unit: mol
+    Na+:
+      value: 0.09896396459104537
+      unit: mol
+    Na(CH3COO)2-:
+      value: 1.0e-16
+      unit: mol
+    NaCH3COO:
+      value: 1.0e-16
+      unit: mol
+    NaCO3-:
+      value: 4.0696282273470316e-11
+      unit: mol
+    NaCl:
+      value: 0.0010177797358637813
+      unit: mol
+    NaHCO3:
+      value: 1.8255632071615368e-05
+      unit: mol
+    NaOH:
+      value: 3.233536768680975e-13
+      unit: mol
+    OH-:
+      value: 3.170871568535975e-11
+      unit: mol
+co2:
+  mode: finite
+  gas_species: CO2(g)
+  initial_amount:
+    value: 9.683162742385141
+    unit: mol
+redox:
+  enabled: false
+kinetics:
+  enabled: true
+  model: palandri_kharaka
+  path: data/kinetics/PalandriKharaka_pokrovsky_2005_weiss_calcite.yaml
+minerals:
+- name: Calcite
+  role: kinetic
+  initial_amount:
+    value: 1.0
+    unit: mol
+  surface_area:
+    value: 1.0
+    unit: m2
+  surface_area_basis: 1 m2 computational rate-normalisation probe
+  surface_area_provenance: Validation-Pokrovsky validation/calcite_validation.py SURFACE_AREA_M2
+  selection_reason: Pokrovsky et al. (2005) rotating-disc Calcite benchmark
+solver:
+  workflow:
+    mode: closed_kinetics
+  timestep:
+    mode: fixed
+    time:
+      duration_value: 60.0
+      duration_unit: seconds
+    step_size:
+      dt:
+        value: 10.0
+        unit: seconds
+    output_schedule:
+      mode: every_internal_step
+      include_initial: true
+      include_final: true
+      explicit_times: []
+postprocessing:
+  requested_species:
+  - H+
+  - CO2
+  - HCO3-
+  - CO3-2
+  - Ca+2
+  requested_minerals:
+  - Calcite
+  aqueous_molalities: true
+  saturation_indices: true
+  reaction_rates: true
+  element_budget: {enabled: false, elements: [], species: {}, minerals: {}, gas_species: {}}
+  carbon_inventory: {enabled: false, carbon_species: {}, carbon_minerals: {}, carbon_gas_species: {}}
+  mineral_volume_change: {enabled: false, molar_volumes_cm3_per_mol: {}, sources: {}}
+  regime_classification: {enabled: false}
+  surface_area_audit: {enabled: true}
+  workflow_comparison: {enabled: false}
+  secondary_mineral_assemblage: {enabled: false}
+  surrogate_dataset: {enabled: false}
+  porosity_permeability: {enabled: false}
+validation:
+  enabled: false
+  targets: []
+outputs:
+  monitor:
+    enabled: true
+    refresh_interval_s: 0.5
+    scalars: [pH]
+    species: [Ca+2, CO2]
+    minerals: [Calcite]
+    result_times: []
+  manifest: {enabled: true, include_input_snapshot: true}
+  diagnostics: {enabled: true}
+  timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
+  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: true, reaction_rate_validation: true, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: true, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
+  solver_history: {enabled: true}
+  plots: {enabled: true, pH: true, mineral_change: true, saturation_index: true, solver_dt: false, solver_iterations: false}
+  debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}
