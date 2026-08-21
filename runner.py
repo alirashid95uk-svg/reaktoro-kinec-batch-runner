@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import traceback
@@ -327,8 +328,112 @@ def _run_simulation(
             },
         )
     monitor.finish(result, output_dir)
+    _run_validation_hook(case, output_dir, emitter, completed=completed)
 
     return (0 if completed else 1), uses_python_rate_callback(case)
+
+
+def _run_validation_hook(
+    case,
+    output_dir: Path,
+    emitter: ProtocolEmitter,
+    *,
+    completed: bool,
+) -> str:
+    if not case.config.validation.enabled:
+        return "disabled"
+
+    script = case.validation_script_path
+    assert script is not None
+    validation_dir = output_dir.parent / "validation"
+    common = {
+        "script": str(script),
+        "results_dir": str(output_dir),
+        "validation_dir": str(validation_dir),
+    }
+    if not completed:
+        emitter.emit(
+            "stage_completed",
+            {
+                **common,
+                "stage": "post_simulation_validation",
+                "status": "skipped",
+                "reason": "simulation package incomplete",
+            },
+        )
+        print("Validation skipped: simulation package incomplete.", flush=True)
+        return "skipped"
+
+    emitter.emit("stage_started", {**common, "stage": "post_simulation_validation"})
+    try:
+        process = subprocess.run(
+            [sys.executable, str(script), "--results-dir", str(output_dir)],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        emitter.emit(
+            "stage_completed",
+            {
+                **common,
+                "stage": "post_simulation_validation",
+                "status": "failed",
+                "exit_code": None,
+                "error_message": str(error),
+            },
+        )
+        print(
+            f"Validation FAILED: {error}. Simulation results remain valid.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return "failed"
+
+    if process.stdout:
+        print(process.stdout, end="" if process.stdout.endswith("\n") else "\n", flush=True)
+    if process.returncode:
+        if process.stderr:
+            print(
+                process.stderr,
+                end="" if process.stderr.endswith("\n") else "\n",
+                file=sys.stderr,
+                flush=True,
+            )
+        error_message = (
+            (process.stderr.strip() or process.stdout.strip()).splitlines()[-1]
+            if process.stderr.strip() or process.stdout.strip()
+            else f"validation script exited with status {process.returncode}"
+        )
+        emitter.emit(
+            "stage_completed",
+            {
+                **common,
+                "stage": "post_simulation_validation",
+                "status": "failed",
+                "exit_code": process.returncode,
+                "error_message": error_message,
+            },
+        )
+        print(
+            "Validation FAILED. Simulation results remain valid.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return "failed"
+
+    emitter.emit(
+        "stage_completed",
+        {
+            **common,
+            "stage": "post_simulation_validation",
+            "status": "completed",
+            "exit_code": 0,
+        },
+    )
+    print(f"Validation completed. Outputs: {validation_dir}", flush=True)
+    return "completed"
 
 
 def _remove_existing_output_dir(case_config: str | Path) -> None:

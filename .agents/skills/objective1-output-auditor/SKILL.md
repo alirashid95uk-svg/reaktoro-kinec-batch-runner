@@ -27,9 +27,6 @@ blocking package findings.
 Carbon and element balance maxima are metrics unless an explicit project or
 benchmark tolerance defines pass/fail behaviour. Do not invent tolerances.
 
-Validation targets outside their stated uncertainty are failed scientific
-checks, not reasons to tune inputs automatically.
-
 Treat `not_evaluated` porosity/permeability/capillary fields honestly.
 
 A clean package audit establishes package coherence only. It does not prove

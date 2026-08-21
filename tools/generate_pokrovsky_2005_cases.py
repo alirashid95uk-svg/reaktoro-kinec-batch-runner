@@ -197,7 +197,7 @@ def case_document(target: dict[str, float | str], aqueous_amounts, gas_amount: f
             "surrogate_dataset": {"enabled": False},
             "porosity_permeability": {"enabled": False},
         },
-        "validation": {"enabled": False, "targets": []},
+        "validation": {"enabled": False},
         "outputs": {
             "monitor": {
                 "enabled": True,
@@ -231,7 +231,6 @@ def case_document(target: dict[str, float | str], aqueous_amounts, gas_amount: f
                 "workflow_comparison": False,
                 "secondary_mineral_assemblage": False,
                 "surrogate_dataset": False,
-                "validation_ledger": False,
                 "porosity_permeability": False,
             },
             "solver_history": {"enabled": True},

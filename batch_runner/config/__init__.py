@@ -46,7 +46,6 @@ from .reporting import (
     SurrogateDatasetConfig,
     TimeseriesOutputConfig,
     ValidationConfig,
-    ValidationTarget,
 )
 from .resolution import ResolvedCase, resolve_case
 from .timestep import (
@@ -125,7 +124,6 @@ __all__ = [
     "TimeseriesOutputConfig",
     "TimestepConfig",
     "ValidationConfig",
-    "ValidationTarget",
     "WorkflowMode",
     "load_case",
     "resolve_case",

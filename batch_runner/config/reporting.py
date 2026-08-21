@@ -135,24 +135,16 @@ class PorosityPermeabilityConfig(StrictModel):
         return self
 
 
-class ValidationTarget(StrictModel):
-    quantity: str = Field(min_length=1)
-    target_value: float
-    unit: str = Field(min_length=1)
-    uncertainty: float | None = Field(default=None, ge=0)
-    source: str = Field(min_length=1)
-
-
 class ValidationConfig(StrictModel):
     enabled: bool
-    targets: list[ValidationTarget]
+    script: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
-    def validate_targets(self) -> "ValidationConfig":
-        if self.enabled and not self.targets:
-            raise ValueError("enabled validation requires targets")
-        if not self.enabled and self.targets:
-            raise ValueError("disabled validation forbids targets")
+    def validate_script(self) -> "ValidationConfig":
+        if self.enabled and self.script is None:
+            raise ValueError("enabled validation requires script")
+        if not self.enabled and self.script is not None:
+            raise ValueError("disabled validation forbids script")
         return self
 
 
@@ -188,7 +180,6 @@ class SummaryOutputsConfig(StrictModel):
     workflow_comparison: bool
     secondary_mineral_assemblage: bool
     surrogate_dataset: bool
-    validation_ledger: bool
     porosity_permeability: bool
 
 

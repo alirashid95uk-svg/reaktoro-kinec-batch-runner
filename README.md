@@ -113,7 +113,6 @@ surface_area_audit.csv
 workflow_comparison.csv
 secondary_mineral_assemblage.csv
 surrogate_dataset.csv
-validation_ledger.csv
 porosity_permeability.csv
 ```
 
@@ -134,9 +133,16 @@ Relative paths in a case config are resolved from the project root. Absolute
 paths also work. A missing path stops the run and reports the exact resolved
 path; the runner does not search other locations.
 
+Optional post-simulation validation is configured with `validation.enabled`
+and a trusted script under `validation/`. After a complete simulation package,
+the runner invokes that script with the actual timestamped `--results-dir` and
+writes downstream analysis beside `results/` in the run's `validation/`
+directory. Validation failure is reported separately and does not invalidate
+the simulation package.
+
 Cation exchange is not implemented.
 Automatic experimental calibration or experiment-fitting is not implemented;
-the validation target/ledger machinery is reporting only.
+post-simulation validation remains downstream analysis only.
 Transport is not implemented.
 
 `cases/source_supported_kinetic_case.yaml` is a runnable functional Calcite

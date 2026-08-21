@@ -138,7 +138,7 @@ postprocessing:
 
 validation:
   enabled: REQUIRED
-  targets: []
+  script: REQUIRED_IF_ENABLED
 
 outputs:
   monitor:

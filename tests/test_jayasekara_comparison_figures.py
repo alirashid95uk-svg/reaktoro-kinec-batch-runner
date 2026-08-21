@@ -1,3 +1,7 @@
+import csv
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +13,10 @@ from validation.jayasekara_comparison_figures import (
     build_icp_comparison,
     build_ph_comparison,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = PROJECT_ROOT / "validation" / "jayasekara_comparison_figures.py"
 
 
 def _timeseries_rows(element_molality: float = 1.0):
@@ -97,3 +105,47 @@ def test_icp_comparison_rejects_missing_element_total_column() -> None:
 
     with pytest.raises(ValueError, match="element_molality_mol_kgw::Na"):
         build_icp_comparison(rows, _measured_rows())
+
+
+def test_timestamp_safe_results_dir_cli_writes_validation_figures(tmp_path: Path) -> None:
+    results = tmp_path / "timestamped-run" / "results"
+    results.mkdir(parents=True)
+    timeseries_rows = _timeseries_rows(element_molality=1.0e-3)
+    with (results / "timeseries.csv").open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(timeseries_rows[0]))
+        writer.writeheader()
+        writer.writerows(timeseries_rows)
+    measured = tmp_path / "experimental.csv"
+    measured_rows = _measured_rows()
+    with measured.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(measured_rows[0]))
+        writer.writeheader()
+        writer.writerows(measured_rows)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--results-dir",
+            str(results),
+            "--experimental-data",
+            str(measured),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert {
+        path.name
+        for path in (results.parent / "validation").iterdir()
+        if path.is_file()
+    } == {
+        "pH_model_vs_experiment.png",
+        "ICP_Na_Ca_Mg.png",
+        "ICP_Si_Al_Fe_K.png",
+    }
+    assert not (results / "validation").exists()

@@ -27,7 +27,6 @@ SUMMARY_FILES = {
     "workflow_comparison": "workflow_comparison.csv",
     "secondary_mineral_assemblage": "secondary_mineral_assemblage.csv",
     "surrogate_dataset": "surrogate_dataset.csv",
-    "validation_ledger": "validation_ledger.csv",
     "porosity_permeability": "porosity_permeability.csv",
 }
 PLOT_FILES = {
@@ -322,15 +321,6 @@ def audit(output_dir: Path) -> dict[str, Any]:
                 if (value := _float(row.get(column))) is not None
             ]
             metrics[metric] = max(values, default=None)
-
-    if "validation_ledger.csv" in actual:
-        rows = _read_csv(output_dir / "validation_ledger.csv", errors)
-        outside = sum(
-            row.get("evaluation_status") == "outside_uncertainty" for row in rows
-        )
-        metrics["validation_targets_outside_uncertainty"] = outside
-        if outside:
-            warnings.append(f"{outside} validation targets are outside uncertainty")
 
     if "porosity_permeability.csv" in actual:
         rows = _read_csv(output_dir / "porosity_permeability.csv", errors)

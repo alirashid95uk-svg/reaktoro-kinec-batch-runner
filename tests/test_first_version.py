@@ -580,18 +580,6 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
     raw["postprocessing"]["regime_classification"] = {"enabled": True}
     raw["postprocessing"]["surface_area_audit"] = {"enabled": True}
     raw["postprocessing"]["workflow_comparison"] = {"enabled": True}
-    raw["validation"] = {
-        "enabled": True,
-        "targets": [
-            {
-                "quantity": "pH",
-                "target_value": 7.0,
-                "unit": "pH",
-                "uncertainty": 0.1,
-                "source": "synthetic software-test target",
-            }
-        ],
-    }
     raw["outputs"]["plots"]["enabled"] = False
     raw["outputs"]["plots"].update({"pH": False, "mineral_change": False, "saturation_index": False})
     raw["outputs"]["summaries"].update(
@@ -603,7 +591,6 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
             "regime_classification": True,
             "surface_area_audit": True,
             "workflow_comparison": True,
-            "validation_ledger": True,
         }
     )
     case = load_case(_write_case(tmp_path, raw))
@@ -676,7 +663,6 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
         "regime_classification.csv",
         "surface_area_audit.csv",
         "workflow_comparison.csv",
-        "validation_ledger.csv",
     ]:
         assert (case.output_dir / name).is_file()
 

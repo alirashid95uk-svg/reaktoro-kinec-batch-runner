@@ -415,9 +415,23 @@ must not be represented as a generic `solver.conservation` feature.
 
 ## 11. Validation
 
-The active validation target/ledger machinery records configured comparison
-targets and outcomes. It is reporting functionality, not automatic calibration,
-experiment fitting, or permission to alter scientific inputs.
+`validation` optionally runs one trusted project-local Python script after a
+successful simulation package is complete:
+
+```yaml
+validation:
+  enabled: true
+  script: validation/jayasekara_comparison_figures.py
+```
+
+An enabled hook requires an existing `.py` file inside the project
+`validation/` directory. A disabled hook forbids `script`. The runner invokes
+the script in a separate Python process with
+`--results-dir <resolved timestamped results directory>`.
+
+The hook is downstream analysis. It does not participate in simulation,
+output writing, diagnostics, or manifest construction. Hook failure leaves a
+successfully completed simulation package valid and is reported separately.
 
 ## 12. Outputs
 

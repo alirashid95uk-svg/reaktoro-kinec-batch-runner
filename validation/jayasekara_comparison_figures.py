@@ -30,9 +30,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TIMESERIES = PROJECT_ROOT / "outputs" / "jayasekara_2020_reproduction" / "timeseries.csv"
 DEFAULT_EXPERIMENT = PROJECT_ROOT / "data" / "experimental" / "jayasekara_2020_digitized.csv"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "jayasekara_2020_reproduction" / "validation_figures"
 
 OBSERVATION_WEEKS = (2.0, 5.0, 9.0, 18.0, 37.0)
 ELEMENT_MOLAR_MASS_G_MOL = {
@@ -348,15 +346,19 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate Jayasekara measured-vs-Reaktoro pH and ICP figures."
     )
-    parser.add_argument("--timeseries", type=Path, default=DEFAULT_TIMESERIES)
+    parser.add_argument("--results-dir", type=Path, required=True)
     parser.add_argument("--experimental-data", type=Path, default=DEFAULT_EXPERIMENT)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     return parser
 
 
 def main() -> int:
     args = _parser().parse_args()
-    for path in generate_figures(args.timeseries, args.experimental_data, args.output_dir):
+    results_dir = args.results_dir.resolve()
+    for path in generate_figures(
+        results_dir / "timeseries.csv",
+        args.experimental_data,
+        results_dir.parent / "validation",
+    ):
         print(path)
     return 0
 

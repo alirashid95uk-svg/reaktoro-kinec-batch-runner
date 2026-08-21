@@ -41,8 +41,8 @@ Unknown fields and incompatible combinations must fail validation.
 
 Do not expose unsupported runtime features merely as disabled schema blocks.
 Cation exchange and automatic restart are not active runtime features.
-Configured validation targets are reporting inputs, not an automatic experiment
-calibration workflow.
+Configured post-simulation validation scripts are trusted downstream analysis,
+not an automatic experiment-calibration workflow.
 
 ## Scientific Values and Defaults
 

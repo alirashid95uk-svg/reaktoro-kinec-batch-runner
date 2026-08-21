@@ -16,13 +16,11 @@ from .audits import (
     REACTION_RATE_COLUMNS,
     REACTION_RATE_VALIDATION_COLUMNS,
     SURFACE_AREA_COLUMNS,
-    VALIDATION_LEDGER_COLUMNS,
     carbon_inventory_rows,
     element_budget_rows,
     reaction_rate_rows,
     reaction_rate_validation_rows,
     surface_area_audit_rows,
-    validation_ledger_rows,
 )
 from .derived import (
     MINERAL_VOLUME_COLUMNS,
@@ -249,10 +247,6 @@ def _write_outputs(
     if outputs.summaries.surrogate_dataset and scientific_output_allowed():
         path = output_dir / "surrogate_dataset.csv"
         csv_writer(path, surrogate_dataset_columns(case), surrogate_dataset_rows(case, result))
-        written.append(path)
-    if outputs.summaries.validation_ledger and scientific_output_allowed():
-        path = output_dir / "validation_ledger.csv"
-        csv_writer(path, VALIDATION_LEDGER_COLUMNS, validation_ledger_rows(case, result))
         written.append(path)
     if outputs.summaries.porosity_permeability and scientific_output_allowed():
         path = output_dir / "porosity_permeability.csv"

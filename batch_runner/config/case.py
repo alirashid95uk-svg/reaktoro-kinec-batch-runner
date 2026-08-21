@@ -274,8 +274,6 @@ class CaseConfig(StrictModel):
             )
         if summaries.surrogate_dataset and not post.surrogate_dataset.enabled:
             raise ValueError("surrogate_dataset output requires postprocessing.surrogate_dataset.enabled: true")
-        if summaries.validation_ledger and not self.validation.enabled:
-            raise ValueError("validation_ledger output requires validation.enabled: true")
         if summaries.porosity_permeability and not post.porosity_permeability.enabled:
             raise ValueError(
                 "porosity_permeability output requires postprocessing.porosity_permeability.enabled: true"

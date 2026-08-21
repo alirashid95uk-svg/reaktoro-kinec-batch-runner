@@ -239,9 +239,7 @@ postprocessing:
   porosity_permeability: {enabled: false}
 
 validation:
-  # The repository states experiment validation is not implemented in V1.
   enabled: false
-  targets: []
 
 outputs:
   monitor:
@@ -260,7 +258,7 @@ outputs:
   manifest: {enabled: true, include_input_snapshot: true}
   diagnostics: {enabled: true}
   timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
-  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: true, reaction_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: true, workflow_comparison: false, secondary_mineral_assemblage: true, surrogate_dataset: false, validation_ledger: false, porosity_permeability: false}
+  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: true, reaction_rate_validation: false, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: true, workflow_comparison: false, secondary_mineral_assemblage: true, surrogate_dataset: false, porosity_permeability: false}
   solver_history: {enabled: true}
   plots: {enabled: true, pH: true, mineral_change: true, saturation_index: true, solver_dt: false, solver_iterations: false}
   debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}

@@ -10,7 +10,10 @@ branch/controller fields to the same `solver_history.csv` artifact.
 Only implemented output fields belong in this document. Smart-solver and
 restart fields are not active output requirements.
 
-The active output contract remains `objective1_audit_v4`.
+The active output contract remains `objective1_audit_v4`. Removing the
+obsolete optional `validation_ledger.csv` capability does not change required
+package artifacts or scientific table schemas, so no schema-version bump is
+needed. Downstream validation artifacts remain outside the package.
 
 ## 1. Purpose
 
@@ -90,7 +93,6 @@ surface_area_audit.csv
 workflow_comparison.csv
 secondary_mineral_assemblage.csv
 surrogate_dataset.csv
-validation_ledger.csv
 porosity_permeability.csv
 ```
 
@@ -324,12 +326,23 @@ changes and errors honestly, but do not invent pass/fail tolerances.
 They are not authoritative whole-state component, material, or charge-balance
 checks and must not be used as scientific acceptance criteria on that basis.
 
-## 13. Validation Ledger
+## 13. Post-Simulation Validation
 
-Configured validation targets are reporting checks against supplied targets and
-uncertainties. A failed target is not permission to tune scientific inputs.
+When configured, a trusted validation script runs in a separate process only
+after the simulation and authoritative output package have completed. The
+runner passes the resolved package directory as `--results-dir`.
 
-The ledger does not make the runner an automatic experiment-calibration system.
+Derived validation artifacts belong in the timestamped run's sibling
+`validation/` directory, outside `results/`. They are not listed in or allowed
+to modify the simulation manifest. Validation success/failure is reported
+separately and cannot change Reaktoro simulation status or package
+completeness.
+
+Machine output uses the existing `stage_started`/`stage_completed` events with
+`stage: post_simulation_validation` and a separate
+`completed`/`failed`/`skipped` status. A failed hook does not emit a worker or
+solver failure event, and the runner still exits according to simulation and
+package completion.
 
 ## 14. Porosity, Permeability, and Capillary Fields
 

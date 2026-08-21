@@ -30,6 +30,7 @@ class ResolvedCase:
     output_dir: Path
     database_path: Path | None
     kinetics_path: Path | None
+    validation_script_path: Path | None
     duration_s: float
     dt_s: float
     dt_initial_s: float
@@ -151,6 +152,8 @@ class ResolvedCase:
         if self.kinetics_path is not None:
             data["kinetics"]["path"] = str(self.kinetics_path)
             data["kinetics"]["sha256"] = self.kinetic_parameter_sha256
+        if self.validation_script_path is not None:
+            data["validation"]["script"] = str(self.validation_script_path)
         data["solver"]["timestep"]["derived_duration_s"] = self.duration_s
         if self.config.solver.timestep.mode == "fixed":
             data["solver"]["timestep"]["derived_dt_s"] = self.dt_s
@@ -209,6 +212,20 @@ def resolve_case(
         kinetics_path = _resolve_project_path(config.kinetics.path)
         if not kinetics_path.is_file():
             raise FileNotFoundError(f"kinetic parameter file does not exist: {kinetics_path}")
+
+    validation_script_path = None
+    if config.validation.enabled:
+        assert config.validation.script is not None
+        validation_script_path = _resolve_project_path(config.validation.script)
+        validation_root = (PROJECT_ROOT / "validation").resolve()
+        if not validation_script_path.is_relative_to(validation_root):
+            raise ValueError("validation script must be inside the project validation directory")
+        if validation_script_path.suffix.lower() != ".py":
+            raise ValueError("validation script must use a .py path")
+        if not validation_script_path.is_file():
+            raise FileNotFoundError(
+                f"validation script does not exist: {validation_script_path}"
+            )
 
     duration_s = 0.0
     dt_s = 0.0
@@ -362,6 +379,7 @@ def resolve_case(
         output_dir=output_dir,
         database_path=database_path,
         kinetics_path=kinetics_path,
+        validation_script_path=validation_script_path,
         duration_s=duration_s,
         dt_s=dt_s,
         dt_initial_s=dt_initial_s,

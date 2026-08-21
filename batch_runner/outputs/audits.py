@@ -65,16 +65,6 @@ SURFACE_AREA_COLUMNS = [
     "surface_area_provenance",
     "comparability_status",
 ]
-VALIDATION_LEDGER_COLUMNS = [
-    "quantity",
-    "target_value",
-    "unit",
-    "uncertainty",
-    "source",
-    "runtime_value",
-    "difference",
-    "evaluation_status",
-]
 def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
     kinetic_minerals = [mineral for mineral in case.config.minerals if mineral.role == "kinetic"]
     for row in result.iter_rows():
@@ -177,33 +167,6 @@ def surface_area_audit_rows(case: ResolvedCase) -> list[dict[str, Any]]:
         }
         for mineral in case.config.minerals
     ]
-
-
-def validation_ledger_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
-    final = result.final_row
-    rows = []
-    for target in case.config.validation.targets:
-        runtime = final.get(target.quantity)
-        diff = None if runtime is None else runtime - target.target_value
-        if runtime is None:
-            status = "not_evaluated"
-        elif target.uncertainty is None:
-            status = "evaluated_without_uncertainty"
-        else:
-            status = "within_uncertainty" if abs(diff) <= target.uncertainty else "outside_uncertainty"
-        rows.append(
-            {
-                "quantity": target.quantity,
-                "target_value": target.target_value,
-                "unit": target.unit,
-                "uncertainty": target.uncertainty,
-                "source": target.source,
-                "runtime_value": runtime,
-                "difference": diff,
-                "evaluation_status": status,
-            }
-        )
-    return rows
 
 
 def _weighted_sum(row: dict[str, Any], prefix: str, mapping: dict[str, float]) -> float:
