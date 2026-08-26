@@ -27,6 +27,8 @@ jobs:
       - name: Install documentation dependencies
         run: python -m pip install -r requirements-docs.txt
 
+      - name: Test documentation contracts
+        run: python -m pytest -q tests/test_documentation_architecture.py
+
       - name: Generate and build documentation
         run: python tools/build_docs.py
-

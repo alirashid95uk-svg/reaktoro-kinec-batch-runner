@@ -13,7 +13,9 @@ from batch_runner.run_directories import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
+SOURCE_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
 def _without_output_dir(raw: dict) -> dict:
@@ -33,7 +35,7 @@ def test_fresh_run_snapshot_changes_only_output_directory(tmp_path: Path) -> Non
 
     assert snapshot == (
         runs_dir
-        / "calcite_quartz_illite_development"
+        / "synthetic_software_only_kinec"
         / "2026-08-19_19-30-45"
         / "run_case.yaml"
     )

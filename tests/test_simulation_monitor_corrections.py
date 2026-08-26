@@ -10,7 +10,9 @@ from batch_runner.monitor import SimulationMonitor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
+SOURCE_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
 def _case(tmp_path: Path, name: str):

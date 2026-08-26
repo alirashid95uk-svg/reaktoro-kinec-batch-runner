@@ -7,25 +7,25 @@ It is deliberately separate from `batch_runner.simulator`: the generated file do
 ## Usage
 
 ```powershell
-python yaml_to_reaktoro.py cases\calcite_quartz_illite_development.yaml
+python yaml_to_reaktoro.py cases\pokrovsky_2005\pokrovsky_2005_2atm.yaml
 ```
 
 Default output:
 
 ```text
-cases/calcite_quartz_illite_development_reaktoro.py
+cases/pokrovsky_2005/pokrovsky_2005_2atm_reaktoro.py
 ```
 
 Choose another output path:
 
 ```powershell
-python yaml_to_reaktoro.py cases\calcite_quartz_illite_development.yaml -o review_case.py
+python yaml_to_reaktoro.py cases\pokrovsky_2005\pokrovsky_2005_2atm.yaml -o review_case.py
 ```
 
 Print without writing a file:
 
 ```powershell
-python yaml_to_reaktoro.py cases\calcite_quartz_illite_development.yaml --stdout
+python yaml_to_reaktoro.py cases\pokrovsky_2005\pokrovsky_2005_2atm.yaml --stdout
 ```
 
 ## Coverage

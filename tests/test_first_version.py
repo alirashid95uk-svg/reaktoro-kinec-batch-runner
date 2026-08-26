@@ -40,11 +40,9 @@ DATABASE_PATH = PROJECT_ROOT / "data" / "thermo" / "Kinec_v3_4.dat"
 KINETICS_PATH = PROJECT_ROOT / "data" / "kinetics" / "kinec_rates_minimal.yaml"
 PALANDRI_PATH = PROJECT_ROOT / "data" / "kinetics" / "PalandriKharaka_local.yaml"
 TEMPLATE_PATH = PROJECT_ROOT / "cases" / "schema_template.yaml"
-SOURCE_CASE_PATH = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
-DEVELOPMENT_CASE_PATH = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
-JAYASEKARA_KINEC_ONLY_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_kinec_only_software_test.yaml"
-JAYASEKARA_REDOX_OFF_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_kinec_only_redox_off_test.yaml"
-JAYASEKARA_NO_EXCHANGE_CASE_PATH = PROJECT_ROOT / "cases" / "jayasekara_no_ion_exchange_software_test.yaml"
+SYNTHETIC_CASE_PATH = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
 def _read_yaml(path: Path) -> dict:
@@ -53,7 +51,7 @@ def _read_yaml(path: Path) -> dict:
 
 
 def _source_case_with_output(output_dir: Path) -> dict:
-    raw = _read_yaml(SOURCE_CASE_PATH)
+    raw = _read_yaml(SYNTHETIC_CASE_PATH)
     raw["paths"]["output_dir"] = str(output_dir)
     return raw
 
@@ -90,10 +88,10 @@ def test_project_relative_path_resolves_from_project_root(tmp_path: Path) -> Non
 
 
 def test_preflight_blocks_missing_kinec_records_before_solver(tmp_path: Path) -> None:
-    case = load_case(
-        JAYASEKARA_NO_EXCHANGE_CASE_PATH,
-        output_dir_override=tmp_path / "preflight-results",
-    )
+    raw = _source_case_with_output(tmp_path / "preflight-results")
+    raw["minerals"][0]["name"] = "Afwillite"
+    raw["postprocessing"]["requested_minerals"] = ["Afwillite"]
+    case = load_case(_write_case(tmp_path, raw))
 
     report = preflight_case(case)
 
@@ -103,13 +101,13 @@ def test_preflight_blocks_missing_kinec_records_before_solver(tmp_path: Path) ->
         row["mineral_name"]
         for row in report["kinetic_mapping"]
         if row["status"] == "failed"
-    ] == ["Chlorite(14A)", "K-feldspar", "Goethite", "Pyrite", "Ca-Montmorillonite"]
+    ] == ["Afwillite"]
     assert not case.output_dir.exists()
 
 
 def test_kinetic_model_defaults_and_resolved_provenance(tmp_path: Path) -> None:
-    raw = _read_yaml(DEVELOPMENT_CASE_PATH)
-    raw["paths"]["output_dir"] = str(tmp_path / "palandri")
+    raw = _source_case_with_output(tmp_path / "palandri")
+    raw["kinetics"] = {"enabled": True}
     resolved = load_case(_write_case(tmp_path, raw))
     assert resolved.config.kinetics.model == "palandri_kharaka"
     assert resolved.kinetics_path == PALANDRI_PATH.resolve()
@@ -359,11 +357,11 @@ os._exit(0)
     assert observed["dissolved_mol"] == pytest.approx(1.0e-8, rel=1.0e-6)
 
 
-def test_source_supported_case_loads_with_fixed_timestep(tmp_path: Path) -> None:
+def test_synthetic_case_loads_with_fixed_timestep(tmp_path: Path) -> None:
     resolved = load_case(_write_case(tmp_path, _source_case_with_output(tmp_path / "outputs")))
-    assert resolved.full_steps == 72
+    assert resolved.full_steps == 2
     assert resolved.final_step_s == 0.0
-    assert resolved.duration_s == 259200.0
+    assert resolved.duration_s == 2.0
 
 
 def test_missing_surface_area_and_kinetic_record_fail(tmp_path: Path) -> None:
@@ -413,9 +411,18 @@ def test_mapping_report_location_and_output_toggle(tmp_path: Path) -> None:
     assert not (case.output_dir / "debug" / "mineral_connection.csv").exists()
 
 
-def test_three_mineral_case_validates_and_uses_staged_workflow() -> None:
-    config = CaseConfig.model_validate(_read_yaml(DEVELOPMENT_CASE_PATH))
-    assert [mineral.name for mineral in config.minerals] == ["Calcite", "Quartz", "Illite"]
+def test_synthetic_fixed_fugacity_variant_validates_and_uses_staged_workflow() -> None:
+    raw = _read_yaml(SYNTHETIC_CASE_PATH)
+    raw["co2"] = {
+        "mode": "fixed_fugacity",
+        "gas_species": "CO2(g)",
+        "fugacity_bar": 1.0,
+    }
+    raw["solver"]["workflow"] = {
+        "mode": "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
+    }
+    config = CaseConfig.model_validate(raw)
+    assert [mineral.name for mineral in config.minerals] == ["Calcite"]
     assert config.solver.workflow.mode == "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
     assert config.solver.timestep.mode == "fixed"
 
@@ -667,9 +674,10 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
         assert (case.output_dir / name).is_file()
 
 
-def test_redox_off_case_changes_only_redox_block() -> None:
-    redox_on = _read_yaml(JAYASEKARA_KINEC_ONLY_CASE_PATH)
-    redox_off = _read_yaml(JAYASEKARA_REDOX_OFF_CASE_PATH)
+def test_redox_toggle_changes_only_redox_block() -> None:
+    redox_off = _read_yaml(SYNTHETIC_CASE_PATH)
+    redox_on = deepcopy(redox_off)
+    redox_on["redox"] = {"enabled": True, "pe": 4.0, "apply_during": "kinetic_steps"}
     assert redox_on["redox"] == {"enabled": True, "pe": 4.0, "apply_during": "kinetic_steps"}
     assert redox_off["redox"] == {"enabled": False}
     redox_on["redox"] = redox_off["redox"]

@@ -20,10 +20,9 @@ three deterministic implementation choices that are not experimental values:
   probe. At time zero, the numerical reaction rate in mol/s therefore equals
   the area-normalised flux in mol/m2/s.
 
-The 60 s duration and 10 s fixed timestep are copied from the batch runner's
-existing canonical Calcite development case. They are software-run controls,
-not Pokrovsky experimental values. The reproduction comparison uses the
-initial time-zero reaction rate only.
+The explicit 60 s duration and 10 s fixed timestep are generator-owned
+software-run controls, not Pokrovsky experimental values. The reproduction
+comparison uses the initial time-zero reaction rate only.
 
 The pre-equilibration is intentionally fluid-only: Calcite is added only after
 CO2/brine equilibrium has been calculated. This avoids equilibrating the
@@ -163,7 +162,10 @@ def case_document(target: dict[str, float | str], aqueous_amounts, gas_amount: f
                 "initial_amount": {"value": CALCITE_AMOUNT_MOL, "unit": "mol"},
                 "surface_area": {"value": CALCITE_AREA_M2, "unit": "m2"},
                 "surface_area_basis": "1 m2 computational rate-normalisation probe",
-                "surface_area_provenance": "Validation-Pokrovsky validation/calcite_validation.py SURFACE_AREA_M2",
+                "surface_area_provenance": (
+                    "tools/generate_pokrovsky_2005_cases.py CALCITE_AREA_M2; "
+                    "Validation-Pokrovsky computational rate-normalisation probe"
+                ),
                 "selection_reason": "Pokrovsky et al. (2005) rotating-disc Calcite benchmark",
             }
         ],

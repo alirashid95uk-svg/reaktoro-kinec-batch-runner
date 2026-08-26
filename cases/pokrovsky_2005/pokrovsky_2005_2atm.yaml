@@ -168,7 +168,7 @@ minerals:
     value: 1.0
     unit: m2
   surface_area_basis: 1 m2 computational rate-normalisation probe
-  surface_area_provenance: Validation-Pokrovsky validation/calcite_validation.py SURFACE_AREA_M2
+  surface_area_provenance: tools/generate_pokrovsky_2005_cases.py CALCITE_AREA_M2; Validation-Pokrovsky computational rate-normalisation probe
   selection_reason: Pokrovsky et al. (2005) rotating-disc Calcite benchmark
 solver:
   workflow:

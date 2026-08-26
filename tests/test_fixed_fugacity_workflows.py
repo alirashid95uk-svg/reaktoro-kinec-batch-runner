@@ -13,8 +13,9 @@ from batch_runner.simulator.solver import execution as solver_module
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-STAGED_CASE_PATH = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
-LEGACY_CASE_PATH = PROJECT_ROOT / "cases" / "calcite_quartz_illite_fixed_fugacity_legacy.yaml"
+SYNTHETIC_CASE_PATH = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
 def _read_yaml(path: Path) -> dict:
@@ -29,32 +30,52 @@ def _write_case(tmp_path: Path, raw: dict) -> Path:
     return path
 
 
-def test_workflow_mode_can_change_without_mutating_scientific_case_values() -> None:
-    staged = _read_yaml(STAGED_CASE_PATH)
-    legacy_variant = deepcopy(staged)
-    legacy_variant["solver"]["workflow"] = {
+def _fixed_fugacity_case(workflow: str) -> dict:
+    """Return a synthetic config variant for solver-routing tests only."""
+
+    raw = _read_yaml(SYNTHETIC_CASE_PATH)
+    raw["co2"] = {
+        "mode": "fixed_fugacity",
+        "gas_species": "CO2(g)",
+        "fugacity_bar": 1.0,
+    }
+    raw["solver"]["workflow"] = {"mode": workflow}
+    return raw
+
+
+def test_workflow_mode_can_change_without_mutating_other_config_values() -> None:
+    staged = _fixed_fugacity_case(
+        "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
+    )
+    constrained_variant = deepcopy(staged)
+    constrained_variant["solver"]["workflow"] = {
         "mode": "fixed_fugacity_during_kinetic_steps",
     }
 
     CaseConfig.model_validate(staged)
-    CaseConfig.model_validate(legacy_variant)
-    legacy_variant["solver"]["workflow"] = staged["solver"]["workflow"]
-    assert legacy_variant == staged
+    CaseConfig.model_validate(constrained_variant)
+    constrained_variant["solver"]["workflow"] = staged["solver"]["workflow"]
+    assert constrained_variant == staged
 
 
-def test_legacy_workflow_requires_fixed_fugacity_co2() -> None:
-    raw = _read_yaml(LEGACY_CASE_PATH)
+def test_constrained_kinetic_workflow_requires_fixed_fugacity_co2() -> None:
+    raw = _fixed_fugacity_case("fixed_fugacity_during_kinetic_steps")
     raw["co2"] = {"mode": "disabled"}
 
     with pytest.raises(ValidationError, match="fixed_fugacity"):
         CaseConfig.model_validate(raw)
 
 
-def test_legacy_kinetic_conditions_include_configured_co2_fugacity(
+def test_constrained_kinetic_conditions_include_configured_co2_fugacity(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    case = load_case(_write_case(tmp_path, _read_yaml(LEGACY_CASE_PATH)))
+    case = load_case(
+        _write_case(
+            tmp_path,
+            _fixed_fugacity_case("fixed_fugacity_during_kinetic_steps"),
+        )
+    )
     calls = []
 
     class FakeSpecs:
@@ -99,7 +120,7 @@ def test_legacy_kinetic_conditions_include_configured_co2_fugacity(
     assert specs is not None
     assert conditions is not None
     assert ("specs.fugacity", "CO2(g)") in calls
-    assert ("conditions.fugacity", "CO2(g)", 57.77, "bar") in calls
+    assert ("conditions.fugacity", "CO2(g)", 1.0, "bar") in calls
     assert not any(call[0] == "conditions.pE" for call in calls)
 
 
@@ -166,11 +187,16 @@ def _run_with_solver_spy(monkeypatch, case):
     }
 
 
-def test_legacy_workflow_uses_kinetics_solver_specs_and_passes_conditions(
+def test_constrained_workflow_uses_kinetics_solver_specs_and_passes_conditions(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    case = load_case(_write_case(tmp_path, _read_yaml(LEGACY_CASE_PATH)))
+    case = load_case(
+        _write_case(
+            tmp_path,
+            _fixed_fugacity_case("fixed_fugacity_during_kinetic_steps"),
+        )
+    )
     observed = _run_with_solver_spy(monkeypatch, case)
 
     assert observed["constructors"] == [("KineticsSolver", observed["kinetic_specs"])]
@@ -184,7 +210,14 @@ def test_staged_workflow_preserves_initial_equilibrium_then_closed_kinetics(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    case = load_case(_write_case(tmp_path, _read_yaml(STAGED_CASE_PATH)))
+    case = load_case(
+        _write_case(
+            tmp_path,
+            _fixed_fugacity_case(
+                "fixed_fugacity_initial_equilibrium_then_closed_kinetics"
+            ),
+        )
+    )
     observed = _run_with_solver_spy(monkeypatch, case)
 
     assert observed["constructors"] == [

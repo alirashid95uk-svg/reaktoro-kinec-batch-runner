@@ -158,17 +158,11 @@ Automatic experimental calibration or experiment-fitting is not implemented;
 post-simulation validation remains downstream analysis only.
 Transport is not implemented.
 
-`cases/source_supported_kinetic_case.yaml` is a runnable functional Calcite
-and finite-CO2 case copied from the values in the older user-supplied Kinec
-notebook. It is not a calibrated experiment.
-
-`cases/jayasekara_kinec_only_software_test.yaml` uses exact local-database
-species names and explicitly selects Kinec. It intentionally excludes
-Goethite and Pyrite and is not a full legacy experiment reproduction.
-
-`cases/calcite_quartz_illite_development.yaml` is the small source-supported
-development case for fixed-fugacity initial equilibrium followed by closed
-kinetics using the native Palandri-Kharaka default.
+Runnable examples are the non-template YAML case files currently tracked under
+`cases/`. The Jayasekara files exercise the supported long-horizon workflows; their
+names do not establish experimental agreement. The generated Pokrovsky
+Calcite cases have source and interpretation limits documented in
+`cases/pokrovsky_2005/README.md`.
 
 On Windows, completed custom-Kinec CLI runs exit immediately after all outputs
 are closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.

@@ -3,6 +3,9 @@
 > Historical review: this document assesses the earlier custom-Kinec default
 > architecture. The active runner now defaults to native Palandri-Kharaka;
 > retained Kinec findings apply only to explicit `model: kinec` runs.
+> The case and output paths named below are historical evidence. The invalid
+> development and software-test case files discussed here were subsequently
+> removed and are not runnable inputs in the current repository.
 
 ## 1. Executive summary
 
@@ -15,9 +18,9 @@ The solver is nevertheless **not yet suitable for defensible kinetic dataset gen
 3. fixed-step acceptance is based only on `result.succeeded()`, with no NaN, negative-amount, conservation, or timestep-refinement criterion;
 4. saturation and change classifications use exact zero, causing numerical values around (10^{-12}) to be labelled as physically meaningful under- or supersaturation;
 5. failure paths do not produce a complete diagnostic package and can leave a partial output directory that prevents a clean retry; and
-6. the checked-in outputs are not a coherent current result set. In particular, the stored source-config hash for `calcite_quartz_illite_development` does not match the current case file, and the output contains fields that the active strict schema no longer accepts.
+6. the checked-in outputs were not a coherent result set. In particular, the stored source-config hash for `calcite_quartz_illite_development` did not match the then-current case file, and the output contained fields that the active strict schema no longer accepted.
 
-The existing output for the three-mineral development case also demonstrates a major performance concern: one one-second kinetic step required approximately 311.44 seconds and 74 iterations (`outputs/calcite_quartz_illite_development/solver_history.csv:3`). This observation is evidence of poor runtime behaviour, not proof of a single cause. The callback derivative loss, constrained chemistry, phase stiffness, and Reaktoro callback overhead all require controlled isolation before attribution.
+The historical output for the three-mineral development case also demonstrates a major performance concern: one one-second kinetic step required approximately 311.44 seconds and 74 iterations (`outputs/calcite_quartz_illite_development/solver_history.csv:3`). This observation is evidence of poor runtime behaviour, not proof of a single cause. The callback derivative loss, constrained chemistry, phase stiffness, and Reaktoro callback overhead all require controlled isolation before attribution.
 
 The current readiness assessment is:
 
@@ -62,7 +65,7 @@ The governing documents were read together:
 
 - The complete test suite was run in the documented environment: **25 tests passed** under Python 3.11.15, Reaktoro 2.13.0, Pydantic 2.13.4, and PyYAML 6.0.3.
 - All runnable case files passed strict Pydantic schema validation.
-- Static mineral mapping was checked without executing scientific simulations. All cases mapped successfully except `jayasekara_no_ion_exchange_software_test.yaml`, which produced the expected missing-Kinec-record failures for Chlorite(14A), K-feldspar, Goethite, Pyrite, and Ca-Montmorillonite. This case is therefore a mapping-failure demonstration, not a runnable kinetic case.
+- Static mineral mapping was checked without executing scientific simulations. All cases then present mapped successfully except the now-removed `jayasekara_no_ion_exchange_software_test.yaml`, which produced the expected missing-Kinec-record failures for Chlorite(14A), K-feldspar, Goethite, Pyrite, and Ca-Montmorillonite. It was therefore a mapping-failure demonstration, not a runnable kinetic case.
 - The installed Reaktoro headers confirm that generic `ReactionRateModel` values are in mol/s (`ReactionRateModel.hpp:34-39`) and that `ChemicalProps.surfaceArea` is in m² (`ChemicalProps.hpp:328-331,494`).
 - An in-memory Reaktoro construction probe showed that the generated generic Calcite reaction has stoichiometric coefficient (-1) for Calcite. Thus a positive generic reaction rate consumes Calcite in the currently selected interface.
 - The installed mineral-specific interface documents the opposite semantic convention: negative for dissolution and positive for precipitation (`MineralReactionRateModel.hpp:59-61`). This does not prove the current generic path is wrong; it demonstrates why the selected interface and sign must be tested rather than inferred from the class name.
@@ -225,7 +228,7 @@ The final state text reports charge and element amounts, but those values are no
 
 ### 5.7 Saturation, mineral change, and regime interpretation
 
-`_saturation_state` labels every negative SI as undersaturated and every positive SI as supersaturated; only exact zero is near equilibrium (`output_tables.py:177-182`). The checked-in three-mineral summary consequently labels Calcite at (8.56\times10^{-13}) as supersaturated, Quartz at (-2.82\times10^{-12}) as undersaturated, and Illite at (4.21\times10^{-10}) as supersaturated (`outputs/calcite_quartz_illite_development/mineral_summary.csv:2-4`). These classifications exceed the precision warranted by the result.
+`_saturation_state` labels every negative SI as undersaturated and every positive SI as supersaturated; only exact zero is near equilibrium (`output_tables.py:177-182`). The historical three-mineral summary consequently labels Calcite at (8.56\times10^{-13}) as supersaturated, Quartz at (-2.82\times10^{-12}) as undersaturated, and Illite at (4.21\times10^{-10}) as supersaturated (`outputs/calcite_quartz_illite_development/mineral_summary.csv:2-4`). These classifications exceed the precision warranted by the result.
 
 The rate-sign check and regime classification have the same exact-sign behaviour (`scientific_reports.py:138-153,241-271,476-489`). Tiny solver noise can therefore produce a failed sign check or an apparent dissolution/precipitation regime. The smallest correction is one explicit, source- or validation-supported tolerance used consistently across saturation state, rate-sign checks, mineral-change interpretation, and regime classification. This report does not invent that tolerance.
 
@@ -277,10 +280,10 @@ The active writer has several good safeguards: it requires a fresh output direct
 
 The existing output tree nevertheless contains multiple generations:
 
-- `outputs/source_supported_kinetic_case/results.csv` and its resolved config use a legacy schema in which duration and timestep lived under `kinetics`; the active code explicitly rejects this layout.
-- `outputs/calcite_quartz_illite_development/debug/resolved_config.yaml:83-128,183` contains backend, safety, conservation, geochemical-control, restart, and checkpoint fields absent from the active V1 schema.
+- The historical `outputs/source_supported_kinetic_case/results.csv` and its resolved config used a legacy schema in which duration and timestep lived under `kinetics`; the active code explicitly rejects this layout.
+- The historical `outputs/calcite_quartz_illite_development/debug/resolved_config.yaml:83-128,183` contained backend, safety, conservation, geochemical-control, restart, and checkpoint fields absent from the active V1 schema.
 - The active manifest writer emits `output_schema_version` at the root and in `run_identity` (`manifest.py:55-64`), while the checked-in development manifest does not contain those fields.
-- The development manifest stores source-config SHA-256 `538de8de...` (`outputs/calcite_quartz_illite_development/manifest.json:10`), whereas the current case file hashes to `44F98868...`.
+- The development manifest stored source-config SHA-256 `538de8de...` (`outputs/calcite_quartz_illite_development/manifest.json:10`), whereas the case file present during the review hashed to `44F98868...`.
 
 These facts do not show that the numerical values were wrong when generated. They show that the output package is stale relative to the active case/code and must not be used as current scientific evidence. The repository has no Git commit metadata, so the manifest cannot currently tie an output to a unique code revision.
 
@@ -345,7 +348,7 @@ The current test suite is therefore a sound V1 software suite, not a scientific 
 | SR-13 | **Medium** | Configuration; maintainability | `config.py:196-210`; `extract.py:20-45` | `aqueous_molalities` and `saturation_indices` do not control extraction. | Users cannot rely on the schema to describe runtime work or output availability. | Connect the flags to behaviour or remove them from the active schema at a compatibility boundary. | Config-toggle tests for extraction and dependent summaries. |
 | SR-14 | **Medium** | Reproducibility; configuration | `config.py:633-650` | A timestep expressed in years can silently use 365.25 days when the duration unit is not years. | Equivalent-looking cases can use an undocumented year definition. | Require `year_definition_days` whenever any configured time value uses years. | Mixed-unit duration/timestep validation cases. |
 | SR-15 | **Medium** | Data integrity; diagnostics | `scientific_reports.py:115-134`; `extract.py:47-62` | Surface-normalized rate and area columns do not encode distinct units/semantics precisely. | Downstream analysis can multiply or compare incompatible quantities. | Rename columns to explicit units and export coefficient, coefficient basis, and live m² in separate fields. | Dimensional audit against the callback's total mol/s rate. |
-| SR-16 | **Medium** | Configuration; documentation | `cases/jayasekara_no_ion_exchange_software_test.yaml`; runtime mapping check | The case passes schema validation but cannot attach five requested kinetic minerals with the cleaned YAML. | It may be mistaken for a runnable scientific case and leave a partial output directory. | Label it explicitly as an expected-failure mapping audit or remove it from runnable-case documentation. | Automated case catalogue reporting schema-valid, mapping-valid, and runnable status separately. |
+| SR-16 | **Medium** | Configuration; documentation | Historical `jayasekara_no_ion_exchange_software_test.yaml`; runtime mapping check | The case passed schema validation but could not attach five requested kinetic minerals with the cleaned YAML. | It could be mistaken for a runnable scientific case and leave a partial output directory. | **Resolved:** the invalid case was removed from the runnable case set. | Current case-catalogue checks should distinguish schema-valid, mapping-valid, and runnable status. |
 
 ## 8. Recommended scientific upgrades
 
@@ -483,7 +486,7 @@ These strengths mean the repository needs targeted scientific hardening, not an 
 8. Which experimental or independently calculated cases will serve as trusted Objective 1 validation targets?
 9. Which secondary phases are deliberately permitted in each mineral assemblage, and which are excluded for experimental or numerical reasons?
 10. What repository/version identifier should be used when `.git` metadata is unavailable?
-11. Should `jayasekara_no_ion_exchange_software_test.yaml` remain as an expected-failure mapping audit, or should runnable cases be kept in a separate directory?
+11. **Resolved:** `jayasekara_no_ion_exchange_software_test.yaml` was removed rather than retained as a runnable case.
 12. What repeated-call state and conservation contract will Objective 2 require before this batch solver is embedded in transport?
 
 ## 14. Final readiness assessment

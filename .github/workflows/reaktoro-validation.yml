@@ -39,10 +39,9 @@ jobs:
         shell: bash -el {0}
         run: |
           pytest -v \
-            --deselect=tests/test_first_version.py::test_native_palandri_uses_mineral_and_other_names_and_kinec_is_explicit \
             --junitxml=results/pytest.xml
 
-      - name: Run canonical Calcite validation
+      - name: Run tracked Calcite software validation
         shell: bash -el {0}
         run: |
           python validation/calcite_validation.py

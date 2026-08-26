@@ -1,25 +1,37 @@
 from __future__ import annotations
 
-import inspect
 import io
 import json
+from pathlib import Path
+
+import griffe
 
 from batch_runner.cli import build_run_parser, render_cli_markdown, run_config_help
-from batch_runner.config import CaseConfig, ResolvedCase, load_case, resolve_case
+from batch_runner.config import CaseConfig
 from batch_runner.config.reference import (
     configuration_reference,
     render_markdown_reference,
 )
-from batch_runner.outputs import write_kinetic_mapping, write_outputs
-from batch_runner.protocol import ProtocolEmitter, cancellation_requested
-from batch_runner.simulator import (
-    execute_solver,
-    prepare_simulation,
-    preflight_case,
-    run_simulation,
-    uses_python_rate_callback,
-)
-from runner import main as runner_main
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STABLE_INTERFACES = {
+    "batch_runner.config": (
+        "CaseConfig",
+        "ResolvedCase",
+        "load_case",
+        "resolve_case",
+    ),
+    "batch_runner.outputs": ("write_kinetic_mapping", "write_outputs"),
+    "batch_runner.protocol": ("ProtocolEmitter", "cancellation_requested"),
+    "batch_runner.simulator": (
+        "execute_solver",
+        "prepare_simulation",
+        "preflight_case",
+        "run_simulation",
+        "uses_python_rate_callback",
+    ),
+}
 
 
 def test_every_user_facing_config_field_has_a_description() -> None:
@@ -49,23 +61,19 @@ def test_case_config_json_schema_remains_serializable_and_described() -> None:
 
 
 def test_stable_batch_runner_interfaces_have_docstrings() -> None:
-    interfaces = (
-        CaseConfig,
-        ResolvedCase,
-        load_case,
-        resolve_case,
-        write_kinetic_mapping,
-        write_outputs,
-        ProtocolEmitter,
-        cancellation_requested,
-        execute_solver,
-        prepare_simulation,
-        preflight_case,
-        run_simulation,
-        uses_python_rate_callback,
-    )
+    missing = []
+    for module_name, names in STABLE_INTERFACES.items():
+        module = griffe.load(
+            module_name,
+            search_paths=[PROJECT_ROOT],
+            allow_inspection=False,
+        )
+        missing.extend(
+            f"{module_name}.{name}"
+            for name in names
+            if not module[name].docstring or not module[name].docstring.value.strip()
+        )
 
-    missing = [item.__qualname__ for item in interfaces if not inspect.getdoc(item)]
     assert not missing, "stable interfaces without docstrings: " + ", ".join(missing)
 
 
@@ -93,12 +101,6 @@ def test_unknown_config_help_path_fails_without_loading_a_case() -> None:
     assert run_config_help(["does_not_exist"], stream=stream, error_stream=errors) == 2
     assert not stream.getvalue()
     assert "unknown configuration section or path" in errors.getvalue()
-
-
-def test_runner_dispatches_config_help_without_a_case(capsys) -> None:
-    runner_main(["config", "--help", "timestep"])
-
-    assert "solver.timestep.mode" in capsys.readouterr().out
 
 
 def test_generated_reference_views_use_live_definitions() -> None:

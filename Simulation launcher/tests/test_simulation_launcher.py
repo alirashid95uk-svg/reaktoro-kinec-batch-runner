@@ -18,7 +18,9 @@ from launcher_diagnosis import format_preflight_diagnosis, write_run_diagnosis
 from simulation_launcher import create_run_snapshot
 
 
-SOURCE_CASE = PROJECT_ROOT / "cases" / "calcite_quartz_illite_development.yaml"
+SOURCE_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 WINDOWS_LAUNCHER = LAUNCHER_DIR / "Run Simulations.cmd"
 
 
@@ -103,7 +105,7 @@ def test_diagnosis_distinguishes_blocked_input_from_incomplete_output(tmp_path: 
     assert "ISSUE: primary mapping failure" in primary_diagnosis
 
 
-def test_run_snapshot_preserves_scientific_settings_and_uses_fresh_output(tmp_path: Path) -> None:
+def test_run_snapshot_preserves_case_settings_and_uses_fresh_output(tmp_path: Path) -> None:
     source_text = SOURCE_CASE.read_text(encoding="utf-8")
     snapshot = create_run_snapshot(
         SOURCE_CASE,
@@ -123,7 +125,7 @@ def test_run_snapshot_preserves_scientific_settings_and_uses_fresh_output(tmp_pa
     generated["paths"].pop("output_dir")
 
     assert generated == source
-    assert "# Source case: cases/calcite_quartz_illite_development.yaml" in generated_text
+    assert "# Source case: tests/fixtures/cases/synthetic_kinec_case.yaml" in generated_text
     assert "# Source SHA256:" in generated_text
     assert snapshot.config_path.is_file()
     assert not snapshot.results_dir.exists()

@@ -49,12 +49,11 @@ The generated cases use the runner's normal `closed_kinetics` workflow with a
 finite pure-CO2 gas reservoir. The time-zero row in `reaction_rates.csv` is the
 intended batch-model rate comparison point.
 
-The required numerical run controls are **not experimental values**. The 60 s
-duration and 10 s fixed timestep are copied from the repository's existing
-`cases/calcite_quartz_illite_development.yaml` canonical Calcite software case.
-Only the time-zero reaction rate is used for the Pokrovsky initial-rate
-diagnostic, so the later integration interval is not interpreted as part of
-the experiment.
+The required numerical run controls are **not experimental values**. The
+generator owns the explicit 60 s duration and 10 s fixed timestep as software
+run controls. Only the time-zero reaction rate is used for the Pokrovsky
+initial-rate diagnostic, so the later integration interval is not interpreted
+as part of the experiment.
 
 ## Postprocessing the experimental comparison
 

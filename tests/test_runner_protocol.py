@@ -12,7 +12,9 @@ from batch_runner.protocol import PROTOCOL_VERSION, ProtocolEmitter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = PROJECT_ROOT / "runner.py"
-KINEC_CASE = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
+KINEC_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
 class _FlushCountingStream(io.StringIO):

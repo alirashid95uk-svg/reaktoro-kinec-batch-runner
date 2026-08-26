@@ -17,7 +17,9 @@ from batch_runner.simulator import run_simulation
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
+SOURCE_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 RUNNER = PROJECT_ROOT / "runner.py"
 
 
@@ -340,7 +342,7 @@ def test_full_runner_non_tty_human_mode_is_readable(tmp_path: Path) -> None:
     assert (human_case.output_dir / "simulation.log").is_file()
 
 
-def test_monitor_enabled_and_disabled_are_scientifically_identical(tmp_path: Path) -> None:
+def test_monitor_enabled_and_disabled_produce_identical_solver_outputs(tmp_path: Path) -> None:
     disabled_case = _case(
         tmp_path,
         "science-off",

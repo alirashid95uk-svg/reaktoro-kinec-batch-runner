@@ -302,10 +302,12 @@ def test_monitor_displays_and_logs_numerical_integrity(tmp_path: Path) -> None:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = PROJECT_ROOT / "cases" / "source_supported_kinetic_case.yaml"
+SOURCE_CASE = (
+    PROJECT_ROOT / "tests" / "fixtures" / "cases" / "synthetic_kinec_case.yaml"
+)
 
 
-def _real_case(tmp_path: Path, name: str):
+def _synthetic_case(tmp_path: Path, name: str):
     raw = yaml.safe_load(SOURCE_CASE.read_text(encoding="utf-8"))
     raw["paths"]["output_dir"] = str(tmp_path / name)
     raw["kinetics"] = {"enabled": True, "model": "palandri_kharaka"}
@@ -321,9 +323,9 @@ def _real_case(tmp_path: Path, name: str):
     return load_case(path)
 
 
-def test_observer_callback_is_scientifically_invariant_on_real_case(tmp_path: Path) -> None:
-    baseline_case = _real_case(tmp_path, "integrity-off")
-    observed_case = _real_case(tmp_path, "integrity-on")
+def test_observer_callback_is_numerically_invariant_on_synthetic_case(tmp_path: Path) -> None:
+    baseline_case = _synthetic_case(tmp_path, "integrity-off")
+    observed_case = _synthetic_case(tmp_path, "integrity-on")
 
     baseline = run_simulation(baseline_case)
     observer = NumericalIntegrityObserver(observed_case)
