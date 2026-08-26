@@ -1,4 +1,16 @@
-"""Richardson error-controlled kinetic timesteps with separate event caps."""
+"""Richardson error-controlled kinetic stepping with geochemical event caps.
+
+Each trial advances independent copies by one full step and two half steps.
+Configured mineral-amount differences estimate local temporal error; only the
+two-half-step state can be accepted.  Reaktoro failure, excessive error,
+inadmissible observations, and hard-event localization all reject without
+advancing accepted time.  Soft events cap later proposals but do not override
+the Richardson acceptance criterion.
+
+Amounts are evaluated in mol and controller/event times in seconds.  This
+module owns numerical acceptance and event localization, while output schedules
+remain exact forced targets supplied by :class:`~.runtime.SolverRun`.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +31,13 @@ from .runtime import SolverRun
 
 @dataclass(frozen=True)
 class ErrorEstimate:
+    """Worst normalized Richardson estimate across controlled minerals.
+
+    ``raw_error_mol`` is the step-doubling difference divided by
+    ``2**temporal_order - 1``.  ``tolerance_mol`` combines the configured
+    absolute tolerance and scaled relative tolerance; ``value`` and
+    ``scaled_error`` are the same dimensionless maximum used for acceptance.
+    """
     value: float
     worst_mineral: str
     raw_error_mol: float
@@ -31,6 +50,18 @@ def richardson_error(
     half_amounts: Mapping[str, float],
     config: RichardsonErrorControlConfig,
 ) -> ErrorEstimate:
+    """Return the maximum scaled Richardson error for controlled minerals.
+
+    Args:
+        full_amounts: Mineral amounts in mol after one full step.
+        half_amounts: Mineral amounts in mol after two half steps.
+        config: Temporal order and per-mineral error tolerances.
+
+    Raises:
+        KeyError: A controlled mineral is absent from either observation.
+        ValueError: The Richardson denominator or any computed quantity is
+            non-finite or invalid.
+    """
     denominator = 2.0**config.temporal_order - 1.0
     if not isfinite(denominator) or denominator <= 0.0:
         raise ValueError("Richardson denominator must be finite and positive")
@@ -64,6 +95,12 @@ def controller_step(
     dt_max_s: float,
     accepted: bool,
 ) -> float:
+    """Return the bounded next controller timestep in seconds.
+
+    The standard error-control exponent ``-1 / (p + 1)`` is limited by the
+    configured shrink/growth factors and global timestep bounds.  Rejected
+    trials can never increase the attempted timestep.
+    """
     if error == 0.0:
         factor = growth_factor
     elif not isfinite(error) or error < 0.0:
@@ -78,6 +115,20 @@ def controller_step(
 
 
 def run_error_controlled_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
+    """Execute Richardson-controlled trials until completion or termination.
+
+    Every trial uses independent full-step and half-step states.  Accepted time
+    advances only after solver success, finite/admissible geochemical
+    observations, error acceptance, and any required hard-event localization.
+    The accepted candidate is the two-half-step state.
+
+    Returns:
+        tuple[Any, dict[str, Any]]: The initial-state reference and detailed
+            lifecycle progress.  Expected solver/controller failures and
+            cancellation are encoded in progress; unexpected programming or
+            observation errors propagate to lifecycle handling in
+            :mod:`batch_runner.simulator.simulation`.
+    """
     initial_state = run.initial_state
     timestep = run.timestep
     error_config = timestep.error_control
@@ -485,6 +536,12 @@ def run_error_controlled_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]
 
 
 def observe_state(run: SolverRun, state: Any, time_s: float) -> dict[str, Any]:
+    """Collect controller-only geochemical observables from a trial state.
+
+    The mapping contains pH, mineral amounts in mol, saturation indices, and
+    reaction rates only when the configured soft-event rule needs them.  It is
+    separate from output rows and does not make a trial scientifically visible.
+    """
     aqueous = rkt.AqueousProps(state)
     amounts = {
         mineral.name: float(state.speciesAmount(mineral.name))

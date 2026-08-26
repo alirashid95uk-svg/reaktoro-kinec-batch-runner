@@ -1,4 +1,9 @@
-"""PHREEQC database loading."""
+"""Load the explicitly resolved PHREEQC thermodynamic database.
+
+This is the sole runtime database-loading boundary used by simulation
+preparation.  It selects either the resolved local file or an exact embedded
+Reaktoro database name; no search, format conversion, or fallback occurs.
+"""
 
 from typing import Any
 
@@ -8,6 +13,12 @@ from batch_runner.config import ResolvedCase
 
 
 def load_database(case: ResolvedCase) -> Any:
+    """Return the configured Reaktoro ``PhreeqcDatabase``.
+
+    Raises:
+        RuntimeError: A local PHREEQC file cannot be loaded.
+        ValueError: The requested embedded database name is unavailable.
+    """
     if case.config.database.source == "local":
         path = str(case.database_path)
         try:

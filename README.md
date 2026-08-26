@@ -129,6 +129,19 @@ intentionally not runnable: replace every required placeholder with a value
 from supplied data, supplied files, explicit user instruction, or
 deterministic preprocessing.
 
+The Pydantic models under `batch_runner/config/` are the authoritative
+configuration interface. Inspect the same field metadata used by validation:
+
+```powershell
+python runner.py config --help
+python runner.py config --help timestep
+python runner.py config --help kinetics.model
+```
+
+Build the browsable API, configuration, CLI, architecture, and limitations
+documentation with `python tools/build_docs.py`. The generated configuration
+and CLI pages are build products; do not edit them manually.
+
 Relative paths in a case config are resolved from the project root. Absolute
 paths also work. A missing path stops the run and reports the exact resolved
 path; the runner does not search other locations.
@@ -190,6 +203,6 @@ are closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
 
 ## Add a Small Feature
 
-Add one config field, validate it, add direct execution logic in the relevant
-small module, expose its output if needed, and add one focused test.
+Add one described config field, validate it, add direct execution logic in the
+relevant small module, expose its output if needed, and add one focused test.
 `runner.py` remains orchestration only.

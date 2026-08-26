@@ -1,4 +1,10 @@
-"""Initial equilibrium and equilibrium-only completion."""
+"""Run the optional time-zero equilibrium stage and equilibrium-only output.
+
+This stage applies only the constraints selected by the workflow rules.  It
+snapshots before the mutating Reaktoro solve, restores on failure, and records
+the attempt at time zero.  Kinetic advancement is owned by the timestep
+modules.
+"""
 
 from typing import Any
 
@@ -13,6 +19,17 @@ from .runtime import SolverRun
 def run_initial_equilibrium(
     run: SolverRun,
 ) -> tuple[Any, dict[str, Any]] | None:
+    """Run configured initial equilibrium, returning only when execution stops.
+
+    Returns:
+        tuple[Any, dict[str, Any]] | None: ``None`` when no initial solve is
+            needed or it succeeds.  On failure or cancellation, returns the
+            accepted state snapshot and lifecycle progress expected by
+            :func:`execute_solver`.
+
+    The Reaktoro solve mutates ``run.state``.  Failed attempts are rolled back
+    before the failure record and progress summary are returned.
+    """
     if not requires_initial_equilibrium(run.case):
         return None
     if run.is_cancelled():
@@ -67,6 +84,12 @@ def run_initial_equilibrium(
 
 
 def finish_equilibrium_only(run: SolverRun) -> tuple[Any, dict[str, Any]]:
+    """Emit the time-zero accepted state as both boundaries and finish.
+
+    Raises:
+        AssertionError: Initial equilibrium did not leave a solver record.
+        Exception: Configured result extraction fails.
+    """
     initial_state = run.snapshot_state(run.state)
     run.initial_state = initial_state
     if run.is_cancelled():

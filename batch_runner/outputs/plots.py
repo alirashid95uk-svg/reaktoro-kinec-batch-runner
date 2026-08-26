@@ -1,4 +1,10 @@
-"""Config-controlled plots reproducible from result rows."""
+"""Render optional headless plots solely from accepted package records.
+
+The output writer calls this module only for completed scientific results.
+Plots use the non-interactive Matplotlib ``Agg`` backend and read the same rows
+and solver history used by CSV outputs, so they neither query Reaktoro nor alter
+the simulation.  Axis labels carry the stored time and amount-change units.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +24,11 @@ if TYPE_CHECKING:
 
 
 def write_plots(case: ResolvedCase, result: SimulationResult, plots_dir: Path) -> list[Path]:
+    """Write enabled plots and return their paths in configuration order.
+
+    The directory is created only when plotting is enabled.  Matplotlib and I/O
+    failures propagate to output orchestration, which records a partial package.
+    """
     config = case.config.outputs.plots
     if not config.enabled:
         return []

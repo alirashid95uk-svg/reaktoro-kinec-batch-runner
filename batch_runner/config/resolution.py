@@ -1,4 +1,10 @@
-"""Resolve validated cases into absolute paths and solver schedules."""
+"""Resolve validated source configuration into deterministic runtime values.
+
+The Pydantic models retain exactly what users configure. This module owns the
+separate operational projection: absolute project paths, canonical seconds,
+fixed-grid counts, requested output/checkpoint times, and preflight feasibility
+checks. It performs no chemistry construction and starts no solver.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +30,13 @@ from .timestep import (
 
 @dataclass(frozen=True)
 class ResolvedCase:
+    """Immutable bridge from validated YAML to simulation construction.
+
+    ``config`` remains the authoritative source model. Other attributes are
+    deterministic path, unit, schedule, or provenance values consumed by the
+    simulator and output writer; they are not additional YAML options.
+    """
+
     config: CaseConfig
     config_path: Path
     source_config_sha256: str | None
@@ -48,18 +61,24 @@ class ResolvedCase:
 
     @property
     def base_internal_step_count(self) -> int:
+        """Return fixed-grid steps before output/checkpoint target splitting."""
+
         if self.config.solver.timestep.mode != "fixed":
             return 0
         return self.full_steps + int(self.final_step_s > 0)
 
     @property
     def internal_step_count(self) -> int:
+        """Return all fixed solver steps after exact target insertion."""
+
         if self.config.solver.timestep.mode != "fixed":
             return 0
         return self.base_internal_step_count + len(self.extra_solver_targets_s)
 
     @property
     def requested_output_row_count(self) -> int | None:
+        """Return the determinable output-row count, or ``None`` for adaptive output."""
+
         if not self.config.kinetics.enabled:
             schedule = self.config.solver.timestep.output_schedule
             return int(schedule.include_initial or schedule.include_final)
@@ -73,6 +92,12 @@ class ResolvedCase:
         )
 
     def output_times_s(self) -> Iterator[float]:
+        """Yield configured result times in canonical seconds.
+
+        Adaptive ``every_internal_step`` output has no predetermined sequence;
+        in that mode only configured boundary times can be yielded here.
+        """
+
         schedule = self.config.solver.timestep.output_schedule
         if not self.config.kinetics.enabled:
             if schedule.include_initial or schedule.include_final:
@@ -90,6 +115,8 @@ class ResolvedCase:
                 yield target_time_s
 
     def fixed_steps_s(self) -> Iterator[tuple[float, float]]:
+        """Yield ``(step_size_s, target_time_s)`` for the resolved fixed grid."""
+
         if not self.config.kinetics.enabled or self.config.solver.timestep.mode != "fixed":
             return
         current_time = Decimal("0")
@@ -111,6 +138,8 @@ class ResolvedCase:
             yield self.duration_s
 
     def output_schedule_summary(self) -> dict[str, Any]:
+        """Return a serializable explanation of the resolved output schedule."""
+
         schedule = self.config.solver.timestep.output_schedule
         return {
             "mode": schedule.mode,
@@ -134,6 +163,8 @@ class ResolvedCase:
         }
 
     def checkpoint_schedule_summary(self) -> dict[str, Any]:
+        """Return the accepted-state checkpoint schedule in seconds."""
+
         return {
             "enabled": self.config.solver.timestep.checkpoint_schedule.enabled,
             "resolved_count": len(self.checkpoint_times_s),
@@ -142,9 +173,13 @@ class ResolvedCase:
 
     @property
     def kinetic_parameter_sha256(self) -> str | None:
+        """Return the selected kinetic parameter file hash when kinetics is enabled."""
+
         return _sha256(self.kinetics_path) if self.kinetics_path is not None else None
 
     def as_dict(self) -> dict[str, Any]:
+        """Return the source config augmented with deterministic resolved provenance."""
+
         data = self.config.model_dump(mode="json")
         data["paths"]["output_dir"] = str(self.output_dir)
         if self.database_path is not None:
@@ -195,6 +230,29 @@ def resolve_case(
     *,
     source_config_sha256: str | None = None,
 ) -> ResolvedCase:
+    """Resolve paths, units, schedules, and execution bounds for a validated case.
+
+    Args:
+        config: Already validated source configuration.
+        config_path: Path from which the source case was loaded.
+        source_config_sha256: Optional hash of the exact source bytes.
+
+    Returns:
+        A frozen runtime projection used by chemistry, solver, monitoring, and
+        output modules.
+
+    Raises:
+        FileExistsError: If the configured output directory already exists.
+        FileNotFoundError: If a selected local database, kinetics file, or
+            validation script is missing.
+        ValueError: If a path escapes its allowed boundary or a converted time,
+            schedule, step bound, or requested target is inconsistent.
+
+    Side Effects:
+        Reads filesystem metadata and selected file bytes for hashes. It does
+        not create output directories or alter the validated model.
+    """
+
     output_dir = _resolve_project_path(config.paths.output_dir)
     if output_dir.exists():
         raise FileExistsError(f"output directory already exists: {output_dir}")

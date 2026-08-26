@@ -1,4 +1,15 @@
-"""Orchestrate one Reaktoro batch simulation."""
+"""Prepare, execute, and stream one resolved Reaktoro batch simulation.
+
+This module is the runtime bridge between configuration, chemistry construction,
+solver execution, and output staging.  Preparation failures are converted into
+diagnostic results; during execution, accepted rows and all solver attempts are
+flushed to temporary JSONL streams so partial evidence survives later failures.
+It does not choose scientific defaults or format the final output package.
+
+Custom Python rate callbacks use a short-lived subprocess for the optional
+time-zero rate observation so diagnostic evaluation cannot alter the live
+solver callback state.
+"""
 
 from __future__ import annotations
 
@@ -122,7 +133,20 @@ def prepare_simulation(
     mapping_ready: Callable[[list[dict[str, Any]]], None] | None = None,
     event_ready: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> PreparedSimulation:
-    """Build and validate the configured chemistry without starting a solver."""
+    """Build and validate configured chemistry without starting a solver.
+
+    Stages load the database and kinetic parameters, validate exact mineral
+    connections, construct the Reaktoro system, and build the initial state.
+    Optional callbacks receive stage events and the mapping before enforcement.
+
+    Returns:
+        PreparedSimulation: Preparation outcome.  Expected and unexpected
+            exceptions are captured with their stage and traceback rather than
+            raised, allowing a diagnostic output package to be written.
+
+    Side effects are limited to input reads and supplied callbacks; the solver
+    is not constructed or executed.
+    """
     kinetic_mapping: list[dict[str, Any]] = []
     system = None
     state = None
@@ -193,6 +217,12 @@ def preflight_case(
     case: ResolvedCase,
     event_ready: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    """Return a machine-readable preparation report for a resolved case.
+
+    This executes the same database, parameter, mapping, system, and state
+    construction used by a real run, but never advances a solver or writes the
+    simulation output package.
+    """
     prepared = prepare_simulation(case, event_ready=event_ready)
     return {
         "ready": prepared.ready,
@@ -216,6 +246,30 @@ def run_simulation(
     accepted_row_ready: Callable[[dict[str, Any]], None] | None = None,
     accepted_state_ready: Callable[[Any, dict[str, Any]], None] | None = None,
 ) -> SimulationResult:
+    """Execute one prepared batch case and return streamed result metadata.
+
+    Args:
+        case: Fully resolved case including canonical-second schedules.
+        mapping_ready: Optional sink for the mineral-connection audit.
+        event_ready: Optional sink for lifecycle and checkpoint events.
+        progress_ready: Optional sink for solver-attempt progress.
+        cancel_requested: Cooperative cancellation predicate polled at safe
+            boundaries; it cannot interrupt a native Reaktoro call.
+        accepted_row_ready: Optional observer of scheduled accepted rows.
+        accepted_state_ready: Optional observer of accepted Reaktoro states and
+            their solver records.
+
+    Returns:
+        SimulationResult: Run outcome.  Rows and solver history normally reside
+            in JSONL staging files until output writing consumes them.
+            Preparation, solver, callback, and staging failures are represented
+            in diagnostics with the last accepted time; they are not scientific
+            success.
+
+    Side effects include creating the resolved output directory, writing and
+    flushing staging JSONL, and writing configured checkpoint states.  Only
+    accepted states are exposed as result rows or checkpoints.
+    """
     run_started_at = datetime.now(timezone.utc).isoformat()
     prepared = prepare_simulation(case, mapping_ready, event_ready)
     if not prepared.ready:

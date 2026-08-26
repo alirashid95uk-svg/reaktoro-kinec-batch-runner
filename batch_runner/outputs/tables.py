@@ -1,4 +1,10 @@
-"""Deterministic output-table construction."""
+"""Project accepted result records into stable CSV schemas.
+
+Column selection is derived from resolved postprocessing/output configuration.
+Rows are deterministic views of existing accepted observations and solver
+history; this module performs no Reaktoro calls or temporal interpolation.
+Summary interpretations describe batch amount changes only.
+"""
 
 from __future__ import annotations
 
@@ -91,6 +97,7 @@ AQUEOUS_SUMMARY_COLUMNS = [
 
 
 def timeseries_columns(case: ResolvedCase) -> list[str]:
+    """Return ordered timeseries columns selected by output configuration."""
     config = case.config
     output = config.outputs.timeseries
     columns = list(TIMESERIES_CORE_COLUMNS)
@@ -123,6 +130,7 @@ def timeseries_columns(case: ResolvedCase) -> list[str]:
 
 
 def solver_history_columns(case: ResolvedCase) -> list[str]:
+    """Return the base or Richardson-extended solver-history schema."""
     return (
         ERROR_CONTROL_SOLVER_HISTORY_COLUMNS
         if case.config.solver.timestep.mode == "adaptive_error_controlled"
@@ -131,12 +139,24 @@ def solver_history_columns(case: ResolvedCase) -> list[str]:
 
 
 def timeseries_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
+    """Yield configured timeseries columns from accepted result rows.
+
+    Raises:
+        KeyError: A required observation column is missing, indicating a schema
+            mismatch between runtime collection and output configuration.
+    """
     columns = timeseries_columns(case)
     for row in result.iter_rows():
         yield {column: row[column] for column in columns}
 
 
 def mineral_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Summarize initial-to-final mineral amounts and saturation indices.
+
+    Amounts and changes are mol; percentage change is undefined when the
+    initial amount is zero.  ``net_change`` reports the sign of the batch amount
+    difference and does not imply transport or fracture-scale behaviour.
+    """
     initial = result.initial_row
     final = result.final_row
     rows = []
@@ -163,6 +183,11 @@ def mineral_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[d
 
 
 def aqueous_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Summarize initial-to-final requested species amounts and molalities.
+
+    Amounts are mol and molalities mol/kgw.  Percentage change uses species
+    amount and remains undefined for a zero initial inventory.
+    """
     initial = result.initial_row
     final = result.final_row
     rows = []
@@ -189,6 +214,11 @@ def aqueous_summary_rows(case: ResolvedCase, result: SimulationResult) -> list[d
 
 
 def write_csv(path: Path, columns: list[str], rows: Iterable[dict[str, Any]]) -> None:
+    """Write one UTF-8 CSV with deterministic column order.
+
+    Parent-directory creation is intentionally owned by output orchestration.
+    I/O errors and unexpected row keys propagate to its partial-package handler.
+    """
     with path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()

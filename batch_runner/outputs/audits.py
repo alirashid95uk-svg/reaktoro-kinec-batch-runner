@@ -1,4 +1,11 @@
-"""Optional Objective 1 scientific audit tables."""
+"""Derive optional, explicitly scoped scientific audit tables.
+
+These functions consume accepted observation rows and configured stoichiometric
+coefficients.  They do not query the live Reaktoro state or influence solver
+execution.  Carbon and element totals cover only the species/minerals listed in
+configuration; rate-sign checks compare signs only and are not kinetic-model
+validation, calibration, transport, or fracture-sealing evidence.
+"""
 
 from __future__ import annotations
 
@@ -66,6 +73,12 @@ SURFACE_AREA_COLUMNS = [
     "comparability_status",
 ]
 def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
+    """Yield live rate observations for each configured kinetic mineral.
+
+    Total rates are mol/s, surface-normalized rates mol/(m2 s), surface area m2,
+    and saturation quantities dimensionless.  Values are copied from accepted
+    rows collected by Reaktoro-facing observation code.
+    """
     kinetic_minerals = [mineral for mineral in case.config.minerals if mineral.role == "kinetic"]
     for row in result.iter_rows():
         for mineral in kinetic_minerals:
@@ -87,6 +100,12 @@ def reaction_rate_rows(case: ResolvedCase, result: SimulationResult) -> Iterator
 def reaction_rate_validation_rows(
     case: ResolvedCase, result: SimulationResult
 ) -> Iterator[dict[str, Any]]:
+    """Yield a sign-only diagnostic comparing rate direction with saturation.
+
+    The expected sign follows the runtime rate convention encoded here:
+    undersaturation maps to positive and supersaturation to negative.  A passed
+    sign check does not establish rate magnitude, calibration, or validity.
+    """
     for row in reaction_rate_rows(case, result):
         expected = _expected_rate_sign(row["saturation_index"])
         observed = _sign(row["rate_mol_s"])
@@ -103,6 +122,12 @@ def reaction_rate_validation_rows(
 
 
 def carbon_inventory_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
+    """Yield configured aqueous, gas, mineral, and total carbon inventories.
+
+    Inventories are mol of carbon using user-supplied coefficients.  Balance
+    error is relative to the first emitted row and is incomplete if configured
+    mappings omit a carbon-bearing phase or species.
+    """
     config = case.config.postprocessing.carbon_inventory
     initial_total = None
     for row in result.iter_rows():
@@ -126,6 +151,12 @@ def carbon_inventory_rows(case: ResolvedCase, result: SimulationResult) -> Itera
 
 
 def element_budget_rows(case: ResolvedCase, result: SimulationResult) -> Iterator[dict[str, Any]]:
+    """Yield configured per-element inventories relative to the first row.
+
+    Totals are mol of element computed from user-supplied stoichiometric
+    mappings.  This table audits that declared subset; it is not an automatic
+    whole-system conservation calculation.
+    """
     config = case.config.postprocessing.element_budget
     initial_totals: dict[str, float] = {}
     for row in result.iter_rows():
@@ -150,6 +181,12 @@ def element_budget_rows(case: ResolvedCase, result: SimulationResult) -> Iterato
 
 
 def surface_area_audit_rows(case: ResolvedCase) -> list[dict[str, Any]]:
+    """Describe configured mineral surface-area basis and provenance.
+
+    ``comparable_within_case`` means every kinetic mineral has the same declared
+    unit and non-empty basis.  It does not verify conversion, measurement
+    quality, or comparability with another case.
+    """
     kinetic = [mineral for mineral in case.config.minerals if mineral.role == "kinetic"]
     comparable = len({(m.surface_area.unit, m.surface_area_basis) for m in kinetic}) == 1 and all(
         m.surface_area_basis for m in kinetic

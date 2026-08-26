@@ -5,6 +5,8 @@ __pycache__/
 runs/
 .workbench/
 .claude-flow/
+/docs/generated/
+/site/
 
 # Generated local artifacts
 *.log

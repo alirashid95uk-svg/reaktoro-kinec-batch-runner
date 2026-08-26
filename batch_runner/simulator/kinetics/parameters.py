@@ -1,4 +1,10 @@
-"""Load and attach the two supported kinetic-rate models."""
+"""Load configured kinetic parameters and construct supported rate models.
+
+The runtime supports Reaktoro's local Palandri-Kharaka records and the explicit
+custom Kinec implementation.  This module selects between them from resolved
+configuration only; it does not parse PHREEQC ``RATES`` blocks, infer mineral
+aliases, or supply missing scientific parameters.
+"""
 
 from collections.abc import Mapping
 from typing import Any
@@ -11,6 +17,11 @@ from batch_runner.simulator.kinetics.kinec import KinecParams, ReactionRateModel
 
 
 def load_kinetic_parameters(case: ResolvedCase) -> Any | None:
+    """Load the configured parameter file, or return ``None`` for equilibrium.
+
+    The resolved path is passed to the selected model loader.  Parsing and I/O
+    failures propagate so preparation can record the exact failed stage.
+    """
     if not case.config.kinetics.enabled:
         return None
     if case.config.kinetics.model == "palandri_kharaka":
@@ -19,6 +30,12 @@ def load_kinetic_parameters(case: ResolvedCase) -> Any | None:
 
 
 def parameter_record_names(case: ResolvedCase, params: Any | None) -> set[str]:
+    """Return mineral names explicitly represented by the loaded parameters.
+
+    Palandri-Kharaka names and declared ``OtherNames`` are read for connection
+    validation only.  Invalid record structure raises :class:`ValueError`;
+    names are not rewritten or resolved by heuristic matching.
+    """
     if not case.config.kinetics.enabled:
         return set()
     if case.config.kinetics.model == "kinec":
@@ -52,10 +69,12 @@ def parameter_record_names(case: ResolvedCase, params: Any | None) -> set[str]:
 
 
 def build_rate_model(case: ResolvedCase, params: Any, mineral_name: str) -> Any:
+    """Construct the selected Reaktoro-compatible rate model for a mineral."""
     if case.config.kinetics.model == "palandri_kharaka":
         return rkt.ReactionRateModelPalandriKharaka(params)
     return ReactionRateModelKinec(params, mineral_name)
 
 
 def uses_python_rate_callback(case: ResolvedCase) -> bool:
+    """Return whether enabled kinetics executes the custom Python callback."""
     return case.config.kinetics.enabled and case.config.kinetics.model == "kinec"

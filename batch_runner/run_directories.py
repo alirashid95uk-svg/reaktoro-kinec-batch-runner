@@ -1,4 +1,13 @@
-"""Fresh, traceable output directories for direct batch-runner executions."""
+"""Create immutable case snapshots for fresh direct-run output packages.
+
+The CLI calls this before configuration loading.  Relative-output source cases
+are validated using a temporary override, then copied beneath ``runs/<case>/<UTC
+timestamp>/run_case.yaml`` with only ``paths.output_dir`` changed.  Absolute
+output paths and already-managed snapshots pass through unchanged for
+caller-managed workflows.
+
+This module does not alter scientific settings or overwrite existing packages.
+"""
 
 from __future__ import annotations
 
@@ -24,7 +33,12 @@ def prepare_run_config_for_execution(
     runs_dir: str | Path = RUNS_DIR,
     now: datetime | None = None,
 ) -> Path:
-    """Return a caller-managed config unchanged or create a fresh batch-run snapshot."""
+    """Return a runnable config path with safe direct-run output semantics.
+
+    Already-managed snapshots and configs with absolute output paths are
+    returned unchanged.  Other configs are validated and snapshotted by
+    :func:`prepare_fresh_run_config`.
+    """
     source = Path(case_config).resolve()
     if is_managed_run_snapshot(source, runs_dir=runs_dir):
         return source
@@ -38,7 +52,7 @@ def is_managed_run_snapshot(
     *,
     runs_dir: str | Path = RUNS_DIR,
 ) -> bool:
-    """Return whether the input is an already-prepared run snapshot."""
+    """Return whether *case_config* is ``run_case.yaml`` below *runs_dir*."""
     path = Path(case_config).resolve()
     root = Path(runs_dir).resolve()
     return path.name == "run_case.yaml" and root in path.parents
@@ -50,7 +64,20 @@ def prepare_fresh_run_config(
     runs_dir: str | Path = RUNS_DIR,
     now: datetime | None = None,
 ) -> Path:
-    """Create a timestamped run snapshot, changing only ``paths.output_dir``."""
+    """Create and return a timestamped run snapshot.
+
+    The source is first fully loaded with a temporary output override, so an
+    invalid case leaves no persistent run directory.  Same-second collisions
+    use ``_02``, ``_03``, and so on.  The generated YAML retains all source
+    values except ``paths.output_dir`` and records the source path and SHA-256.
+
+    Raises:
+        FileNotFoundError: The source config does not exist.
+        ValueError: The YAML root or required ``paths`` section is invalid.
+        RuntimeError: Snapshot construction changed another setting.
+        OSError: A run directory or snapshot cannot be created.
+        pydantic.ValidationError: The source case is invalid.
+    """
     source = Path(case_config).resolve()
     if not source.is_file():
         raise FileNotFoundError(f"case config does not exist: {source}")

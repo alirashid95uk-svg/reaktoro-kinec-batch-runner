@@ -1,4 +1,12 @@
-"""Orchestrate config-controlled output package writing."""
+"""Write the configured package while preserving failure evidence.
+
+The public output API delegates here after simulation.  The writer consumes
+accepted row/history streams, creates enabled CSV/JSON/plot/debug artifacts,
+and writes a manifest from the resulting file inventory.  Incomplete or
+cancelled runs retain diagnostic and raw evidence but omit scientific summaries
+and surrogate data.  Output failures are contained and classified as partial
+packages whenever diagnostics can still be written.
+"""
 
 from __future__ import annotations
 
@@ -70,6 +78,12 @@ def write_kinetic_mapping(
     mapping: list[dict],
     csv_writer: Callable[..., None],
 ) -> Path:
+    """Create a fresh package root and optionally write the mapping audit.
+
+    ``exist_ok=False`` protects direct runs from silently mixing with stale
+    results.  The supplied CSV callable is the package's deterministic table
+    writer and enables focused tests without replacing runtime behaviour.
+    """
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=False)
     debug = case.config.outputs.debug
@@ -87,6 +101,13 @@ def write_outputs(
     *,
     csv_writer: Callable[..., None],
 ) -> Path:
+    """Write outputs and convert writer exceptions into partial diagnostics.
+
+    On an output failure, partial surrogate data is removed, staging streams
+    are preserved under ``debug`` where possible, the technical traceback is
+    appended, and ``diagnostics.json`` is rewritten with the actual file list.
+    The function returns the package directory even for a partial package.
+    """
     try:
         output_dir = _write_outputs(case, result, cancel_requested, csv_writer)
     except Exception as error:

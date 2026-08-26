@@ -1,470 +1,105 @@
-# Config Schema and Feature Options — Active Contract
+# Configuration Schema and Feature Options — Active Contract
 
-## Runtime Status
+## Authority
 
-The active `CaseConfig` implements fixed timesteps, the legacy solver-feasibility
-adaptive controller, and an explicitly selected Richardson error-controlled
-adaptive controller. It also implements scheduled timeseries output, explicit
-accepted-state checkpoints, standard Reaktoro solvers, and the current
-postprocessing/output blocks.
+The strict Pydantic models under `batch_runner/config/` define accepted source
+YAML. Their field annotations, defaults, constraints, descriptions, and named
+validators are the authoritative configuration interface.
 
-This document describes only fields accepted by the strict runtime schema.
-Unsupported or unimplemented concepts must not appear as disabled YAML
-placeholders.
-
-In particular, there is currently no active:
+The generated Configuration Reference is a browsable projection of those
+models. Build it with:
 
 ```text
-solver.backend
-solver.restart
-solver.safety
-solver.conservation
-solver.geochemical_controls
+python tools/build_docs.py
 ```
 
-A schema field belongs here only when the same implementation change provides
-and verifies its runtime behaviour.
+Terminal discovery uses the same projection:
 
-## 1. Purpose
+```text
+python runner.py config --help
+python runner.py config --help timestep
+python runner.py config --help solver.timestep.step_size
+```
 
-This file defines the user-facing YAML configuration contract and validation
-rules. Runtime Pydantic models under `batch_runner/config/` remain the final
-implementation authority.
+Do not manually add a field catalogue to this document. The generated
+reference must change by editing the runtime model that validates the field.
 
-Output meanings are defined in `output_package_design.md`. Solver algorithms are
-defined in `solver_workflow_and_long_horizon_timestep.md`.
+## Runtime Scope
 
-## 2. Core Configuration Rules
+The active schema supports:
+
+- explicitly selected embedded or local PHREEQC-style databases;
+- batch equilibrium and batch kinetic workflows;
+- native Palandri-Kharaka or explicitly selected custom Kinec kinetics;
+- disabled, finite-amount, and fixed-fugacity CO2 modes;
+- optional pE-based redox at implemented workflow stages;
+- fixed, solver-feasibility adaptive, and Richardson error-controlled
+  timesteps;
+- accepted-state output schedules and checkpoints;
+- config-controlled diagnostics, summaries, plots, monitoring, and downstream
+  validation.
+
+An accepted configuration field represents implemented runtime behaviour. Do
+not expose speculative features as disabled blocks, placeholders, or status
+records.
+
+## Configuration Layers
+
+```text
+source YAML
+-> CaseConfig validation
+-> ResolvedCase paths, units, schedules, hashes, and derived bounds
+-> chemistry and solver execution
+```
+
+`CaseConfig` fields are user-editable source options. `ResolvedCase` adds
+deterministic operational values such as absolute paths, canonical seconds,
+schedule targets, step counts, and source hashes; those derived values are not
+additional YAML fields.
+
+`cases/schema_template.yaml` is a non-runnable authoring aid containing explicit
+placeholder sentinels. It is not the schema authority and need not enumerate
+every mutually exclusive mode on one YAML tree.
+
+## Stable Scientific Rules
 
 - Unknown fields fail validation.
-- Invalid combinations fail validation.
-- Scientific behaviour must be explicit.
-- Do not invent scientific values or defaults.
-- Duration and timestep control live under `solver.timestep`.
-- Database, kinetic parameters, mineral identities, surface areas, boundary
-  conditions, redox controls, and timestep controls must not be silently
-  changed.
-
-Launcher preflight adds no scientific YAML option. It may override only the
-output directory used for read-only construction checks.
-
-## 3. Active Top-Level Blocks
-
-```yaml
-case:
-paths:
-database:
-activity_models:
-physical:
-brine:
-co2:
-redox:
-kinetics:
-minerals:
-solver:
-postprocessing:
-validation:
-outputs:
-```
-
-### 3.1 `brine`
-
-`brine` requires exactly one non-empty initialization mapping:
-
-```yaml
-brine:
-  aqueous_elements: [H, O, Na, Cl, C]
-  species_amounts:
-    H2O: {value: 1.0, unit: kg}
-    Na+: {value: 0.8, unit: mol}
-    Cl-: {value: 0.8, unit: mol}
-```
-
-`species_amounts` sets explicit species and may represent a disequilibrium
-state. Alternatively, `element_amounts` supplies conserved aqueous element
-totals. Reaktoro equilibrates that aqueous inventory at the configured
-temperature and pressure during state construction, with configured minerals
-and finite gas excluded, before their configured amounts are set. Element keys
-must occur in `aqueous_elements` and the element inventory is electroneutral.
-Do not additionally specify H2O when H and O totals already include the water
-inventory. This state-construction speciation does not change the configured
-solver workflow or impose a fixed CO2 fugacity.
-
-## 4. `kinetics`
-
-`kinetics` controls whether kinetic reactions exist, which supported rate model
-is selected, and where its parameters come from.
-
-```yaml
-kinetics:
-  enabled: true
-  model: palandri_kharaka
-  path: data/kinetics/PalandriKharaka_local.yaml
-```
-
-Rules:
-
-```text
-kinetics.enabled: true
--> model defaults to palandri_kharaka when omitted
--> path defaults from the selected model when omitted
-
-kinetics.model: kinec
--> path defaults to data/kinetics/kinec_rates_minimal.yaml
-
-kinetics.enabled: false
--> model/path are forbidden
-
-model selection
--> never infer from filename
--> no fallback between parameter files
-```
-
-Duration or timestep fields are forbidden under `kinetics`.
-
-## 5. `redox`
-
-```yaml
-redox:
-  enabled: true
-  pe: 4.0
-  apply_during: initial_equilibrium_only
-```
-
-Allowed `apply_during` values:
-
-```text
-initial_equilibrium_only
-kinetic_steps
-```
-
-Rules:
-
-```text
-redox.enabled: false
--> pe forbidden
--> apply_during forbidden
-
-redox.enabled: true
--> pe required
--> apply_during required
-```
-
-The selected stage controls when pE conditions are passed to Reaktoro.
-
-## 6. `solver`
-
-The active solver block has exactly two owners:
-
-```yaml
-solver:
-  workflow:
-    mode: fixed_fugacity_initial_equilibrium_then_closed_kinetics
-
-  timestep:
-    mode: fixed
-    ...
-```
-
-Unknown sibling blocks under `solver` must fail validation. Checkpointing is
-owned by `solver.timestep.checkpoint_schedule`; it is not a separate output or
-restart feature.
-
-## 7. `solver.workflow`
-
-Allowed modes:
-
-```text
-equilibrium_only
-closed_kinetics
-fixed_fugacity_initial_equilibrium_then_closed_kinetics
-fixed_fugacity_during_kinetic_steps
-```
-
-Rules:
-
-```text
-equilibrium_only
--> kinetics.enabled: false
-
-closed_kinetics
--> kinetics.enabled: true
-
-fixed_fugacity_initial_equilibrium_then_closed_kinetics
--> kinetics.enabled: true
--> co2.mode: fixed_fugacity
-
-fixed_fugacity_during_kinetic_steps
--> kinetics.enabled: true
--> co2.mode: fixed_fugacity
-```
-
-Redox compatibility is validated against `redox.apply_during`.
-
-## 8. `solver.timestep`
-
-Active modes:
-
-```text
-fixed
-adaptive
-adaptive_error_controlled
-```
-
-Each mode uses strict fields. Fields from another mode are rejected.
-`adaptive_error_controlled` currently supports direct kinetic workflows only;
-configurations that require an initial-equilibrium stage are rejected.
-
-### 8.1 Fixed
-
-```yaml
-solver:
-  timestep:
-    mode: fixed
-    max_internal_steps: 100000
-    time:
-      duration_value: 10
-      duration_unit: seconds
-    step_size:
-      dt: {value: 1, unit: second}
-    output_schedule:
-      mode: every_internal_step
-      include_initial: true
-      include_final: true
-      explicit_times: []
-      logarithmic: null
-    checkpoint_schedule:
-      enabled: false
-      times: []
-```
-
-Rules:
-
-- `time.duration_value` and `time.duration_unit` are required;
-- `step_size.dt` is required;
-- `max_internal_steps` is positive and defaults to `100000`;
-- configured and converted time values must be finite;
-- fixed mode forbids adaptive-only fields;
-- output/checkpoint timestamps must lie inside the duration;
-- schedule duplicates are removed during resolution;
-- impossible fixed-grid/schedule combinations are rejected before execution.
-
-### 8.2 Output Schedule
-
-Allowed modes:
-
-```text
-every_internal_step
-explicit
-logarithmic
-hybrid
-```
-
-`every_internal_step` is the compatibility default. `explicit` uses
-`explicit_times`; `logarithmic` requires a logarithmic definition; `hybrid`
-requires both.
-
-`include_initial` and `include_final` control whether those boundary states are
-written to the timeseries. They do not change the solver's final-time target.
-
-### 8.3 Checkpoint Schedule
-
-```yaml
-checkpoint_schedule:
-  enabled: true
-  times:
-    - {value: 100, unit: years}
-```
-
-Rules:
-
-- enabled checkpointing requires at least one time;
-- disabled checkpointing forbids times;
-- checkpoint times are independent of timeseries output times;
-- checkpoints are written only for accepted states;
-- checkpointing does not provide restart capability.
-
-### 8.4 Adaptive
-
-```yaml
-solver:
-  timestep:
-    mode: adaptive
-    time:
-      duration_value: 1
-      duration_unit: day
-    step_size:
-      dt_initial: {value: 1, unit: second}
-      dt_min: {value: 1.0e-6, unit: second}
-      dt_max: {value: 1, unit: hour}
-      growth_factor: 1.25
-      shrink_factor: 0.5
-      max_retries_per_step: 8
-    max_internal_steps: 100000
-    output_schedule:
-      mode: explicit
-      include_initial: true
-      include_final: true
-      explicit_times: []
-      logarithmic: null
-    checkpoint_schedule:
-      enabled: false
-      times: []
-```
-
-Rules:
-
-- `dt_min <= dt_initial <= dt_max` after resolution;
-- `growth_factor > 1`;
-- `0 < shrink_factor < 1`;
-- successful Reaktoro solves are accepted and grow the controller timestep;
-- failed or raised Reaktoro solves restore the accepted state, shrink the
-  timestep, and retry from the same accepted time;
-- adaptive preflight rejects cases whose lower bound on accepted steps exceeds
-  `max_internal_steps`.
-
-`mode: adaptive` retains this solver-feasibility algorithm. It does not invoke
-Richardson trials and requires no configuration migration.
-
-### 8.5 Richardson Error-Controlled Adaptive
-
-```yaml
-solver:
-  timestep:
-    mode: adaptive_error_controlled
-    time:
-      duration_value: REQUIRED
-      duration_unit: REQUIRED
-    step_size:
-      dt_initial: {value: REQUIRED, unit: REQUIRED}
-      dt_min: {value: REQUIRED, unit: REQUIRED}
-      dt_max: {value: REQUIRED, unit: REQUIRED}
-      safety_factor: REQUIRED
-      growth_factor: REQUIRED
-      shrink_factor: REQUIRED
-      solver_failure_shrink_factor: REQUIRED
-      max_retries_per_step: REQUIRED
-    error_control:
-      temporal_order: REQUIRED
-      relative_tolerance: REQUIRED
-      negative_amount_tolerance: {value: REQUIRED, unit: mol}
-      controlled_minerals:
-        - name: REQUIRED_KINETIC_MINERAL
-          absolute_tolerance: {value: REQUIRED, unit: mol}
-          reference_floor: {value: REQUIRED, unit: mol}
-    events:
-      hard_mineral_exhaustion: null
-      soft: null
-    max_internal_steps: 100000
-    output_schedule: REQUIRED
-    checkpoint_schedule: {enabled: false, times: []}
-```
-
-Rules:
-
-- every configured kinetic mineral appears exactly once in
-  `error_control.controlled_minerals`;
-- `temporal_order` is required, finite, positive, and has no default; it is a
-  configured estimator assumption until representative temporal-convergence
-  evidence establishes it;
-- absolute tolerances, reference floors, and the non-negative admissibility
-  tolerance are explicit finite molar values;
-- the tolerance scale must remain positive at zero mineral amount;
-- `0 < safety_factor < 1`, `growth_factor > 1`, and both shrink factors lie
-  strictly between zero and one;
-- `dt_min <= dt_initial <= dt_max` after unit resolution;
-- solver-failure shrinkage is distinct from temporal-error rejection;
-- `events.hard_mineral_exhaustion` and `events.soft` are explicitly configured
-  or set to `null`; no event thresholds are hidden defaults;
-- a hard-exhaustion block requires a strictly positive molar amount tolerance,
-  time tolerance, post-event restart timestep, and localisation limit;
-- a soft-event block may enable SI crossings, a maximum pH change, secondary
-  mineral appearance in mol, and paired reaction-rate threshold/floor values in
-  mol/s; all soft events cap only a subsequent proposal;
-- output/checkpoint/final target landing can shorten a trial below `dt_min`, but
-  a rejected sub-minimum exact-landing trial is never retried with a larger step.
-
-## 9. Time Units
-
-Allowed units:
-
-```text
-second / seconds
-minute / minutes
-hour / hours
-day / days
-year / years
-```
-
-Canonical runtime time is seconds. Any configured use of `year`/`years`
-requires a positive explicit `year_definition_days`; there is no implicit year
-length.
-
-## 10. Postprocessing
-
-The active `postprocessing` block owns result selection and optional diagnostic
-products, including requested species/minerals, aqueous molalities, saturation
-indices, reaction rates, element budgets, carbon inventory, mineral-volume
-change, regime classification, surface-area audit, workflow comparison,
-secondary-mineral assemblage, surrogate-dataset export, and
-porosity/permeability inference status.
-
-These postprocessing products do not create new solver physics. In particular,
-existing element/carbon budgets are reconstructed reporting diagnostics; they
-must not be represented as a generic `solver.conservation` feature.
-
-## 11. Validation
-
-`validation` optionally runs one trusted project-local Python script after a
-successful simulation package is complete:
-
-```yaml
-validation:
-  enabled: true
-  script: validation/jayasekara_comparison_figures.py
-```
-
-An enabled hook requires an existing `.py` file inside the project
-`validation/` directory. A disabled hook forbids `script`. The runner invokes
-the script in a separate Python process with
-`--results-dir <resolved timestamped results directory>`.
-
-The hook is downstream analysis. It does not participate in simulation,
-output writing, diagnostics, or manifest construction. Hook failure leaves a
-successfully completed simulation package valid and is reported separately.
-
-## 12. Outputs
-
-The `outputs` block controls the active manifest, diagnostics, timeseries,
-summaries, solver history, plots, debug artifacts, and terminal monitor. Output
-meanings and completeness rules are defined in `output_package_design.md`.
-
-The optional presentation block defaults to an enabled pH monitor:
-
-```yaml
-outputs:
-  monitor:
-    enabled: true
-    refresh_interval_s: 0.5
-    scalars: [pH]
-    species: [Ca+2, HCO3-]
-    minerals: [Calcite]
-    result_times:
-      - {value: 14, unit: days}
-```
-
-Allowed scalar names are `pH`, `ionic_strength_molal`, and
-`alkalinity_eq_per_l`. Monitor species and minerals must already be selected by
-`postprocessing.requested_species` and `postprocessing.requested_minerals`.
-Each monitor result time must already exist in the resolved scientific output
-schedule; it is rejected otherwise and never becomes a solver target. These
-fields select presentation only and do not change accepted states or output
-times.
-
-## 13. Removed and Unsupported Fields
-
-These fields are deliberately **not** part of active case YAML and must be
-rejected as unknown fields:
+- Invalid local and cross-section combinations fail validation.
+- Database selection is explicit; there is no database fallback.
+- Scientific behaviour is explicit, including kinetic model, mineral roles,
+  surface areas, CO2 boundary conditions, redox staging, and timestep mode.
+- Duration and timestep controls belong under `solver.timestep`.
+- Time values use supported explicit units and resolve to canonical seconds.
+- Any configured use of `year` or `years` requires an explicit positive
+  `year_definition_days`; no year length is assumed.
+- Kinetic minerals require initial amount and surface area; enabled kinetics
+  requires at least one kinetic mineral.
+- Missing thermodynamic minerals, kinetic records, required parameter files, or
+  local database files are hard failures.
+- Output and monitor selections may observe only configured/requested species,
+  minerals, schedules, and diagnostics.
+- Checkpoints contain accepted states only and do not provide restart.
+- Post-simulation validation is trusted downstream analysis. It does not alter
+  simulation results or constitute automatic calibration.
+
+Mode-specific requirements and conflicts are implemented by discriminated
+models or named Pydantic validators and appear in generated configuration help.
+
+## Defaults and Examples
+
+Defaults that affect behaviour must be deliberate, visible in the model, and
+included in resolved configuration. Conditional defaults that cannot be
+expressed as an unconditional Pydantic field default must be stated in the
+owning model or validator description.
+
+Do not invent scientific numerical examples. Runnable case values require
+project-supported provenance. Schema examples may illustrate non-scientific
+structure, enum selection, or unit syntax only.
+
+## Unsupported Source Fields
+
+The following concepts are not active source-case options and must remain
+unknown-field failures:
 
 ```text
 solver.backend
@@ -477,5 +112,18 @@ solver.timestep.acceptance
 solver.timestep.mode: adaptive_long_horizon
 ```
 
-They are not part of the current runtime contract and remain invalid
-configuration fields or modes.
+The repository does not currently provide authoritative reactive transport,
+automatic restart, cation exchange, or automatic experimental calibration.
+
+## Maintenance Rule
+
+When the accepted YAML contract changes in one implementation:
+
+1. update the owning Pydantic annotation, `Field` metadata, and named validator;
+2. preserve or explicitly approve every scientific default and unit;
+3. update the schema template only when its illustrated YAML shape changes;
+4. add focused positive and negative tests for changed validation behaviour;
+5. build the generated documentation strictly.
+
+Generated configuration and CLI pages are disposable build products. Never edit
+them as source documentation.

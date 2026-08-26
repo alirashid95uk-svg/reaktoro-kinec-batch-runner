@@ -1,4 +1,11 @@
-"""Stable public API for scientific simulation execution."""
+"""Public boundary for preparing and executing one resolved batch case.
+
+The runner calls this package after configuration loading and path resolution.
+It exposes preparation, preflight, solver execution, and result records while
+keeping Reaktoro construction and timestep implementations in focused
+subpackages.  Callers must supply a :class:`~batch_runner.config.ResolvedCase`;
+this package does not reinterpret source YAML or select scientific defaults.
+"""
 
 from .kinetics import uses_python_rate_callback
 from .results import PreparedSimulation, SimulationResult

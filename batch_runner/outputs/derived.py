@@ -1,4 +1,11 @@
-"""Optional derived scientific summary tables."""
+"""Derive optional batch-scale summaries from accepted output records.
+
+All calculations use configured coefficients or existing rows; no scientific
+values are inferred or looked up here.  These summaries deliberately preserve
+their limits: regime labels are batch tendencies, porosity is a volume-based
+inference only, and permeability/capillary pressure remain unevaluated without
+an implemented constitutive model.
+"""
 
 from __future__ import annotations
 
@@ -48,6 +55,12 @@ POROSITY_PERMEABILITY_COLUMNS = [
 
 
 def mineral_volume_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Convert mineral amount changes to volume using configured molar volumes.
+
+    Amounts are mol, configured molar volumes cm3/mol, and derived volumes cm3.
+    A mineral is marked unevaluated when an amount or nonzero configured molar
+    volume is unavailable; no fallback value is supplied.
+    """
     config = case.config.postprocessing.mineral_volume_change
     initial = result.initial_row
     final = result.final_row
@@ -76,6 +89,12 @@ def mineral_volume_rows(case: ResolvedCase, result: SimulationResult) -> list[di
 
 
 def regime_classification_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Classify the sign pattern of requested batch mineral amount changes.
+
+    ``delayed_precipitation`` denotes an intermediate negative delta followed
+    by a positive final delta in stored rows.  The label is descriptive and is
+    not a transport or fracture-sealing regime.
+    """
     final = result.final_row
     dissolving = []
     precipitating = []
@@ -113,6 +132,7 @@ def regime_classification_rows(case: ResolvedCase, result: SimulationResult) -> 
 
 
 def workflow_comparison_columns(case: ResolvedCase) -> list[str]:
+    """Return ordered columns for cross-run workflow comparison rows."""
     return [
         "case_name",
         "workflow_mode",
@@ -129,6 +149,11 @@ def workflow_comparison_columns(case: ResolvedCase) -> list[str]:
 
 
 def workflow_comparison_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Return one configured-workflow outcome and solver-cost summary row.
+
+    The function summarizes this run only; meaningful cross-workflow comparison
+    requires externally matched scientific inputs and accuracy assessment.
+    """
     initial = result.initial_row
     final = result.final_row
     total_wall_time_s = 0.0
@@ -157,6 +182,11 @@ def workflow_comparison_rows(case: ResolvedCase, result: SimulationResult) -> li
 
 
 def secondary_mineral_assemblage_rows(case: ResolvedCase) -> list[dict[str, Any]]:
+    """Document configured equilibrium minerals and their selection rationale.
+
+    This is a configuration audit, not evidence that a secondary mineral
+    appeared during simulation.
+    """
     rows = []
     for mineral in case.config.minerals:
         if mineral.role != "equilibrium":
@@ -173,6 +203,7 @@ def secondary_mineral_assemblage_rows(case: ResolvedCase) -> list[dict[str, Any]
 
 
 def surrogate_dataset_columns(case: ResolvedCase) -> list[str]:
+    """Return ordered provenance and final-state columns for surrogate export."""
     return [
         "case_name",
         "output_schema_version",
@@ -195,6 +226,11 @@ def surrogate_dataset_columns(case: ResolvedCase) -> list[str]:
 
 
 def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Return one provenance-rich final-state row for downstream datasets.
+
+    The row preserves the configured validity-domain label and input hashes.
+    Output writing withholds this artifact unless the simulation completed.
+    """
     final = result.final_row
     row = {
         "case_name": case.config.case.name,
@@ -221,6 +257,13 @@ def surrogate_dataset_rows(case: ResolvedCase, result: SimulationResult) -> list
 
 
 def porosity_permeability_rows(case: ResolvedCase, result: SimulationResult) -> list[dict[str, Any]]:
+    """Return the optional mineral-volume porosity inference and explicit limits.
+
+    When bulk volume and all requested molar volumes are configured, porosity
+    change is ``-mineral_volume_delta / bulk_volume``.  Permeability and
+    capillary entry pressure are always marked unevaluated because this batch
+    model implements no update law for either quantity.
+    """
     config = case.config.postprocessing.porosity_permeability
     volume_config = case.config.postprocessing.mineral_volume_change
     status = "not_evaluated"

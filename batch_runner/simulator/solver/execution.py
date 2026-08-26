@@ -1,4 +1,11 @@
-"""High-level equilibrium and kinetic solver orchestration."""
+"""Connect prepared chemistry to the selected explicit solver workflow.
+
+This is the stable solver entry point used by simulation orchestration.  It
+creates shared run state, performs optional initial equilibrium, emits the
+accepted initial observation, and dispatches by the validated timestep model.
+Callbacks expose records and accepted states but do not participate in solver
+acceptance or timestep decisions.
+"""
 
 from typing import Any, Callable
 
@@ -34,6 +41,29 @@ def execute_solver(
     cancel_requested: Callable[[], bool] | None = None,
     initial_reaction_rate_fields: Callable[[Any], dict[str, Any]] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
+    """Execute the configured equilibrium or kinetic workflow.
+
+    Args:
+        case: Fully resolved configuration and exact schedules.
+        system: Constructed Reaktoro ``ChemicalSystem``.
+        state: Mutable initial ``ChemicalState``; accepted solves update it.
+        row_ready: Receives scheduled accepted-state observations.
+        solver_record_ready: Receives every solver attempt record.
+        boundary_row_ready: Receives accepted initial and final observations.
+        checkpoint_ready: Receives due accepted states and their records.
+        cancel_requested: Cooperative cancellation predicate.
+        initial_reaction_rate_fields: Optional isolated evaluator used when the
+            live custom callback must not be disturbed at time zero.
+
+    Returns:
+        tuple[Any, dict[str, Any]]: ``(initial_state, progress)``.  ``progress``
+            records completion or controlled solver/cancellation termination;
+            unexpected callback or observation exceptions propagate to
+            simulation lifecycle handling.
+
+    Raises:
+        TypeError: The validated timestep object has no supported executor.
+    """
     run = SolverRun(
         case=case,
         system=system,

@@ -1,4 +1,14 @@
-"""Accepted-state numerical-integrity diagnostics for managed simulations."""
+"""Observe accepted-state component, carbon, and charge residuals.
+
+The runner may attach :class:`NumericalIntegrityObserver` to accepted-state
+callbacks.  It reads Reaktoro component inventories after acceptance and never
+participates in timestep or solver decisions.  Components opened by fixed gas
+fugacity and charge opened by pE are explicitly excluded from closed-system
+residual claims.
+
+These metrics are numerical diagnostics, not proof of chemical calibration,
+temporal convergence, transport conservation, or scientific validity.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +23,13 @@ from batch_runner.simulator.chemistry.conditions import (
 
 
 class NumericalIntegrityObserver:
-    """Observe accepted states without participating in solver decisions."""
+    """Track residuals relative to the first accepted state.
+
+    Diagnostic exceptions are contained and permanently mark the observer
+    unavailable so optional monitoring cannot terminate or change chemistry.
+    Nonzero closed-component references contribute to relative aggregates;
+    zero-reference components remain visible only through absolute residuals.
+    """
 
     def __init__(self, case: ResolvedCase) -> None:
         self.case = case
@@ -30,10 +46,22 @@ class NumericalIntegrityObserver:
 
     @property
     def unavailable_reason(self) -> str | None:
+        """Return the first contained diagnostic failure, if any."""
         return self._unavailable_reason
 
     def observe(self, state: Any, *, time_s: float, initialize: bool = False) -> dict[str, Any]:
-        """Evaluate one accepted state. Diagnostic failures are contained, never raised."""
+        """Evaluate one accepted state without raising diagnostic failures.
+
+        Args:
+            state: Accepted Reaktoro ``ChemicalState`` to read.
+            time_s: Accepted simulation time in seconds.
+            initialize: Reset the reference inventory to this state.
+
+        Returns:
+            dict[str, Any]: A JSON-serializable snapshot with material, carbon,
+                and charge status.  On any diagnostic error, returns
+                ``status=unavailable``.
+        """
         if self._unavailable_reason is not None:
             self._latest = self._unavailable_snapshot(time_s)
             return self._latest
@@ -47,7 +75,12 @@ class NumericalIntegrityObserver:
             return self._latest
 
     def summary(self) -> dict[str, Any]:
-        """Return reproducible diagnostic metadata and the latest accepted-state metrics."""
+        """Return definitions, reference inventories, and latest metrics.
+
+        The summary records open-component reasons and the precise relative
+        normalization so a consumer can distinguish evaluated, open-boundary,
+        zero-reference, and unavailable quantities.
+        """
         status = (
             "unavailable"
             if self._unavailable_reason is not None

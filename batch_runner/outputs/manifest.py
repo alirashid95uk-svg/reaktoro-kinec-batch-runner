@@ -1,4 +1,10 @@
-"""Build the compact, traceable run manifest."""
+"""Build the output manifest from resolved inputs and recorded run evidence.
+
+The writer calls this after package files are known.  The manifest records
+input hashes, configured scientific setup, exact time semantics, software
+versions, and relative file inventory.  Its optional input snapshot mirrors
+validated models; it is provenance evidence, not another configuration source.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +25,13 @@ def build_manifest(
     result: SimulationResult,
     output_files: list[str],
 ) -> dict[str, Any]:
+    """Return the JSON-serializable manifest for one output package.
+
+    ``output_files`` must contain paths relative to the package root.  Runtime
+    completion and timestamps come from ``result.diagnostics``; scientific
+    configuration comes from the resolved case without added defaults or unit
+    conversion beyond the canonical-second schedule already resolved upstream.
+    """
     config = case.config
     input_snapshot = None
     if config.outputs.manifest.include_input_snapshot:

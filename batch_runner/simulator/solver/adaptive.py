@@ -1,4 +1,10 @@
-"""Adaptive timestep execution driven by Reaktoro solve feasibility."""
+"""Legacy adaptive stepping driven only by Reaktoro solve feasibility.
+
+Successful solves grow the controller timestep and failed solves shrink it,
+subject to configured bounds and retry limits.  This mode performs no temporal
+error estimate and must not be described as accuracy-controlled.  Proposed
+steps are capped to exact output, checkpoint, and final-time targets.
+"""
 
 from decimal import Decimal
 from typing import Any
@@ -14,6 +20,7 @@ def next_forced_target(
     next_output_time_s: float | None,
     next_checkpoint_time_s: float | None,
 ) -> float:
+    """Return the next mandatory accepted time among output, checkpoint, and end."""
     candidates = [duration_s]
     candidates.extend(
         target
@@ -26,12 +33,29 @@ def next_forced_target(
 def adaptive_target(
     current_time_s: float, controller_dt_s: float, forced_target_s: float
 ) -> float:
+    """Return the proposed accepted time without overshooting a forced target.
+
+    Decimal arithmetic prevents binary-float addition from stepping past a
+    resolved absolute target; the returned value remains a float for Reaktoro.
+    """
     proposed = Decimal(str(current_time_s)) + Decimal(str(controller_dt_s))
     forced = Decimal(str(forced_target_s))
     return forced_target_s if proposed >= forced else float(proposed)
 
 
 def run_adaptive_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
+    """Execute legacy feasibility-adaptive kinetic steps.
+
+    Reaktoro exceptions and unsuccessful results reject the attempt, restore
+    the accepted state, and shrink ``dt``.  Successful attempts alone advance
+    accepted time and are eligible for observations and checkpoints.
+
+    Returns:
+        tuple[Any, dict[str, Any]]: The initial-state reference and lifecycle
+            progress.  Retry exhaustion, minimum-timestep rejection,
+            cancellation, and step-limit termination are reported rather than
+            raised.
+    """
     initial_state = run.initial_state
     controller_dt_s = run.case.dt_initial_s
     while run.time_s < run.case.duration_s:

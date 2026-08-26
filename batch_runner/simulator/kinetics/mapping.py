@@ -1,4 +1,10 @@
-"""Explicit thermodynamic and kinetic-parameter connection validation."""
+"""Audit the exact connection between configured minerals and runtime inputs.
+
+The preparation stage uses these rows both as debug evidence and as a hard
+precondition for chemical-system construction.  Mineral names are exact: this
+module performs no aliasing or fallback between thermodynamic and kinetic
+records.
+"""
 
 from typing import Any
 
@@ -13,6 +19,13 @@ def build_kinetic_mapping(
     database: Any,
     params: Any | None,
 ) -> list[dict[str, Any]]:
+    """Describe connection status for every configured mineral.
+
+    Returns one deterministic row per mineral covering database presence,
+    kinetic-parameter presence where required, and configured surface area.
+    The function reports failures but does not raise; call
+    :func:`require_valid_kinetic_mapping` to enforce them.
+    """
     parameter_names = parameter_record_names(case, params)
     rows: list[dict[str, Any]] = []
     for mineral in case.config.minerals:
@@ -59,6 +72,12 @@ def build_kinetic_mapping(
 
 
 def require_valid_kinetic_mapping(mapping: list[dict[str, Any]]) -> None:
+    """Raise when any connection row reports ``status == 'failed'``.
+
+    Thermodynamic lookup failures are identified as system-construction errors;
+    missing parameter records or surface areas are identified as kinetic
+    attachment errors.  The mapping is otherwise left unchanged.
+    """
     failures = [row for row in mapping if row["status"] == "failed"]
     if failures:
         details = "; ".join(f"{row['mineral_name']}: {row['reason']}" for row in failures)

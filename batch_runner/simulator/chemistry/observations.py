@@ -1,4 +1,10 @@
-"""Deterministic result-row extraction."""
+"""Extract accepted Reaktoro states into the stable result-row vocabulary.
+
+Solver stages call this module only after a state has been accepted.  It reads
+configured aqueous, mineral, budget, and optional reaction-rate quantities and
+labels every dimensional field in its key.  It does not advance chemistry,
+interpolate between states, or decide which accepted times are written.
+"""
 
 from typing import Any
 
@@ -15,6 +21,28 @@ def collect_row(
     *,
     include_reaction_rates: bool = True,
 ) -> dict[str, Any]:
+    """Collect one accepted-state observation row.
+
+    Args:
+        case: Resolved selection of species, elements, minerals, and outputs.
+        state: Accepted Reaktoro ``ChemicalState`` to observe.
+        solver_record: Record defining the accepted time, stage, and solver
+            diagnostics associated with *state*.
+        initial_state: Immutable reference used for mineral amount changes.
+        include_reaction_rates: Whether to evaluate configured live kinetic
+            rates.  Disable only when those rates are supplied separately.
+
+    Returns:
+        dict[str, Any]: A JSON-serializable mapping.  Amounts are mol,
+            molalities are mol/kgw, alkalinity is eq/L, timestep and time are
+            seconds, and saturation index and pH are dimensionless.
+
+    Raises:
+        ValueError: A configured mineral is absent or is not a pure phase.
+        Exception: Reaktoro cannot evaluate a requested quantity.
+
+    The function reads *state* and *initial_state* without advancing either.
+    """
     time_s = float(solver_record["time_end_s"])
     aqueous = rkt.AqueousProps(state)
     row: dict[str, Any] = {
@@ -58,6 +86,12 @@ def collect_row(
 
 
 def collect_reaction_rate_fields(case: ResolvedCase, state: Any) -> dict[str, Any]:
+    """Return live reaction-rate and surface-area fields for kinetic minerals.
+
+    Total rates are reported in mol/s and are normalized to mol/(m2 s) only
+    when Reaktoro reports a positive live surface area.  A zero area is exposed
+    as status metadata rather than converted into an infinite or invented rate.
+    """
     aqueous = rkt.AqueousProps(state)
     props = rkt.ChemicalProps(state)
     fields: dict[str, Any] = {}

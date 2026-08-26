@@ -6,16 +6,26 @@ scientific, architecture, routing, and verification rules live in `AGENTS.md`.
 ## Configuration Layers
 
 ```text
-schema_template.yaml
+CaseConfig models
 -> case input
 -> validated/resolved configuration
 ```
 
+### Authoritative model
+
+- `batch_runner.config.case.CaseConfig` and its nested Pydantic models define
+  accepted fields, types, defaults, constraints, and descriptions.
+- Named model validators define conditional requirements and cross-feature
+  rules that cannot be expressed by individual fields.
+- `python runner.py config --help` and the generated configuration reference
+  are projections of those definitions, not independent registries.
+
 ### Schema template
 
-- Documents the accepted YAML shape.
+- Demonstrates the accepted YAML shape for case authors.
 - May contain explicit placeholder sentinels.
 - Is not a runnable scientific case until placeholders are replaced.
+- Is an authoring aid, not the schema authority.
 
 ### Case input
 
@@ -33,9 +43,9 @@ schema_template.yaml
 ## Runtime Contract
 
 `batch_runner/config/` and focused tests define active accepted behaviour.
-`docs/dev/config_schema_feature_options.md` defines approved schema intent.
-`cases/schema_template.yaml` and runnable cases must stay synchronized with the
-active runtime model.
+`docs/dev/config_schema_feature_options.md` records the durable configuration
+contract without duplicating the field catalogue. `cases/schema_template.yaml`
+and runnable cases must stay synchronized with the active runtime model.
 
 Unknown fields and incompatible combinations must fail validation.
 
@@ -50,9 +60,16 @@ Do not invent scientific numeric values. New values must come from supplied
 files/data, explicit instruction, cited project sources, or deterministic
 preprocessing.
 
-Do not hide scientific-behaviour defaults in Python. Approved defaults must be
-implemented deliberately, documented, tested where needed, and visible in the
-resolved configuration.
+Approved defaults must be implemented deliberately in the Pydantic models,
+documented in field metadata, tested where needed, and visible in the resolved
+configuration. Conditional defaults must remain explicit in validator metadata
+and the generated reference.
+
+## Generated Reference
+
+Run `python tools/build_docs.py` to regenerate the configuration and CLI pages
+and build the documentation site strictly. Do not edit files under
+`docs/generated/`; they are ignored build products.
 
 ## Units and Ownership
 

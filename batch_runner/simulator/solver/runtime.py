@@ -1,4 +1,10 @@
-"""Mutable execution state shared by the explicit solver stages."""
+"""Hold one solver run's accepted state, schedules, callbacks, and counters.
+
+The equilibrium and timestep modules mutate a single :class:`SolverRun`
+instead of duplicating orchestration bookkeeping.  It owns exact output and
+checkpoint target consumption and accepted-step statistics; it contains no
+chemical equations or timestep-control policy.
+"""
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -9,6 +15,13 @@ from batch_runner.config import ResolvedCase
 
 @dataclass
 class SolverRun:
+    """Mutable context passed through the explicit solver stages.
+
+    Callback fields are side-effect boundaries supplied by simulation
+    orchestration: accepted rows and solver records are streamed, checkpoints
+    persist accepted states, and cancellation is polled only at defined safe
+    boundaries.  ``time_s`` always denotes the last accepted chemical state.
+    """
     case: ResolvedCase
     system: Any
     state: Any
@@ -57,6 +70,12 @@ class SolverRun:
         )
 
     def output_due(self, target_time_s: float) -> bool:
+        """Consume and report an exact accepted-state output target.
+
+        For ``every_internal_step`` schedules, initial/final inclusion flags
+        are applied directly.  Scheduled modes require exact equality because
+        controller targets are explicitly capped at the resolved timestamps.
+        """
         if self.output_every_accepted_step:
             if target_time_s == 0.0:
                 return self.timestep.output_schedule.include_initial
@@ -70,6 +89,7 @@ class SolverRun:
         return True
 
     def checkpoint_due(self, target_time_s: float) -> bool:
+        """Consume and report an exact checkpoint target in seconds."""
         if self.next_checkpoint_time != target_time_s:
             return False
         self.next_checkpoint_time = next(self.checkpoint_times, None)
@@ -89,6 +109,13 @@ class SolverRun:
         cancellation_requested: bool = False,
         cancellation_boundary: str | None = None,
     ) -> dict[str, Any]:
+        """Return the stable lifecycle summary for success, failure, or stop.
+
+        Counts distinguish accepted steps, rejected controller attempts,
+        Reaktoro solve calls, temporal-error rejections, and event
+        localizations.  This method reports existing state only and does not
+        alter solver decisions.
+        """
         return {
             "simulation_completed": completed,
             "failed_stage": failed_stage,
@@ -124,6 +151,7 @@ class SolverRun:
         }
 
     def cancelled(self, boundary: str, *, restored: bool | None = True) -> dict[str, Any]:
+        """Return clean-cancellation progress for a named safe boundary."""
         return self.progress(
             completed=False,
             termination_reason="cancelled_cleanly",
@@ -133,6 +161,7 @@ class SolverRun:
         )
 
     def accept_step(self, dt_s: float, target_time_s: float) -> None:
+        """Commit accepted time and timestep statistics after state acceptance."""
         self.time_s = target_time_s
         self.accepted_steps += 1
         self.dt_min_s = dt_s if self.dt_min_s is None else min(self.dt_min_s, dt_s)

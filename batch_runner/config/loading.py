@@ -1,4 +1,10 @@
-"""Strict YAML case loading."""
+"""Load source-case YAML into the validated and resolved runtime contract.
+
+This module owns duplicate-key rejection, unresolved-template detection, and
+the transition from raw YAML to :class:`CaseConfig`. It delegates filesystem,
+unit, and schedule resolution to :mod:`batch_runner.config.resolution` and
+never constructs Reaktoro objects.
+"""
 
 from __future__ import annotations
 
@@ -54,6 +60,33 @@ def load_case(
     *,
     output_dir_override: str | Path | None = None,
 ) -> ResolvedCase:
+    """Read, validate, and resolve one runnable YAML case.
+
+    Args:
+        config_path: Source YAML path. Relative paths are resolved by
+            :class:`pathlib.Path` before project-relative values inside the
+            case are processed.
+        output_dir_override: Optional operational output location used by
+            preflight and managed-run preparation. It changes only the
+            in-memory raw mapping; the source file is not rewritten.
+
+    Returns:
+        A frozen :class:`ResolvedCase` containing the validated source model,
+        canonical paths, time values in seconds, schedules, and source hash.
+
+    Raises:
+        FileNotFoundError: If the source or a required resolved file is absent.
+        ValueError: If YAML structure, placeholders, duplicate keys, units,
+            paths, or resolved schedules are invalid.
+        pydantic.ValidationError: If fields or cross-feature combinations do
+            not satisfy :class:`CaseConfig`.
+        FileExistsError: If the resolved output directory already exists.
+
+    Side Effects:
+        Reads the source YAML and referenced filesystem paths. It creates no
+        directories and does not modify the source case.
+    """
+
     path = Path(config_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"case config does not exist: {path}")

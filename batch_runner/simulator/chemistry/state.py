@@ -1,4 +1,10 @@
-"""Direct Reaktoro state and constraint construction."""
+"""Build the initial Reaktoro state from validated brine and phase inventories.
+
+This module owns the conversion from resolved configuration amounts and units
+to a ``ChemicalState``.  Species-defined brines are assigned directly;
+element-total brines are speciated by a restricted equilibrium calculation
+that prevents configured minerals and finite CO2 from reacting prematurely.
+"""
 
 from typing import Any
 
@@ -8,6 +14,18 @@ from batch_runner.config import ResolvedCase
 
 
 def build_chemical_state(case: ResolvedCase, system: Any) -> Any:
+    """Return the configured initial ``ChemicalState`` for *system*.
+
+    Configured values and their explicit units are passed unchanged to
+    Reaktoro.  Mineral inventories and finite gas amounts are then assigned,
+    and all postprocessing species are checked against the constructed system.
+
+    Raises:
+        ValueError: A configured species, element, or mineral is absent, or a
+            configured mineral is not represented by a pure phase.
+        RuntimeError: Element-total brine speciation does not converge.
+        Exception: Reaktoro rejects a configured unit or state assignment.
+    """
     if case.config.brine.species_amounts is not None:
         state = rkt.ChemicalState(system)
         state.temperature(case.config.physical.temperature_c, "celsius")

@@ -1,4 +1,10 @@
-"""Fixed-timestep execution with absolute configured targets."""
+"""Advance kinetics over the resolved fixed grid and inserted exact targets.
+
+The resolved case supplies each ``(dt_s, target_time_s)`` pair, including
+splits needed to land exactly on requested outputs and checkpoints.  A failed
+Reaktoro solve is terminal for fixed mode: the live state is restored to the
+last accepted snapshot and no failed candidate is emitted as scientific data.
+"""
 
 from typing import Any
 
@@ -8,6 +14,17 @@ from .runtime import SolverRun
 
 
 def run_fixed_timesteps(run: SolverRun) -> tuple[Any, dict[str, Any]]:
+    """Execute all resolved fixed kinetic steps.
+
+    Each successful solve commits the accepted time, emits one history record,
+    then extracts due outputs/checkpoints.  Cancellation is cooperative and is
+    observed only at safe boundaries around the native solve and output work.
+
+    Returns:
+        tuple[Any, dict[str, Any]]: The initial-state reference and lifecycle
+            progress.  Solver failure is represented in progress rather than
+            raised.
+    """
     initial_state = run.initial_state
     for dt_s, target_time_s in run.case.fixed_steps_s():
         if run.is_cancelled():

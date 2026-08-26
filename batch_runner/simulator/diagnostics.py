@@ -1,4 +1,11 @@
-"""Simulation lifecycle diagnostics and failed-result construction."""
+"""Build machine-readable lifecycle diagnostics for success and failure.
+
+Simulation preparation and execution use this module to preserve stage,
+exception, accepted-time, attempt, provenance, and completeness evidence.  The
+diagnostics describe software execution only; estimated counts are planning
+metadata and must not be interpreted as convergence, conservation, calibration,
+or scientific validation.
+"""
 
 from datetime import datetime, timezone
 from typing import Any
@@ -21,6 +28,20 @@ def build_diagnostics(
     database_sha256: str | None,
     kinetic_parameter_sha256: str | None,
 ) -> dict[str, Any]:
+    """Return the complete run-diagnostics mapping used by output packages.
+
+    Args:
+        case: Resolved configuration and schedules.
+        run_started_at: UTC ISO timestamp captured before preparation.
+        system: Constructed Reaktoro system, or ``None`` after early failure.
+        result_rows: Number of accepted scheduled rows staged by the run.
+        solver_progress: Completion/failure counters from solver execution.
+        database_sha256: Hash of a local database when available.
+        kinetic_parameter_sha256: Hash of the selected parameter file.
+
+    The function reads the runtime system for counts and stamps finish time; it
+    does not inspect or mutate chemical state.
+    """
     mode = case.config.solver.timestep.mode
     estimated_solver_calls = (
         case.internal_step_count + int(requires_initial_equilibrium(case))
@@ -101,6 +122,12 @@ def exception_progress(
     reaktoro_solve_calls: int = 0,
     checkpoint_count: int = 0,
 ) -> dict[str, Any]:
+    """Normalize an unexpected lifecycle exception into solver-progress fields.
+
+    Accepted time and counters supplied by the streaming callbacks are
+    preserved.  State-restoration status is unknown because this path also
+    covers failures outside solver-controlled rollback boundaries.
+    """
     return {
         "simulation_completed": False,
         "failed_stage": stage,
@@ -144,6 +171,12 @@ def failed_result(
     database_sha256: str | None,
     kinetic_parameter_sha256: str | None,
 ) -> SimulationResult:
+    """Return a diagnostic-only result for chemistry-preparation failure.
+
+    No accepted scientific rows or solver history are fabricated.  Available
+    mapping, partial state, input hashes, and the technical traceback are kept
+    so output writing can produce a traceable failure package.
+    """
     return SimulationResult(
         rows=[],
         kinetic_mapping=kinetic_mapping,

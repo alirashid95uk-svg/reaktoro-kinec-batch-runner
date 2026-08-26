@@ -121,6 +121,19 @@ implemented behaviour and current limitations. Add or change them in the same
 implementation change that provides the corresponding runtime behaviour and
 focused verification.
 
+## Documentation Maintenance
+
+- Update the docstring when changing a stable public or scientifically
+  important callable's contract, side effects, assumptions, or failure modes.
+- Every user-facing Pydantic configuration field must have a concise
+  description. Keep its type, default or required state, constraints, status,
+  scientific/runtime meaning, and conditional rules in the model or named
+  validator that enforces them.
+- Do not create a parallel configuration catalogue. CLI help and HTML reference
+  pages must be projected from the authoritative Pydantic models and validators.
+- Do not edit `docs/generated/`; run `python tools/build_docs.py` to regenerate
+  the reference pages and build the documentation strictly.
+
 For a cross-module implementation, inspect the affected ownership boundaries and
 make the smallest clean integrated change. Do not create a separate planning
 artifact as a prerequisite.

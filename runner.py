@@ -1,4 +1,10 @@
-"""Command-line entry point for one YAML-defined batch case."""
+"""Process boundary for running one YAML-defined Reaktoro batch case.
+
+The module coordinates CLI parsing, worker events, preflight or simulation,
+output writing, and optional downstream validation. Scientific construction
+and solver behaviour remain under :mod:`batch_runner`; the ``config`` command
+is a read-only projection of the active Pydantic schema.
+"""
 
 from __future__ import annotations
 
@@ -14,11 +20,13 @@ from contextlib import nullcontext, redirect_stdout
 from functools import partial
 from pathlib import Path
 from time import monotonic
+from typing import Sequence
 from uuid import uuid4
 
 import reaktoro as rkt
 import yaml
 
+from batch_runner.cli import build_run_parser, run_config_help
 from batch_runner.config import load_case
 from batch_runner.config._base import PROJECT_ROOT
 from batch_runner.integrity_monitor import IntegritySimulationMonitor
@@ -36,17 +44,31 @@ from batch_runner.simulator.integrity import NumericalIntegrityObserver
 PREFLIGHT_PREFIX = "PREFLIGHT_RESULT:"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one Reaktoro batch case from YAML.")
-    parser.add_argument("case_config", help="Path to a runnable YAML case config.")
-    parser.add_argument("--preflight", action="store_true", help="Validate construction without starting a solver.")
-    parser.add_argument("--overwrite", action="store_true", help="Delete the configured output directory before a full run if it already exists.")
-    parser.add_argument("--events-jsonl", action="store_true", help="Write versioned worker events to stdout.")
-    parser.add_argument("--operation-id", help="Controller operation identifier.")
-    parser.add_argument("--run-id", help="Controller run identifier.")
-    parser.add_argument("--case-id", help="Stable source-case identifier for controller events.")
-    parser.add_argument("--cancel-file", type=Path, help="Cooperative-cancellation sentinel path.")
-    args = parser.parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    """Dispatch read-only config help or execute one case as a worker process.
+
+    Args:
+        argv: Arguments excluding the executable name. ``None`` uses
+            :data:`sys.argv`, preserving the command-line entry-point contract.
+
+    Raises:
+        SystemExit: If parsing, configuration, simulation, or output writing
+            reports a non-zero process status.
+
+    Side Effects:
+        A simulation may create a fresh run directory, emit worker events,
+        invoke Reaktoro, write the configured output package, and launch the
+        optional downstream validation script. Configuration help is read-only.
+    """
+
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "config":
+        return_code = run_config_help(arguments[1:])
+        if return_code:
+            raise SystemExit(return_code)
+        return
+
+    args = build_run_parser().parse_args(arguments)
 
     run_id = args.run_id or args.operation_id or str(uuid4())
     emitter = ProtocolEmitter(

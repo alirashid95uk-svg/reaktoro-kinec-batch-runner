@@ -1,0 +1,56 @@
+site_name: Reaktoro Batch Runner
+site_description: Source-derived reference for the Reaktoro batch geochemical simulator
+
+docs_dir: docs
+site_dir: site
+strict: true
+exclude_docs: |
+  workbench/
+
+theme:
+  name: mkdocs
+  navigation_depth: 3
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            docstring_style: google
+            filters:
+              - "!^_"
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_root_full_path: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: true
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Architecture: dev/architecture.md
+  - Python API:
+      - Module map: reference/index.md
+      - Configuration: reference/configuration-api.md
+      - Simulation: reference/simulation-api.md
+      - Solver controllers: reference/solver-api.md
+      - Outputs: reference/outputs-api.md
+      - Worker protocol: reference/protocol-api.md
+  - Configuration Reference: generated/configuration.md
+  - CLI Reference: generated/cli.md
+  - Limitations and Scope: dev/project_scope.md
+  - Scientific Contracts:
+      - Configuration architecture: dev/config_schema_feature_options.md
+      - Configuration rules: dev/config_rules.md
+      - Solver and timestep workflow: dev/solver_workflow_and_long_horizon_timestep.md
+      - Output package: dev/output_package_design.md

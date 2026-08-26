@@ -1,4 +1,11 @@
-"""Direct Reaktoro chemical-system construction."""
+"""Construct the configured Reaktoro phases, reactions, and surfaces.
+
+Simulation preparation calls this module after database and kinetic-parameter
+loading.  The construction is deliberately explicit: PHREEQC aqueous
+activities, optional finite-CO2 gas, configured mineral phases, and one
+reaction/surface pair per kinetic mineral.  It owns attachment, not the
+scientific parameter values supplied by the selected kinetics source.
+"""
 
 from typing import Any
 
@@ -10,6 +17,22 @@ from batch_runner.simulator.kinetics.parameters import build_rate_model
 
 
 def build_chemical_system(case: ResolvedCase, database: Any, params: Any | None = None) -> Any:
+    """Return a Reaktoro ``ChemicalSystem`` matching the resolved case.
+
+    Args:
+        case: Validated case whose phase names and surface areas are used.
+        database: Already-loaded PHREEQC thermodynamic database.
+        params: Loaded parameter set when kinetics is enabled.
+
+    Raises:
+        ValueError: A mineral is absent from the database or enabled kinetics
+            has no parameter set.
+        Exception: Reaktoro cannot construct a phase, rate model, surface, or
+            activity model from the configured inputs.
+
+    Surface-area values and units are passed directly to Reaktoro; no basis
+    conversion or inferred surface area is performed here.
+    """
     for mineral in case.config.minerals:
         _require_thermodynamic_mineral(database, mineral.name)
 

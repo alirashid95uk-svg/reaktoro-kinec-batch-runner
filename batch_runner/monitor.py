@@ -1,4 +1,11 @@
-"""Human terminal presentation and concise simulation logging."""
+"""Present existing runtime telemetry to humans without affecting chemistry.
+
+The CLI feeds this monitor lifecycle events, solver-progress records, and
+accepted observation rows already produced by simulation orchestration.  It
+renders an in-place dashboard when the terminal supports it, falls back to
+plain lines otherwise, and writes a concise UTC ``simulation.log``.  It never
+queries Reaktoro, creates solver targets, or changes acceptance/timestep policy.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +21,14 @@ from batch_runner.config import ResolvedCase
 
 
 class SimulationMonitor:
-    """Render existing runtime telemetry without participating in execution."""
+    """Render observational progress, accepted results, and lifecycle events.
+
+    Display output and human logging are separate from the JSONL protocol.  ETA
+    is a recent throughput estimate derived from accepted simulated time; it is
+    reset after rejection and is not a solver forecast or scientific metric.
+    Display/log I/O failures disable that presentation path rather than
+    terminate simulation.
+    """
 
     def __init__(
         self,
@@ -53,19 +67,27 @@ class SimulationMonitor:
 
     @property
     def progress_percent(self) -> float:
+        """Return accepted simulated time as a duration percentage, capped at 100."""
         if self.case.duration_s <= 0.0:
             return 100.0 if self._latest_row is not None else 0.0
         return min(100.0, 100.0 * self._accepted_time_s / self.case.duration_s)
 
     @property
     def eta_s(self) -> float | None:
+        """Return the current observational wall-time ETA in seconds, if estimable."""
         return self._eta_s
 
     @property
     def log_error(self) -> str | None:
+        """Return the most recent ``simulation.log`` I/O error, if any."""
         return self._log_error
 
     def start(self, *, python_version: str, reaktoro_version: str) -> None:
+        """Record run identity/environment and render the initial dashboard.
+
+        Logging is buffered until :meth:`activate_log` because the fresh output
+        directory may not exist during early validation stages.
+        """
         config = self.case.config
         database = self.case.database_path or config.database.name
         if self.display_enabled:
@@ -84,6 +106,11 @@ class SimulationMonitor:
         self._render(force=True)
 
     def activate_log(self) -> None:
+        """Create ``simulation.log`` and flush buffered lifecycle messages.
+
+        Directory or file errors are retained in :attr:`log_error` and surfaced
+        as warnings; they do not propagate into the scientific execution path.
+        """
         if self._log_active or self._log_error is not None:
             return
         try:
@@ -100,6 +127,11 @@ class SimulationMonitor:
                 self._display(f"WARNING {message}\n")
 
     def handle_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        """Consume one existing lifecycle event for human presentation.
+
+        Recognized events update display/log state only.  The payload is read,
+        never modified, and unknown event types are ignored.
+        """
         if event_type == "stage_started":
             self._stage = str(payload["stage"])
             if self._stage == "solver_execution":
@@ -142,6 +174,12 @@ class SimulationMonitor:
             )
 
     def handle_progress(self, payload: dict[str, Any]) -> None:
+        """Consume one solver-attempt progress snapshot.
+
+        Accepted time drives progress and ETA.  Rejections clear ETA samples and
+        are presented as restored retries or terminal failures according to the
+        supplied fields; no retry or acceptance decision is made here.
+        """
         now = self.clock()
         accepted_time_s = float(payload["accepted_time_s"])
         advanced = accepted_time_s > self._accepted_time_s
@@ -215,6 +253,11 @@ class SimulationMonitor:
         self._render(now=now)
 
     def handle_accepted_row(self, row: dict[str, Any]) -> None:
+        """Present configured values at already-scheduled accepted result times.
+
+        Monitor result times are resolved upstream as a subset of the scientific
+        output schedule, so this method cannot add solver targets or observations.
+        """
         self._latest_row = row
         time_s = float(row["time_s"])
         if time_s in self.case.monitor_result_times_s:
@@ -227,6 +270,12 @@ class SimulationMonitor:
             self._render(force=True)
 
     def finish(self, result: Any, output_dir: Path) -> None:
+        """Write the terminal/log conclusion from diagnostics and completeness.
+
+        A run is presented as complete only when simulation and output package
+        both completed.  Failure details are read from diagnostics; the result
+        and package are not mutated.
+        """
         self.activate_log()
         diagnostics = result.diagnostics
         simulation_completed = bool(diagnostics["simulation_completed"])

@@ -1,4 +1,9 @@
-"""Stable solver-history record construction."""
+"""Construct the common, unit-labelled solver-history record schema.
+
+All timestep controllers emit this base vocabulary before optional controller-
+specific fields are added.  Times and timesteps are seconds; wall time is
+seconds; a rejected record ends at its restored accepted time.
+"""
 
 from typing import Any
 
@@ -17,6 +22,12 @@ def solver_record(
     attempt_index: int | None = None,
     next_dt_s: float | None = None,
 ) -> dict[str, Any]:
+    """Return one JSON-serializable solver-attempt record.
+
+    ``result`` may be ``None`` for thrown or unattempted solves.  The function
+    reads Reaktoro success and iteration metadata but does not mutate state or
+    decide whether the caller should accept the attempt.
+    """
     return {
         "step_index": step_index,
         "attempt_index": attempt_index,
@@ -34,6 +45,7 @@ def solver_record(
 
 
 def unsolved_record(step_index: int, stage: str, time_s: float) -> dict[str, Any]:
+    """Return the zero-duration record used to label an unsolved initial state."""
     return {
         "step_index": step_index,
         "attempt_index": None,

@@ -1,4 +1,11 @@
-"""Human presentation adapter for accepted-state numerical-integrity diagnostics."""
+"""Add accepted-state numerical-integrity text to the human monitor.
+
+The runner supplies snapshots already computed by
+:class:`batch_runner.simulator.integrity.NumericalIntegrityObserver`.  This
+adapter stores, formats, and logs them alongside normal monitor output.  It does
+not recompute inventories, inspect Reaktoro state, or turn diagnostic residuals
+into solver acceptance criteria.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +15,12 @@ from batch_runner.monitor import SimulationMonitor, _format_time, _number
 
 
 class IntegritySimulationMonitor(SimulationMonitor):
-    """Extend the human monitor without changing solver or chemistry behaviour."""
+    """Extend human presentation with component, carbon, and charge diagnostics.
+
+    Unavailable diagnostic status is warned once.  Open-boundary and
+    not-evaluated quantities remain labelled rather than displayed as zero or
+    conservation success.
+    """
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -16,7 +28,7 @@ class IntegritySimulationMonitor(SimulationMonitor):
         self._integrity_warning_reported = False
 
     def handle_numerical_integrity(self, snapshot: dict[str, Any]) -> None:
-        """Store diagnostics computed from an accepted state for presentation only."""
+        """Store one accepted-state diagnostic snapshot for presentation only."""
         self._numerical_integrity = snapshot
         if snapshot.get("status") == "unavailable" and not self._integrity_warning_reported:
             self._integrity_warning_reported = True
@@ -27,6 +39,7 @@ class IntegritySimulationMonitor(SimulationMonitor):
             )
 
     def handle_accepted_row(self, row: dict[str, Any]) -> None:
+        """Log matching integrity metrics, then present the accepted result row."""
         time_s = float(row["time_s"])
         if time_s in self.case.monitor_result_times_s:
             integrity = self._integrity_log_values(time_s)
