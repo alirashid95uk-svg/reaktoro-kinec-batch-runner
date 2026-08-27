@@ -17,6 +17,7 @@ import numpy as np
 import yaml
 
 from batch_runner.config import load_case
+from batch_runner.config._base import DEFAULT_KINETIC_PATHS, PROJECT_ROOT
 from batch_runner.simulator import preflight_case
 
 from .constraints import evaluate_constraints
@@ -96,6 +97,49 @@ def _dependency_record(case: Any, package_root: Path) -> tuple[dict[str, Any], d
     else:
         kin = {"identity": kin_identity, "package_path": None}
     return db, kin
+
+
+def _raw_dependency_records(
+    raw: dict[str, Any], package_root: Path
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Best-effort dependency identity for a case that may fail full CaseConfig loading."""
+    db_record: dict[str, Any] | None = None
+    database = raw.get("database")
+    if isinstance(database, dict):
+        if database.get("source") == "embedded" and database.get("name"):
+            db_record = {
+                "identity": {"source": "embedded", "name": str(database["name"])},
+                "package_path": None,
+            }
+        elif database.get("source") == "local" and database.get("path"):
+            source = Path(str(database["path"]))
+            source = source.resolve() if source.is_absolute() else (PROJECT_ROOT / source).resolve()
+            if source.is_file():
+                relative, digest = _copy_content_addressed(source, package_root, "database")
+                db_record = {
+                    "identity": {"source": "local", "sha256": digest},
+                    "package_path": relative,
+                }
+
+    kin_record: dict[str, Any] | None = None
+    kinetics = raw.get("kinetics")
+    if isinstance(kinetics, dict) and kinetics.get("enabled") is False:
+        kin_record = {"identity": {"enabled": False}, "package_path": None}
+    elif isinstance(kinetics, dict) and kinetics.get("enabled") is True:
+        model = str(kinetics.get("model") or "palandri_kharaka")
+        path_value = kinetics.get("path") or DEFAULT_KINETIC_PATHS.get(model)
+        if path_value:
+            source = Path(str(path_value))
+            source = source.resolve() if source.is_absolute() else (PROJECT_ROOT / source).resolve()
+            if source.is_file():
+                relative, digest = _copy_content_addressed(
+                    source, package_root, "kinetics/baseline"
+                )
+                kin_record = {
+                    "identity": {"enabled": True, "model": model, "sha256": digest},
+                    "package_path": relative,
+                }
+    return db_record, kin_record
 
 
 def _dependency_key(record: dict[str, Any]) -> bytes:
@@ -500,12 +544,28 @@ def _process_generated(
         if spec.sampler.kind == "random" and accepted_count >= spec.sampler.sample_count:
             break
         candidate_id = f"candidate-{candidate_number:06d}"
+        values_list = list(values)
         entered, canonical = _vector_records(
-            spec, parameters, list(values), year_days=year_days
+            spec, parameters, values_list, year_days=year_days
         )
+        try:
+            for resolved_target, value in zip(resolved_targets, values_list):
+                resolved_target.validate_value(value)
+        except Exception as error:
+            record = _base_candidate_record(candidate_id, entered, canonical, [])
+            record["outcome"] = "schema_blocked"
+            record["error"] = {
+                "stage": "target_validation",
+                "type": type(error).__name__,
+                "message": str(error),
+            }
+            exclusions += 1
+            ledger.append(record)
+            continue
+
         vector = {
             parameter.parameter_id: value
-            for parameter, value in zip(parameters, values)
+            for parameter, value in zip(parameters, values_list)
         }
         outcomes = evaluate_constraints(
             spec.constraints, vector, parameters, year_days=year_days
@@ -529,7 +589,7 @@ def _process_generated(
                     db_record,
                     kin_record,
                     resolved_targets,
-                    list(values),
+                    values_list,
                     candidate_id,
                 )
             )
@@ -673,20 +733,36 @@ def _process_existing(
         snapshot = package_root / source_relative
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, snapshot)
-        raw = _load_yaml_mapping(source)
-        with tempfile.TemporaryDirectory(prefix="doe-existing-") as temp_dir:
-            resolved = load_case(
-                source, output_dir_override=Path(temp_dir) / "results"
-            )
-        db_record, kin_record = _dependency_record(resolved, package_root)
-        db_records.append(db_record)
-        kin_records.append(kin_record)
+
+        raw: dict[str, Any] | None = None
+        db_record: dict[str, Any] | None = None
+        kin_record: dict[str, Any] | None = None
+        initial_error: Exception | None = None
+        try:
+            raw = _load_yaml_mapping(source)
+            db_record, kin_record = _raw_dependency_records(raw, package_root)
+            with tempfile.TemporaryDirectory(prefix="doe-existing-") as temp_dir:
+                resolved = load_case(
+                    source, output_dir_override=Path(temp_dir) / "results"
+                )
+            db_record, kin_record = _dependency_record(resolved, package_root)
+        except Exception as error:
+            initial_error = error
+
+        if db_record is not None:
+            db_records.append(db_record)
+        if kin_record is not None:
+            kin_records.append(kin_record)
         identities.append(
             {
                 "case_id": item.case_id,
                 "case_snapshot_sha256": file_sha256(snapshot),
-                "database_identity": db_record["identity"],
-                "kinetics_identity": kin_record["identity"],
+                "database_identity": (
+                    db_record["identity"] if db_record is not None else None
+                ),
+                "kinetics_identity": (
+                    kin_record["identity"] if kin_record is not None else None
+                ),
                 "provenance": item.provenance.model_dump(mode="json"),
             }
         )
@@ -697,6 +773,7 @@ def _process_existing(
                 "source_snapshot": source_relative.as_posix(),
                 "db": db_record,
                 "kin": kin_record,
+                "initial_error": initial_error,
             }
         )
 
@@ -718,8 +795,29 @@ def _process_existing(
     for number, prepared_case in enumerate(prepared, start=1):
         candidate_id = f"candidate-{number:06d}"
         record = _base_candidate_record(candidate_id, [], [], [])
+        initial_error = prepared_case["initial_error"]
+        if initial_error is not None:
+            record["case_path"] = prepared_case["source_snapshot"]
+            record["case_sha256"] = file_sha256(
+                package_root / prepared_case["source_snapshot"]
+            )
+            record["outcome"] = "schema_blocked"
+            record["error"] = {
+                "stage": "configuration_validation",
+                "type": type(initial_error).__name__,
+                "message": str(initial_error),
+            }
+            exclusions += 1
+            ledger.append(record)
+            continue
+
         raw = deepcopy(prepared_case["raw"])
-        _rewrite_dependency_locators(raw, prepared_case["db"], prepared_case["kin"])
+        db_record = prepared_case["db"]
+        kin_record = prepared_case["kin"]
+        assert isinstance(raw, dict)
+        assert isinstance(db_record, dict)
+        assert isinstance(kin_record, dict)
+        _rewrite_dependency_locators(raw, db_record, kin_record)
         path, relative, sha = _write_case(package_root, candidate_id, raw)
         record["case_path"] = relative
         record["case_sha256"] = sha
