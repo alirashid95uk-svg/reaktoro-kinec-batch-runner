@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -29,16 +30,78 @@ from .package import load_manifest, read_ledger
 
 
 def _sample_record(
-    package_root: Path, manifest: dict[str, Any], sample_id: str
+    ledger: list[dict[str, Any]], sample_id: str
 ) -> dict[str, Any]:
     matches = [
         record
-        for record in read_ledger(package_root, manifest)
+        for record in ledger
         if record.get("sample_id") == sample_id and record.get("outcome") == "accepted"
     ]
     if len(matches) != 1:
         raise ValueError(f"accepted sample not found exactly once: {sample_id}")
     return matches[0]
+
+
+def _derived_generation_status(
+    resolved_spec: dict[str, Any], ledger: list[dict[str, Any]]
+) -> str:
+    outcomes = Counter(record.get("outcome") for record in ledger)
+    unknown = sorted(
+        str(value)
+        for value in outcomes
+        if value not in {
+            "accepted",
+            "constraint_rejected",
+            "duplicate",
+            "schema_blocked",
+            "preflight_blocked",
+            "generation_error",
+        }
+    )
+    if unknown:
+        raise ValueError(f"candidate ledger contains unsupported outcomes: {unknown}")
+    if outcomes.get("generation_error", 0):
+        return "generation_failed"
+
+    accepted = outcomes.get("accepted", 0)
+    exclusions = len(ledger) - accepted
+    if resolved_spec.get("mode") == "existing_cases":
+        if accepted == 0:
+            return "blocked"
+        return "ready_with_exclusions" if exclusions else "ready"
+
+    sampler = resolved_spec.get("sampler")
+    if not isinstance(sampler, dict) or not sampler.get("kind"):
+        raise ValueError("generated resolved specification is missing sampler metadata")
+    kind = sampler["kind"]
+    if kind == "random":
+        target = sampler.get("sample_count")
+        if not isinstance(target, int) or target < 1:
+            raise ValueError("random resolved specification has invalid sample_count")
+        return "ready" if accepted == target else "incomplete"
+    if kind in {"latin_hypercube", "sobol"}:
+        return "ready" if exclusions == 0 and accepted > 0 else "blocked"
+    if kind in {"grid", "imported_matrix"}:
+        if accepted == 0:
+            return "blocked"
+        return "ready_with_exclusions" if exclusions else "ready"
+    raise ValueError(f"unsupported resolved sampler kind: {kind}")
+
+
+def _verify_generation_status(
+    package_root: Path, manifest: dict[str, Any]
+) -> list[dict[str, Any]]:
+    ledger = read_ledger(package_root, manifest)
+    resolved_path = package_root / manifest["resolved_spec"]["package_path"]
+    resolved_spec = json.loads(resolved_path.read_text(encoding="utf-8"))
+    derived = _derived_generation_status(resolved_spec, ledger)
+    recorded = manifest.get("generation_status")
+    if recorded != derived:
+        raise ValueError(
+            "design generation_status does not match resolved sampler and candidate ledger: "
+            f"recorded={recorded!r}, derived={derived!r}"
+        )
+    return ledger
 
 
 def _git_identity() -> tuple[str | None, bool]:
@@ -82,12 +145,14 @@ def launch_sample(
     events_jsonl: bool = False,
 ) -> dict[str, Any]:
     """Verify, freshly preflight, and optionally execute one accepted sample."""
+    run_id = str(uuid4())
     package_root, manifest = load_manifest(manifest_path)
+    ledger = _verify_generation_status(package_root, manifest)
     if manifest["generation_status"] not in {"ready", "ready_with_exclusions"}:
         raise ValueError(
             f"design status {manifest['generation_status']!r} prohibits execution"
         )
-    sample = _sample_record(package_root, manifest, sample_id)
+    sample = _sample_record(ledger, sample_id)
     case_path = (package_root / sample["case_path"]).resolve()
     if package_root not in case_path.parents or file_sha256(case_path) != sample["case_sha256"]:
         raise ValueError(f"sample case hash mismatch: {sample_id}")
@@ -110,7 +175,6 @@ def launch_sample(
             f"sample fingerprint no longer matches finalized design: {sample_id}"
         )
 
-    run_id = str(uuid4())
     snapshot = prepare_fresh_run_config(case_path, artifact_root=package_root)
     run_case = load_case(snapshot, artifact_root=package_root)
     launch_fingerprint = design_point_fingerprint_v1(run_case)
@@ -197,9 +261,10 @@ def launch_all(
     events_jsonl: bool = False,
 ) -> list[dict[str, Any]]:
     package_root, manifest = load_manifest(manifest_path)
+    ledger = _verify_generation_status(package_root, manifest)
     samples = [
         record["sample_id"]
-        for record in read_ledger(package_root, manifest)
+        for record in ledger
         if record.get("outcome") == "accepted"
     ]
     return [
