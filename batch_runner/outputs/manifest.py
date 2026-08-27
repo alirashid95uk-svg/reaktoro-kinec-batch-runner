@@ -32,6 +32,9 @@ _DOE_LINEAGE_FIELDS = (
     "run_id",
     "run_snapshot_sha256",
     "batch_runner_source_sha256",
+    "code",
+    "software",
+    "dependencies",
 )
 
 
