@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import yaml
 
-from batch_runner.doe import generate_design, load_manifest, read_ledger
+from batch_runner.doe import generate_design, launch_sample, load_manifest, read_ledger
 from batch_runner.doe.sampling import ResolvedParameter, random_vectors
 
 
@@ -134,6 +136,39 @@ def test_lhs_rejection_blocks_whole_design(tmp_path: Path) -> None:
     assert all(record["outcome"] == "constraint_rejected" for record in ledger)
 
 
+def test_lhs_blocked_status_cannot_be_tampered_into_execution(tmp_path: Path) -> None:
+    spec = _base_spec(
+        {"kind": "latin_hypercube", "sample_count": 4, "seed": 23},
+        {"kind": "uniform", "lower": 20.0, "upper": 30.0, "entered_unit": "degC"},
+    )
+    spec["constraints"] = [
+        {
+            "constraint_id": "partial_rejection",
+            "kind": "bounds",
+            "parameter_id": "temperature",
+            "lower": {"value": 25.0, "unit": "degC"},
+        }
+    ]
+    spec_path = tmp_path / "lhs-partial.yaml"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    package = generate_design(spec_path, tmp_path / "lhs-partial-design")
+    package_root, manifest = load_manifest(package)
+    ledger = read_ledger(package_root, manifest)
+    accepted = [record for record in ledger if record["outcome"] == "accepted"]
+    assert manifest["generation_status"] == "blocked"
+    assert accepted
+    assert len(accepted) < len(ledger)
+
+    manifest_path = package_root / "design_manifest.json"
+    tampered = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tampered["generation_status"] = "ready"
+    manifest_path.write_text(json.dumps(tampered, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="generation_status does not match"):
+        launch_sample(package, accepted[0]["sample_id"], preflight_only=True)
+
+
 def test_imported_matrix_is_snapshotted_hashed_and_preserves_row_order(tmp_path: Path) -> None:
     matrix = tmp_path / "matrix.csv"
     matrix.write_text("temperature\n26\n27\n", encoding="utf-8")
@@ -161,3 +196,51 @@ def test_imported_matrix_is_snapshotted_hashed_and_preserves_row_order(tmp_path:
         "sample-000001",
         "sample-000002",
     ]
+
+
+def test_imported_matrix_invalid_domain_row_is_schema_blocked(tmp_path: Path) -> None:
+    matrix = tmp_path / "pressure.csv"
+    matrix.write_text("pressure\n1\n-5\n2\n", encoding="utf-8")
+    spec = {
+        "mode": "generated",
+        "name": "imported_domain_validation",
+        "base_case": {
+            "path": str(SYNTHETIC_CASE),
+            "sha256": _sha256(SYNTHETIC_CASE),
+        },
+        "parameters": [
+            {
+                "parameter_id": "pressure",
+                "target": {"kind": "pressure"},
+                "sampling": {
+                    "kind": "imported_column",
+                    "column": "pressure",
+                    "entered_unit": "bar",
+                },
+                "provenance": _provenance(),
+            }
+        ],
+        "sampler": {
+            "kind": "imported_matrix",
+            "path": str(matrix),
+            "sha256": _sha256(matrix),
+        },
+        "constraints": [],
+    }
+    spec_path = tmp_path / "imported-invalid.yaml"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    package = generate_design(spec_path, tmp_path / "imported-invalid-design")
+    package_root, manifest = load_manifest(package)
+    ledger = read_ledger(package_root, manifest)
+
+    assert manifest["generation_status"] == "ready_with_exclusions"
+    assert [record["outcome"] for record in ledger] == [
+        "accepted",
+        "schema_blocked",
+        "accepted",
+    ]
+    assert ledger[1]["error"]["stage"] == "target_validation"
+    assert ledger[1]["sample_id"] is None
+    assert ledger[1]["case_path"] is None
+    assert ledger[2]["sample_id"] == "sample-000002"
