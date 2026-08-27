@@ -272,6 +272,8 @@ def test_generated_kinec_design_packages_dependencies_and_preflights(tmp_path: P
     try:
         assert result["executed"] is False
         assert result["preflight"]["ready"] is True
+        assert result["lineage"]["dependencies"]["database"]["source"] == "local"
+        assert result["lineage"]["dependencies"]["kinetics"]["enabled"] is True
         snapshot = Path(result["run_snapshot"])
         run_raw = yaml.safe_load(snapshot.read_text(encoding="utf-8"))
         candidate_raw = yaml.safe_load(candidate_path.read_text(encoding="utf-8"))
@@ -298,21 +300,19 @@ def test_doe_lineage_file_is_optional_and_strict(tmp_path: Path, monkeypatch) ->
         "run_id": "run-1",
         "run_snapshot_sha256": "ghi",
         "batch_runner_source_sha256": "jkl",
-        "software": {"ignored_by_output_lineage": True},
+        "code": {"git_commit": "abc123", "dirty": False},
+        "software": {
+            "python": "3.11",
+            "reaktoro": "2.13.0",
+            "numpy": "test",
+            "scipy": "1.16.1",
+        },
+        "dependencies": {
+            "database": {"source": "embedded", "name": "test"},
+            "kinetics": {"enabled": False},
+        },
     }
     path = tmp_path / "lineage.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setenv("BATCH_RUNNER_DOE_LINEAGE_FILE", str(path))
-    assert _load_doe_lineage() == {
-        key: payload[key]
-        for key in (
-            "schema_version",
-            "design_id",
-            "design_spec_hash_v1",
-            "sample_id",
-            "design_point_fingerprint_v1",
-            "run_id",
-            "run_snapshot_sha256",
-            "batch_runner_source_sha256",
-        )
-    }
+    assert _load_doe_lineage() == payload
