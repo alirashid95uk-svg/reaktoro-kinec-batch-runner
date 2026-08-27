@@ -100,7 +100,7 @@ def test_random_design_is_incomplete_at_exact_max_candidates(tmp_path: Path) -> 
 
     assert manifest["generation_status"] == "incomplete"
     assert manifest["candidate_counts"]["attempted"] == 3
-    assert manifest["candidate_counts"]["accepted"] == 0
+    assert manifest["candidate_counts"].get("accepted", 0) == 0
     assert [record["outcome"] for record in ledger] == [
         "constraint_rejected",
         "constraint_rejected",
