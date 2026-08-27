@@ -18,7 +18,13 @@ from batch_runner.config._base import PROJECT_ROOT
 from batch_runner.run_directories import prepare_fresh_run_config
 from batch_runner.simulator import preflight_case
 
-from .identity import batch_runner_source_sha256, design_point_fingerprint_v1, file_sha256
+from .identity import (
+    batch_runner_source_sha256,
+    database_identity,
+    design_point_fingerprint_v1,
+    file_sha256,
+    kinetics_identity,
+)
 from .package import load_manifest, read_ledger
 
 
@@ -132,6 +138,10 @@ def launch_sample(
         "batch_runner_source_sha256": batch_runner_source_sha256(PROJECT_ROOT),
         "code": {"git_commit": git_commit, "dirty": dirty},
         "software": _software_versions(),
+        "dependencies": {
+            "database": database_identity(run_case),
+            "kinetics": kinetics_identity(run_case),
+        },
     }
     lineage_path = snapshot.parent / "doe_lineage.json"
     lineage_path.write_text(
