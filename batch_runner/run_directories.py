@@ -1,8 +1,8 @@
 """Create immutable case snapshots for fresh direct-run output packages.
 
-The CLI calls this before configuration loading.  Relative-output source cases
+The CLI calls this before configuration loading. Relative-output source cases
 are validated using a temporary override, then copied beneath ``runs/<case>/<UTC
-timestamp>/run_case.yaml`` with only ``paths.output_dir`` changed.  Absolute
+timestamp>/run_case.yaml`` with only ``paths.output_dir`` changed. Absolute
 output paths and already-managed snapshots pass through unchanged for
 caller-managed workflows.
 
@@ -32,19 +32,26 @@ def prepare_run_config_for_execution(
     *,
     runs_dir: str | Path = RUNS_DIR,
     now: datetime | None = None,
+    artifact_root: str | Path | None = None,
 ) -> Path:
     """Return a runnable config path with safe direct-run output semantics.
 
     Already-managed snapshots and configs with absolute output paths are
-    returned unchanged.  Other configs are validated and snapshotted by
-    :func:`prepare_fresh_run_config`.
+    returned unchanged. Other configs are validated and snapshotted by
+    :func:`prepare_fresh_run_config`. ``artifact_root`` is used only by DoE
+    package launches when validating package-relative scientific dependencies.
     """
     source = Path(case_config).resolve()
     if is_managed_run_snapshot(source, runs_dir=runs_dir):
         return source
     if _configured_output_is_absolute(source):
         return source
-    return prepare_fresh_run_config(source, runs_dir=runs_dir, now=now)
+    return prepare_fresh_run_config(
+        source,
+        runs_dir=runs_dir,
+        now=now,
+        artifact_root=artifact_root,
+    )
 
 
 def is_managed_run_snapshot(
@@ -63,17 +70,22 @@ def prepare_fresh_run_config(
     *,
     runs_dir: str | Path = RUNS_DIR,
     now: datetime | None = None,
+    artifact_root: str | Path | None = None,
 ) -> Path:
     """Create and return a timestamped run snapshot.
 
     The source is first fully loaded with a temporary output override, so an
-    invalid case leaves no persistent run directory.  Same-second collisions
-    use ``_02``, ``_03``, and so on.  The generated YAML retains all source
+    invalid case leaves no persistent run directory. Same-second collisions
+    use ``_02``, ``_03``, and so on. The generated YAML retains all source
     values except ``paths.output_dir`` and records the source path and SHA-256.
 
+    ``artifact_root`` does not alter persisted YAML. It only tells case loading
+    how to resolve package-relative local database/kinetics paths while
+    validating a DoE candidate.
+
     Raises:
-        FileNotFoundError: The source config does not exist.
-        ValueError: The YAML root or required ``paths`` section is invalid.
+        FileNotFoundError: If the source config does not exist.
+        ValueError: If the YAML root or required ``paths`` section is invalid.
         RuntimeError: Snapshot construction changed another setting.
         OSError: A run directory or snapshot cannot be created.
         pydantic.ValidationError: The source case is invalid.
@@ -87,6 +99,7 @@ def prepare_fresh_run_config(
         resolved = load_case(
             source,
             output_dir_override=Path(temp_dir) / "results",
+            artifact_root=artifact_root,
         )
 
     timestamp = (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
