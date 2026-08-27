@@ -287,6 +287,35 @@ def test_generated_kinec_design_packages_dependencies_and_preflights(tmp_path: P
             shutil.rmtree(Path(snapshot_value).parent, ignore_errors=True)
 
 
+def test_real_doe_execution_writes_v4_lineage(tmp_path: Path) -> None:
+    spec_path = tmp_path / "doe-execute.yaml"
+    spec_path.write_text(yaml.safe_dump(_generated_spec(value=58002.0), sort_keys=False), encoding="utf-8")
+    package = generate_design(spec_path, tmp_path / "design-execute")
+
+    result = launch_sample(package, "sample-000001", preflight_only=False)
+    try:
+        assert result["executed"] is True
+        snapshot = Path(result["run_snapshot"])
+        run_raw = yaml.safe_load(snapshot.read_text(encoding="utf-8"))
+        output_dir = Path(run_raw["paths"]["output_dir"])
+        if not output_dir.is_absolute():
+            output_dir = (PROJECT_ROOT / output_dir).resolve()
+        manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["output_schema_version"] == "objective1_audit_v4"
+        lineage = manifest["doe_lineage"]
+        assert lineage["schema_version"] == "1.0"
+        assert lineage["design_id"] == result["lineage"]["design_id"]
+        assert lineage["sample_id"] == "sample-000001"
+        assert lineage["run_id"] == result["run_id"]
+        assert lineage["design_point_fingerprint_v1"] == result["lineage"]["design_point_fingerprint_v1"]
+        assert lineage["dependencies"]["database"]["source"] == "local"
+        assert lineage["dependencies"]["kinetics"]["enabled"] is True
+    finally:
+        snapshot_value = result.get("run_snapshot")
+        if snapshot_value:
+            shutil.rmtree(Path(snapshot_value).parent, ignore_errors=True)
+
+
 def test_doe_lineage_file_is_optional_and_strict(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("BATCH_RUNNER_DOE_LINEAGE_FILE", raising=False)
     assert _load_doe_lineage() is None
