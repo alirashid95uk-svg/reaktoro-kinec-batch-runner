@@ -6,7 +6,6 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 
-import pytest
 import yaml
 
 from batch_runner.config import load_case
@@ -100,7 +99,7 @@ def test_enabled_kinetics_defaults_to_palandri_and_doe_uses_that_default(tmp_pat
         shutil.rmtree(Path(result["run_snapshot"]).parent, ignore_errors=True)
 
 
-def test_palandri_activation_energy_rejects_negative_values() -> None:
+def test_palandri_activation_energy_accepts_signed_values() -> None:
     raw = yaml.safe_load(POKROVSKY_CASE.read_text(encoding="utf-8"))
     kinetics = yaml.safe_load(POKROVSKY_PALANDRI.read_text(encoding="utf-8"))
     target = Target(kind="pk_activation_energy", record="Calcite", mechanism="Acid")
@@ -113,8 +112,8 @@ def test_palandri_activation_energy_rejects_negative_values() -> None:
         ),
         provenance=UserDefinedProvenance(**_provenance()),
     )
-    with pytest.raises(ValueError, match="requires value >= 0"):
-        canonicalize_sampling(parameter, resolved, year_days=None)
+    canonical = canonicalize_sampling(parameter, resolved, year_days=None)
+    assert canonical["values"] == [-0.1]
 
 
 def test_real_palandri_doe_generation_preflight_and_execution(tmp_path: Path) -> None:
