@@ -9,3 +9,4 @@ dependencies:
   - pytest
   - matplotlib
   - scipy=1.16.1
+  - griffe
