@@ -44,9 +44,9 @@ def _raw_case(
     raw["paths"]["output_dir"] = str(tmp_path / "outputs")
     raw["minerals"] = [raw["minerals"][0]]
     raw["postprocessing"]["requested_minerals"] = ["Quartz"]
-    raw["outputs"]["monitor"]["enabled"] = False
-    raw["outputs"]["monitor"]["minerals"] = []
-    raw["outputs"]["monitor"]["result_times"] = []
+    raw["monitor"]["enabled"] = False
+    raw["monitor"]["minerals"] = []
+    raw["monitor"]["result_times"] = []
     raw["solver"]["timestep"] = {
         "mode": "adaptive_error_controlled",
         "time": {"duration_value": duration_s, "duration_unit": "seconds"},
@@ -723,9 +723,9 @@ def test_real_reaktoro_native_solve_richardson_contract(tmp_path: Path) -> None:
         "duration_unit": "seconds",
     }
     raw["solver"]["timestep"]["output_schedule"]["explicit_times"] = []
-    raw["outputs"]["monitor"]["enabled"] = False
-    raw["outputs"]["monitor"]["minerals"] = []
-    raw["outputs"]["monitor"]["result_times"] = []
+    raw["monitor"]["enabled"] = False
+    raw["monitor"]["minerals"] = []
+    raw["monitor"]["result_times"] = []
     path = tmp_path / "real_case.yaml"
     path.write_text(
         yaml.safe_dump(raw, sort_keys=False),

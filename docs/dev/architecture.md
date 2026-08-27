@@ -21,7 +21,7 @@ batch_runner/
 ├── config/                 strict YAML schema, loading, and resolution
 │   ├── case.py             scientific case models and cross-feature validation
 │   ├── timestep.py         solver workflow and timestep schema
-│   ├── reporting.py        postprocessing, validation, and output schema
+│   ├── reporting.py        postprocessing, plots, monitor, debug, and validation schema
 │   ├── loading.py          duplicate-key and placeholder-safe YAML loading
 │   └── resolution.py       ResolvedCase, paths, Decimal schedules, hashes
 ├── simulator/

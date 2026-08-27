@@ -81,26 +81,25 @@ conda env create -f environment.yml
 conda run -n reaktoro-batch-runner python runner.py path\to\case_input.yaml
 ```
 
-The output directory must not already exist. Output files are controlled by
-the case YAML. The base package supports:
+The output directory must not already exist. Every run writes the standard
+manifest, diagnostics, accepted-state timeseries, solver history, and log:
 
 ```text
 manifest.json
 diagnostics.json
 simulation.log
 timeseries.csv
-mineral_summary.csv
-aqueous_summary.csv
 solver_history.csv
-debug/mineral_connection.csv
-plots/
 ```
 
-Optional debug outputs include `debug/resolved_config.yaml` and
-`debug/final_state.txt`.
+Requested species and minerals automatically add their standard timeseries
+columns and `aqueous_summary.csv` or `mineral_summary.csv`. Top-level `plots`
+contains only plot controls; top-level `monitor` and `debug` own presentation
+and troubleshooting settings.
 
 Optional Objective 1 audit outputs are disabled unless explicitly enabled in
-YAML:
+`postprocessing`; each enabled analysis writes its corresponding table without
+a second output toggle:
 
 ```text
 reaction_rates.csv
@@ -187,7 +186,7 @@ are closed to avoid a Reaktoro 2.13 Python rate-callback finalization crash.
   `adaptive_error_controlled` timesteps use standard solvers. Existing
   `mode: adaptive` cases retain their original controller. Checkpoint writing
   is implemented; automatic restart and smart solver backends remain unavailable.
-- Objective 1 audit outputs are active case-YAML fields. Budgets and
+- Objective 1 analyses are active `postprocessing` fields. Budgets and
   inventories use only explicitly configured species/mineral stoichiometry.
   Reaction-rate diagnostics use Reaktoro's attached runtime rates and live
   total surface areas for accepted states. Mineral volume, porosity,

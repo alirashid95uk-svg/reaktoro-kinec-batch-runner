@@ -49,6 +49,8 @@ def test_case_config_json_schema_remains_serializable_and_described() -> None:
 
     assert encoded
     assert schema["additionalProperties"] is False
+    assert "outputs" not in schema["properties"]
+    assert {"postprocessing", "plots", "monitor", "debug"}.issubset(schema["properties"])
     assert schema["properties"]["solver"]["description"]
     assert schema["$defs"]["SolverConfig"]["properties"]["timestep"]["discriminator"] == {
         "mapping": {
@@ -92,6 +94,11 @@ def test_config_help_exposes_representative_sections_and_paths() -> None:
     assert run_config_help(["kinetics.model"], stream=stream, error_stream=errors) == 0
     assert "kinetics.model" in stream.getvalue()
     assert "palandri_kharaka" in stream.getvalue()
+
+    stream = io.StringIO()
+    assert run_config_help(["plots"], stream=stream, error_stream=errors) == 0
+    assert "plots.enabled" in stream.getvalue()
+    assert "plots.pH" in stream.getvalue()
 
 
 def test_unknown_config_help_path_fails_without_loading_a_case() -> None:

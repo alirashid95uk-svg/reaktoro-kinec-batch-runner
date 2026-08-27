@@ -247,7 +247,7 @@ def _run_simulation(
 
     monitor = IntegritySimulationMonitor(
         case,
-        display_enabled=case.config.outputs.monitor.enabled and not emitter.enabled,
+        display_enabled=case.config.monitor.enabled and not emitter.enabled,
         stream=sys.stdout,
     )
     monitor.start(

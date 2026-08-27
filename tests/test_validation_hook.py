@@ -64,7 +64,7 @@ def test_validation_schema_and_script_path_resolution(tmp_path: Path) -> None:
         CaseConfig.model_validate(raw)
 
     raw["validation"] = {"enabled": False}
-    raw["outputs"]["summaries"]["validation_ledger"] = False
+    raw["postprocessing"]["validation_ledger"] = False
     with pytest.raises(ValidationError, match="validation_ledger"):
         CaseConfig.model_validate(raw)
     assert not hasattr(config_api, "ValidationTarget")

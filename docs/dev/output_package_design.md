@@ -2,8 +2,9 @@
 
 ## Runtime Status
 
-The active runner writes the base output package plus the currently implemented
-optional Objective 1 diagnostics. Fixed and legacy adaptive execution retain
+The active runner always writes the base output package and automatically adds
+the standard table for each enabled postprocessing analysis. Fixed and legacy
+adaptive execution retain
 the original solver-history columns. The explicit Richardson mode adds its
 branch/controller fields to the same `solver_history.csv` artifact.
 
@@ -41,7 +42,7 @@ Rules:
 - scientific inputs should not be repeated across every result table;
 - accepted-state runtime baselines may appear in result tables;
 - output column order must be deterministic;
-- disabled optional outputs must not be written;
+- disabled postprocessing analyses, plots, and debug artifacts must not be written;
 - no result should imply transport, calibration, restart, or unsupported solver
   behaviour that did not occur.
 
@@ -54,16 +55,17 @@ manifest.json
 diagnostics.json
 simulation.log
 timeseries.csv
-mineral_summary.csv
-aqueous_summary.csv
 solver_history.csv
-debug/mineral_connection.csv
-plots/
 ```
 
-Optional debug files include:
+Requested species and minerals automatically add their standard timeseries
+columns plus `aqueous_summary.csv` and `mineral_summary.csv`, respectively.
+There is no second table-output switch.
+
+Selected debug files include:
 
 ```text
+debug/mineral_connection.csv
 debug/resolved_config.yaml
 debug/final_state.txt
 ```
@@ -80,7 +82,8 @@ into machine stdout.
 
 ## 4. Optional Objective 1 Outputs
 
-The current writer may also emit, when explicitly enabled and configured:
+The current writer emits the corresponding table when an analysis is explicitly
+enabled and configured under `postprocessing`:
 
 ```text
 reaction_rates.csv
@@ -139,6 +142,11 @@ output_configuration
 software_environment
 output_files
 ```
+
+The source YAML no longer exposes an `outputs` block. For compatibility with
+the `objective1_audit_v4` package auditor, `output_configuration` remains a
+derived record of the artifacts actually selected or produced; it is not an
+accepted source-configuration registry.
 
 ### 6.1 Traceability
 
@@ -255,8 +263,9 @@ Rules:
 The terminal monitor reads these accepted rows. It does not inspect failed trial
 states or calculate additional chemistry.
 
-Requested species/mineral values and enabled runtime diagnostics must use stable
-column naming and ordering.
+Requested species and minerals automatically add their amount, molality,
+change, and saturation-index columns in stable YAML order. Solver status,
+iteration, and timestep columns are standard.
 
 ## 9. `solver_history.csv`
 

@@ -36,8 +36,9 @@ The active schema supports:
 - fixed, solver-feasibility adaptive, and Richardson error-controlled
   timesteps;
 - accepted-state output schedules and checkpoints;
-- config-controlled diagnostics, summaries, plots, monitoring, and downstream
-  validation.
+- postprocessing-controlled scientific analyses and their standard data tables;
+- plot-only generation controls plus separate monitor, debug, and downstream
+  validation settings.
 
 An accepted configuration field represents implemented runtime behaviour. Do
 not expose speculative features as disabled blocks, placeholders, or status
@@ -76,8 +77,13 @@ every mutually exclusive mode on one YAML tree.
   requires at least one kinetic mineral.
 - Missing thermodynamic minerals, kinetic records, required parameter files, or
   local database files are hard failures.
-- Output and monitor selections may observe only configured/requested species,
-  minerals, schedules, and diagnostics.
+- Postprocessing, plot, and monitor selections may observe only configured or
+  requested species, minerals, schedules, and diagnostics.
+- Requested species and minerals automatically produce their standard
+  timeseries columns and summary tables; enabled derived analyses automatically
+  produce their corresponding data tables.
+- Manifest, diagnostics, accepted-state timeseries, and solver history are
+  standard package artifacts rather than source-YAML switches.
 - Checkpoints contain accepted states only and do not provide restart.
 - Post-simulation validation is trusted downstream analysis. It does not alter
   simulation results or constitute automatic calibration.

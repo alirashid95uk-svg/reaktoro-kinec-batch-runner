@@ -234,7 +234,7 @@ def _monitor_case(tmp_path: Path):
         output_dir=tmp_path,
         database_path=None,
         config=SimpleNamespace(
-            outputs=SimpleNamespace(monitor=settings),
+            monitor=settings,
             case=SimpleNamespace(name="integrity-monitor"),
             database=SimpleNamespace(name="test.dat"),
             physical=SimpleNamespace(temperature_c=25.0, pressure_bar=1.0),

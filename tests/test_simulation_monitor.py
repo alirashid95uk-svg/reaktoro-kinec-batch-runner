@@ -55,7 +55,7 @@ def _case(
     if native_kinetics:
         raw["kinetics"] = {"enabled": True, "model": "palandri_kharaka"}
     if monitor is not None:
-        raw["outputs"]["monitor"] = monitor
+        raw["monitor"] = monitor
     path = tmp_path / f"{name}.yaml"
     path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     return load_case(path)
@@ -203,7 +203,7 @@ def test_monitor_result_times_must_already_be_solver_output_times(tmp_path: Path
         "explicit_times": [{"value": 20, "unit": "seconds"}],
         "logarithmic": None,
     }
-    raw["outputs"]["monitor"] = {
+    raw["monitor"] = {
         "enabled": True,
         "refresh_interval_s": 0.5,
         "scalars": ["pH"],
@@ -218,7 +218,7 @@ def test_monitor_result_times_must_already_be_solver_output_times(tmp_path: Path
         load_case(path)
 
     raw["paths"]["output_dir"] = str(tmp_path / "valid-output")
-    raw["outputs"]["monitor"]["result_times"] = [{"value": 20, "unit": "seconds"}]
+    raw["monitor"]["result_times"] = [{"value": 20, "unit": "seconds"}]
     path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     case = load_case(path)
     assert case.monitor_result_times_s == (20.0,)

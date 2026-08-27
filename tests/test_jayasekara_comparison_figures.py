@@ -56,17 +56,8 @@ def _measured_rows():
 
 
 def test_requested_elements_are_written_as_timeseries_columns() -> None:
-    timeseries = SimpleNamespace(
-        include_species_amounts=False,
-        include_species_molalities=False,
-        include_mineral_amounts=False,
-        include_mineral_deltas=False,
-        include_saturation_indices=False,
-        include_solver_columns=False,
-    )
     case = SimpleNamespace(
         config=SimpleNamespace(
-            outputs=SimpleNamespace(timeseries=timeseries),
             postprocessing=SimpleNamespace(
                 requested_species=[],
                 requested_elements=["Na", "Ca"],

@@ -99,11 +99,13 @@ solver:
 #   soft: null  # or explicit SI/pH/secondary-mineral/reaction-rate cap controls
 
 postprocessing:
-  requested_species: [REQUIRED_IF_SPECIES_OUTPUT_ENABLED]
-  requested_minerals: [REQUIRED_IF_MINERAL_OUTPUT_ENABLED]
-  aqueous_molalities: REQUIRED
-  saturation_indices: REQUIRED
+  # Requested lists automatically produce their standard timeseries columns
+  # and aqueous/mineral summary tables.
+  requested_species: []
+  requested_elements: []
+  requested_minerals: []
   reaction_rates: REQUIRED
+  reaction_rate_validation: REQUIRED
   element_budget:
     enabled: REQUIRED
     elements: []
@@ -140,18 +142,26 @@ validation:
   enabled: REQUIRED
   script: REQUIRED_IF_ENABLED
 
-outputs:
-  monitor:
-    enabled: true
-    refresh_interval_s: 0.5
-    scalars: [pH]
-    species: []
-    minerals: []
-    result_times: []
-  manifest: REQUIRED
-  diagnostics: REQUIRED
-  timeseries: REQUIRED
-  summaries: REQUIRED
-  solver_history: REQUIRED
-  plots: REQUIRED
-  debug: REQUIRED
+# Manifest, diagnostics, timeseries, solver history, and enabled scientific
+# postprocessing tables are standard outputs and need no separate switches.
+plots:
+  enabled: REQUIRED
+  pH: REQUIRED
+  mineral_change: REQUIRED
+  saturation_index: REQUIRED
+  solver_dt: REQUIRED
+  solver_iterations: REQUIRED
+
+monitor:
+  enabled: true
+  refresh_interval_s: 0.5
+  scalars: [pH]
+  species: []
+  minerals: []
+  result_times: []
+
+debug:
+  enabled: REQUIRED
+  mineral_connection: REQUIRED
+  resolved_config: REQUIRED
+  final_state: REQUIRED

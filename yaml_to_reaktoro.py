@@ -28,7 +28,7 @@ DEFAULT_KINETIC_PATHS = {
 TOP_LEVEL_KEYS = {
     "case", "paths", "database", "activity_models", "physical", "brine",
     "co2", "redox", "kinetics", "minerals", "solver", "postprocessing",
-    "validation", "outputs",
+    "plots", "monitor", "debug", "validation",
 }
 
 SCHEMA_KEYS = {
@@ -66,8 +66,8 @@ SCHEMA_KEYS = {
     "logarithmic": {"start", "end", "points_per_decade"},
     "checkpoint_schedule": {"enabled", "times"},
     "postprocessing": {
-        "requested_species", "requested_minerals", "aqueous_molalities",
-        "saturation_indices", "reaction_rates", "element_budget",
+        "requested_species", "requested_elements", "requested_minerals",
+        "reaction_rates", "reaction_rate_validation", "element_budget",
         "carbon_inventory", "mineral_volume_change", "regime_classification",
         "surface_area_audit", "workflow_comparison",
         "secondary_mineral_assemblage", "surrogate_dataset",

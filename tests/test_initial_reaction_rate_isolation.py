@@ -117,9 +117,9 @@ def _species_contract_case(tmp_path: Path) -> Path:
         mineral for mineral in raw["minerals"] if mineral["name"] == "Quartz"
     ]
     raw["postprocessing"]["requested_minerals"] = ["Quartz"]
-    raw["outputs"]["monitor"]["enabled"] = False
-    raw["outputs"]["monitor"]["minerals"] = []
-    raw["outputs"]["monitor"]["result_times"] = []
+    raw["monitor"]["enabled"] = False
+    raw["monitor"]["minerals"] = []
+    raw["monitor"]["result_times"] = []
     path = tmp_path / "species-contract.yaml"
     path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     return path

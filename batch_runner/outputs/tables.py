@@ -1,6 +1,6 @@
 """Project accepted result records into stable CSV schemas.
 
-Column selection is derived from resolved postprocessing/output configuration.
+Column selection is derived from resolved postprocessing configuration.
 Rows are deterministic views of existing accepted observations and solver
 history; this module performs no Reaktoro calls or temporal interpolation.
 Summary interpretations describe batch amount changes only.
@@ -97,35 +97,28 @@ AQUEOUS_SUMMARY_COLUMNS = [
 
 
 def timeseries_columns(case: ResolvedCase) -> list[str]:
-    """Return ordered timeseries columns selected by output configuration."""
+    """Return standard columns for the configured postprocessing selections."""
     config = case.config
-    output = config.outputs.timeseries
     columns = list(TIMESERIES_CORE_COLUMNS)
-    if output.include_species_amounts:
-        columns.extend(
-            f"species_amount_mol::{name}" for name in config.postprocessing.requested_species
-        )
-    if output.include_species_molalities:
-        columns.extend(
-            f"species_molality_mol_kgw::{name}" for name in config.postprocessing.requested_species
-        )
+    columns.extend(
+        f"species_amount_mol::{name}" for name in config.postprocessing.requested_species
+    )
+    columns.extend(
+        f"species_molality_mol_kgw::{name}" for name in config.postprocessing.requested_species
+    )
     columns.extend(
         f"element_molality_mol_kgw::{name}" for name in config.postprocessing.requested_elements
     )
-    if output.include_mineral_amounts:
-        columns.extend(
-            f"mineral_amount_mol::{name}" for name in config.postprocessing.requested_minerals
-        )
-    if output.include_mineral_deltas:
-        columns.extend(
-            f"mineral_delta_mol::{name}" for name in config.postprocessing.requested_minerals
-        )
-    if output.include_saturation_indices:
-        columns.extend(
-            f"saturation_index::{name}" for name in config.postprocessing.requested_minerals
-        )
-    if output.include_solver_columns:
-        columns.extend(TIMESERIES_SOLVER_COLUMNS)
+    columns.extend(
+        f"mineral_amount_mol::{name}" for name in config.postprocessing.requested_minerals
+    )
+    columns.extend(
+        f"mineral_delta_mol::{name}" for name in config.postprocessing.requested_minerals
+    )
+    columns.extend(
+        f"saturation_index::{name}" for name in config.postprocessing.requested_minerals
+    )
+    columns.extend(TIMESERIES_SOLVER_COLUMNS)
     return columns
 
 

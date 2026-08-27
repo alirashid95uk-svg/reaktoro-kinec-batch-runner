@@ -604,11 +604,10 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
         "enabled": True,
         "times": [{"value": 0.5, "unit": "second"}],
     }
-    raw["outputs"]["timeseries"]["enabled"] = False
-    raw["outputs"]["solver_history"]["enabled"] = False
-    raw["outputs"]["plots"] = {key: False for key in raw["outputs"]["plots"]}
-    raw["outputs"]["debug"] = {key: False for key in raw["outputs"]["debug"]}
-    raw["outputs"]["summaries"] = {key: False for key in raw["outputs"]["summaries"]}
+    raw["postprocessing"]["requested_species"] = []
+    raw["postprocessing"]["requested_minerals"] = []
+    raw["plots"] = {key: False for key in raw["plots"]}
+    raw["debug"] = {key: False for key in raw["debug"]}
     case = _load_raw_case(tmp_path, raw)
 
     class FakeSystem:
@@ -627,7 +626,47 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
         boundary_row_ready,
         checkpoint_ready,
     ):
-        del row_ready, solver_record_ready, boundary_row_ready
+        initial_row = {
+            "time_s": 0.0,
+            "time_days": 0.0,
+            "stage": "initial_state",
+            "pH": 7.0,
+            "ionic_strength_molal": 0.0,
+            "alkalinity_eq_per_l": 0.0,
+            "solver_succeeded": None,
+            "solver_iterations": None,
+            "dt_s": 0.0,
+        }
+        boundary_row_ready("initial", initial_row)
+        row_ready(initial_row)
+        for step_index, time_end_s in enumerate((0.5, 1.0), start=1):
+            solver_record_ready(
+                {
+                    "step_index": step_index,
+                    "attempt_index": step_index,
+                    "time_start_s": time_end_s - 0.5,
+                    "time_end_s": time_end_s,
+                    "dt_s": 0.5,
+                    "stage": "kinetic_step",
+                    "accepted": True,
+                    "solver_succeeded": True,
+                    "iterations": 1,
+                    "wall_time_s": 0.01,
+                    "failure_reason": "",
+                    "next_dt_s": None,
+                }
+            )
+            row_ready(
+                {
+                    **initial_row,
+                    "time_s": time_end_s,
+                    "time_days": time_end_s / 86400.0,
+                    "stage": "kinetic_step",
+                    "solver_succeeded": True,
+                    "solver_iterations": 1,
+                    "dt_s": 0.5,
+                }
+            )
         checkpoint_ready({"time_end_s": 0.5, "dt_s": 0.5}, state)
         return deepcopy(state), {
             "simulation_completed": True,
@@ -678,7 +717,8 @@ def test_checkpoint_files_are_streamed_and_declared_in_manifest(tmp_path: Path, 
         )
     )
     audit = auditor["audit"]
-    assert audit(case.output_dir)["ok"] is True
+    observed = audit(case.output_dir)
+    assert observed["ok"] is True, observed
 
 
 def test_failed_solve_does_not_publish_attempted_time(tmp_path: Path, monkeypatch) -> None:
@@ -711,16 +751,9 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
     monkeypatch,
 ) -> None:
     raw = _raw_case(tmp_path, duration_value=1.0, dt_value=0.3)
-    raw["outputs"]["timeseries"] = {
-        "enabled": True,
-        "include_species_amounts": False,
-        "include_species_molalities": False,
-        "include_mineral_amounts": False,
-        "include_mineral_deltas": False,
-        "include_saturation_indices": False,
-        "include_solver_columns": False,
-    }
-    raw["outputs"]["plots"] = {
+    raw["postprocessing"]["requested_species"] = []
+    raw["postprocessing"]["requested_minerals"] = []
+    raw["plots"] = {
         "enabled": False,
         "pH": False,
         "mineral_change": False,
@@ -728,7 +761,7 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
         "solver_dt": False,
         "solver_iterations": False,
     }
-    raw["outputs"]["debug"] = {
+    raw["debug"] = {
         "enabled": False,
         "mineral_connection": False,
         "resolved_config": False,
@@ -770,6 +803,9 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
             "pH": 7.0,
             "ionic_strength_molal": 0.0,
             "alkalinity_eq_per_l": 0.0,
+            "solver_succeeded": None,
+            "solver_iterations": None,
+            "dt_s": 0.0,
         }
         boundary_row_ready("initial", initial_row)
         row_ready(
@@ -797,6 +833,9 @@ def test_streamed_partial_run_writes_machine_readable_failure_diagnostics(
                 "pH": 6.9,
                 "ionic_strength_molal": 0.01,
                 "alkalinity_eq_per_l": 0.0,
+                "solver_succeeded": True,
+                "solver_iterations": 1,
+                "dt_s": 0.3,
             }
         )
         solver_record_ready(

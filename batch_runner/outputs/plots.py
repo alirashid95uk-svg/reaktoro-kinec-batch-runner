@@ -29,7 +29,7 @@ def write_plots(case: ResolvedCase, result: SimulationResult, plots_dir: Path) -
     The directory is created only when plotting is enabled.  Matplotlib and I/O
     failures propagate to output orchestration, which records a partial package.
     """
-    config = case.config.outputs.plots
+    config = case.config.plots
     if not config.enabled:
         return []
     plots_dir.mkdir(parents=True, exist_ok=True)

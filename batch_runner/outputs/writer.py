@@ -1,8 +1,9 @@
 """Write the configured package while preserving failure evidence.
 
-The public output API delegates here after simulation.  The writer consumes
-accepted row/history streams, creates enabled CSV/JSON/plot/debug artifacts,
-and writes a manifest from the resulting file inventory.  Incomplete or
+The public output API delegates here after simulation. The writer consumes
+accepted row/history streams, creates standard CSV/JSON artifacts plus selected
+scientific tables, plots, and debug artifacts, and writes a manifest from the
+resulting file inventory. Incomplete or
 cancelled runs retain diagnostic and raw evidence but omit scientific summaries
 and surrogate data.  Output failures are contained and classified as partial
 packages whenever diagnostics can still be written.
@@ -86,7 +87,7 @@ def write_kinetic_mapping(
     """
     output_dir = case.output_dir
     output_dir.mkdir(parents=True, exist_ok=False)
-    debug = case.config.outputs.debug
+    debug = case.config.debug
     if debug.enabled and debug.mineral_connection:
         debug_dir = output_dir / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -155,13 +156,11 @@ def write_outputs(
         "status": status,
         "files_written": _present_files(output_dir),
     }
-    if case.config.outputs.diagnostics.enabled:
-        _write_json(output_dir / "diagnostics.json", result.diagnostics)
-    if case.config.outputs.manifest.enabled:
-        _write_json(
-            output_dir / "manifest.json",
-            build_manifest(case, result, _present_files(output_dir)),
-        )
+    _write_json(output_dir / "diagnostics.json", result.diagnostics)
+    _write_json(
+        output_dir / "manifest.json",
+        build_manifest(case, result, _present_files(output_dir)),
+    )
     return output_dir
 
 
@@ -178,7 +177,7 @@ def _write_outputs(
             f"stale legacy results.csv exists in output directory; rerun into a fresh output_dir: {output_dir}"
         )
     written: list[Path] = []
-    outputs = case.config.outputs
+    postprocessing = case.config.postprocessing
     completed = result.diagnostics["simulation_completed"]
 
     def scientific_output_allowed() -> bool:
@@ -208,28 +207,26 @@ def _write_outputs(
             "scientific summaries and plots were omitted because the simulation did not complete"
         )
 
-    if outputs.timeseries.enabled:
-        path = output_dir / "timeseries.csv"
-        csv_writer(path, timeseries_columns(case), timeseries_rows(case, result))
-        written.append(path)
-    if outputs.solver_history.enabled:
-        path = output_dir / "solver_history.csv"
-        csv_writer(path, solver_history_columns(case), result.iter_solver_history())
-        written.append(path)
+    path = output_dir / "timeseries.csv"
+    csv_writer(path, timeseries_columns(case), timeseries_rows(case, result))
+    written.append(path)
+    path = output_dir / "solver_history.csv"
+    csv_writer(path, solver_history_columns(case), result.iter_solver_history())
+    written.append(path)
     scientific_output_allowed()
-    if outputs.summaries.mineral_summary and scientific_output_allowed():
+    if postprocessing.requested_minerals and scientific_output_allowed():
         path = output_dir / "mineral_summary.csv"
         csv_writer(path, MINERAL_SUMMARY_COLUMNS, mineral_summary_rows(case, result))
         written.append(path)
-    if outputs.summaries.aqueous_summary and scientific_output_allowed():
+    if postprocessing.requested_species and scientific_output_allowed():
         path = output_dir / "aqueous_summary.csv"
         csv_writer(path, AQUEOUS_SUMMARY_COLUMNS, aqueous_summary_rows(case, result))
         written.append(path)
-    if outputs.summaries.reaction_rates and scientific_output_allowed():
+    if postprocessing.reaction_rates and scientific_output_allowed():
         path = output_dir / "reaction_rates.csv"
         csv_writer(path, REACTION_RATE_COLUMNS, reaction_rate_rows(case, result))
         written.append(path)
-    if outputs.summaries.reaction_rate_validation and scientific_output_allowed():
+    if postprocessing.reaction_rate_validation and scientific_output_allowed():
         path = output_dir / "reaction_rate_validation.csv"
         csv_writer(
             path,
@@ -237,52 +234,51 @@ def _write_outputs(
             reaction_rate_validation_rows(case, result),
         )
         written.append(path)
-    if outputs.summaries.carbon_inventory and scientific_output_allowed():
+    if postprocessing.carbon_inventory.enabled and scientific_output_allowed():
         path = output_dir / "carbon_inventory.csv"
         csv_writer(path, CARBON_INVENTORY_COLUMNS, carbon_inventory_rows(case, result))
         written.append(path)
-    if outputs.summaries.element_budget and scientific_output_allowed():
+    if postprocessing.element_budget.enabled and scientific_output_allowed():
         path = output_dir / "element_budget.csv"
         csv_writer(path, ELEMENT_BUDGET_COLUMNS, element_budget_rows(case, result))
         written.append(path)
-    if outputs.summaries.mineral_volume_change and scientific_output_allowed():
+    if postprocessing.mineral_volume_change.enabled and scientific_output_allowed():
         path = output_dir / "mineral_volume_change.csv"
         csv_writer(path, MINERAL_VOLUME_COLUMNS, mineral_volume_rows(case, result))
         written.append(path)
-    if outputs.summaries.regime_classification and scientific_output_allowed():
+    if postprocessing.regime_classification.enabled and scientific_output_allowed():
         path = output_dir / "regime_classification.csv"
         csv_writer(path, REGIME_COLUMNS, regime_classification_rows(case, result))
         written.append(path)
-    if outputs.summaries.surface_area_audit and scientific_output_allowed():
+    if postprocessing.surface_area_audit.enabled and scientific_output_allowed():
         path = output_dir / "surface_area_audit.csv"
         csv_writer(path, SURFACE_AREA_COLUMNS, surface_area_audit_rows(case))
         written.append(path)
-    if outputs.summaries.workflow_comparison and scientific_output_allowed():
+    if postprocessing.workflow_comparison.enabled and scientific_output_allowed():
         path = output_dir / "workflow_comparison.csv"
         csv_writer(path, workflow_comparison_columns(case), workflow_comparison_rows(case, result))
         written.append(path)
-    if outputs.summaries.secondary_mineral_assemblage and scientific_output_allowed():
+    if postprocessing.secondary_mineral_assemblage.enabled and scientific_output_allowed():
         path = output_dir / "secondary_mineral_assemblage.csv"
         csv_writer(path, SECONDARY_ASSEMBLAGE_COLUMNS, secondary_mineral_assemblage_rows(case))
         written.append(path)
-    if outputs.summaries.surrogate_dataset and scientific_output_allowed():
+    if postprocessing.surrogate_dataset.enabled and scientific_output_allowed():
         path = output_dir / "surrogate_dataset.csv"
         csv_writer(path, surrogate_dataset_columns(case), surrogate_dataset_rows(case, result))
         written.append(path)
-    if outputs.summaries.porosity_permeability and scientific_output_allowed():
+    if postprocessing.porosity_permeability.enabled and scientific_output_allowed():
         path = output_dir / "porosity_permeability.csv"
         csv_writer(path, POROSITY_PERMEABILITY_COLUMNS, porosity_permeability_rows(case, result))
         written.append(path)
-    if outputs.diagnostics.enabled:
-        path = output_dir / "diagnostics.json"
-        _write_json(path, result.diagnostics)
-        written.append(path)
+    path = output_dir / "diagnostics.json"
+    _write_json(path, result.diagnostics)
+    written.append(path)
 
     if scientific_output_allowed():
         written.extend(write_plots(case, result, output_dir / "plots"))
     scientific_output_allowed()
 
-    debug = outputs.debug
+    debug = case.config.debug
     if debug.enabled:
         debug_dir = output_dir / "debug"
         debug_dir.mkdir(parents=True, exist_ok=True)
@@ -305,13 +301,12 @@ def _write_outputs(
 
     result.cleanup_streams()
 
-    if outputs.manifest.enabled:
-        path = output_dir / "manifest.json"
-        relative_files = sorted(
-            [str(item.relative_to(output_dir)).replace("\\", "/") for item in written] + ["manifest.json"]
-        )
-        _write_json(path, build_manifest(case, result, relative_files))
-        written.append(path)
+    path = output_dir / "manifest.json"
+    relative_files = sorted(
+        [str(item.relative_to(output_dir)).replace("\\", "/") for item in written] + ["manifest.json"]
+    )
+    _write_json(path, build_manifest(case, result, relative_files))
+    written.append(path)
     return output_dir
 
 

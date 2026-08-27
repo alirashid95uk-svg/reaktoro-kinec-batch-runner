@@ -39,7 +39,7 @@ class SimulationMonitor:
         clock: Callable[[], float] = monotonic,
     ) -> None:
         self.case = case
-        self.settings = case.config.outputs.monitor
+        self.settings = case.config.monitor
         self.display_enabled = display_enabled
         self.stream = stream
         self.clock = clock

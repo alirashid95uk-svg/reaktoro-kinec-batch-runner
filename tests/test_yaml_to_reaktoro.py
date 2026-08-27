@@ -44,9 +44,8 @@ def _case():
         "postprocessing": {
             "requested_species": ["H+", "Ca+2"],
             "requested_minerals": ["Calcite"],
-            "aqueous_molalities": True,
-            "saturation_indices": True,
             "reaction_rates": False,
+            "reaction_rate_validation": False,
             "element_budget": {"enabled": False, "elements": [], "species": {}, "minerals": {}, "gas_species": {}},
             "carbon_inventory": {"enabled": False, "carbon_species": {}, "carbon_minerals": {}, "carbon_gas_species": {}},
             "mineral_volume_change": {"enabled": False, "molar_volumes_cm3_per_mol": {}, "sources": {}},
@@ -58,7 +57,9 @@ def _case():
             "porosity_permeability": {"enabled": False},
         },
         "validation": {"enabled": False, "targets": []},
-        "outputs": {},
+        "plots": {},
+        "monitor": {},
+        "debug": {},
     }
 
 

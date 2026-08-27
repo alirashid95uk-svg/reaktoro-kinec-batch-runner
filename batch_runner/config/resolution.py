@@ -217,7 +217,7 @@ class ResolvedCase:
         data["solver"]["timestep"]["resolved_checkpoint_schedule"] = (
             self.checkpoint_schedule_summary()
         )
-        data["outputs"]["monitor"]["resolved_result_times_s"] = list(
+        data["monitor"]["resolved_result_times_s"] = list(
             self.monitor_result_times_s
         )
         data["source_config"] = str(self.config_path)
@@ -424,9 +424,9 @@ def resolve_case(
             checkpoint_times_s,
             dt_s,
         )
-    elif config.outputs.monitor.result_times:
+    elif config.monitor.result_times:
         raise ValueError(
-            "outputs.monitor.result_times require kinetic output times; "
+            "monitor.result_times require kinetic output times; "
             "monitor times do not create solver targets"
         )
 
@@ -554,9 +554,9 @@ def _resolve_monitor_result_times(
                 item,
                 duration_s,
                 year_definition_days,
-                f"outputs.monitor.result_times[{index}]",
+                f"monitor.result_times[{index}]",
             )
-            for index, item in enumerate(config.outputs.monitor.result_times)
+            for index, item in enumerate(config.monitor.result_times)
         }
     )
     if not requested:
@@ -582,7 +582,7 @@ def _resolve_monitor_result_times(
     missing = [value for value in requested if value not in available]
     if missing:
         raise ValueError(
-            "outputs.monitor.result_times must already exist in the configured output schedule; "
+            "monitor.result_times must already exist in the configured output schedule; "
             f"missing resolved time(s): {', '.join(f'{value:g} s' for value in missing)}; "
             "monitor times do not create solver targets"
         )

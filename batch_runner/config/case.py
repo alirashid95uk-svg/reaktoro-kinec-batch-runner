@@ -14,7 +14,13 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from ._base import Amount, DEFAULT_KINETIC_PATHS, KineticModel, StrictModel, SurfaceArea
-from .reporting import OutputsConfig, PostprocessingConfig, ValidationConfig
+from .reporting import (
+    DebugConfig,
+    MonitorConfig,
+    PlotsConfig,
+    PostprocessingConfig,
+    ValidationConfig,
+)
 from .timestep import SolverConfig
 
 
@@ -289,9 +295,16 @@ class CaseConfig(StrictModel):
         description="Configured equilibrium and kinetic minerals; names must be unique.",
     )
     solver: SolverConfig = Field(description="Workflow and timestep configuration.")
-    postprocessing: PostprocessingConfig = Field(description="Scientific diagnostic selections.")
+    postprocessing: PostprocessingConfig = Field(
+        description="Scientific analyses and their standard data-product selections."
+    )
+    plots: PlotsConfig = Field(description="Plot-generation controls only.")
+    monitor: MonitorConfig = Field(
+        default_factory=MonitorConfig,
+        description="Human-readable terminal telemetry configuration.",
+    )
+    debug: DebugConfig = Field(description="Troubleshooting artifact selections.")
     validation: ValidationConfig = Field(description="Optional downstream validation hook.")
-    outputs: OutputsConfig = Field(description="Output-package and monitor selections.")
 
     @model_validator(mode="after")
     def validate_mineral_kinetics_contract(self) -> "CaseConfig":
@@ -369,8 +382,8 @@ class CaseConfig(StrictModel):
         return self
 
     @model_validator(mode="after")
-    def validate_output_selections(self) -> "CaseConfig":
-        """Require configured requested quantities, monitor subsets, and solver-history plot inputs."""
+    def validate_reporting_selections(self) -> "CaseConfig":
+        """Require configured requested minerals and monitor or plot subsets."""
 
         names = [mineral.name for mineral in self.minerals]
         requested_minerals = set(self.postprocessing.requested_minerals)
@@ -380,71 +393,38 @@ class CaseConfig(StrictModel):
                 "postprocessing requested_minerals are not configured minerals: "
                 + ", ".join(sorted(missing_requested))
             )
-        if _species_outputs_enabled(self.outputs) and not self.postprocessing.requested_species:
-            raise ValueError("enabled species outputs require postprocessing.requested_species")
-        if _mineral_outputs_enabled(self.outputs) and not self.postprocessing.requested_minerals:
-            raise ValueError("enabled mineral outputs require postprocessing.requested_minerals")
-
-        monitor = self.outputs.monitor
+        monitor = self.monitor
         missing_monitor_species = set(monitor.species).difference(
             self.postprocessing.requested_species
         )
         if missing_monitor_species:
             raise ValueError(
-                "outputs.monitor.species are not postprocessing.requested_species: "
+                "monitor.species are not postprocessing.requested_species: "
                 + ", ".join(sorted(missing_monitor_species))
             )
         missing_monitor_minerals = set(monitor.minerals).difference(requested_minerals)
         if missing_monitor_minerals:
             raise ValueError(
-                "outputs.monitor.minerals are not postprocessing.requested_minerals: "
+                "monitor.minerals are not postprocessing.requested_minerals: "
                 + ", ".join(sorted(missing_monitor_minerals))
             )
 
-        if self.outputs.plots.solver_dt and not self.outputs.solver_history.enabled:
-            raise ValueError("solver_dt plot requires solver_history output")
-        if self.outputs.plots.solver_iterations and not self.outputs.solver_history.enabled:
-            raise ValueError("solver_iterations plot requires solver_history output")
+        if (
+            self.plots.enabled
+            and (self.plots.mineral_change or self.plots.saturation_index)
+            and not requested_minerals
+        ):
+            raise ValueError("mineral plots require postprocessing.requested_minerals")
         return self
 
     @model_validator(mode="after")
-    def validate_summary_dependencies(self) -> "CaseConfig":
-        """Each enabled summary requires its same-named diagnostic; surrogate export requires three."""
+    def validate_postprocessing_dependencies(self) -> "CaseConfig":
+        """Rate validation requires rates; surrogate export requires three diagnostics."""
 
-        summaries = self.outputs.summaries
         post = self.postprocessing
-        if summaries.reaction_rates and not post.reaction_rates:
-            raise ValueError("reaction_rates output requires postprocessing.reaction_rates: true")
-        if summaries.reaction_rate_validation and not post.reaction_rates:
+        if post.reaction_rate_validation and not post.reaction_rates:
             raise ValueError(
-                "reaction_rate_validation output requires postprocessing.reaction_rates: true"
-            )
-        if summaries.carbon_inventory and not post.carbon_inventory.enabled:
-            raise ValueError("carbon_inventory output requires postprocessing.carbon_inventory.enabled: true")
-        if summaries.element_budget and not post.element_budget.enabled:
-            raise ValueError("element_budget output requires postprocessing.element_budget.enabled: true")
-        if summaries.mineral_volume_change and not post.mineral_volume_change.enabled:
-            raise ValueError(
-                "mineral_volume_change output requires postprocessing.mineral_volume_change.enabled: true"
-            )
-        if summaries.regime_classification and not post.regime_classification.enabled:
-            raise ValueError(
-                "regime_classification output requires postprocessing.regime_classification.enabled: true"
-            )
-        if summaries.surface_area_audit and not post.surface_area_audit.enabled:
-            raise ValueError("surface_area_audit output requires postprocessing.surface_area_audit.enabled: true")
-        if summaries.workflow_comparison and not post.workflow_comparison.enabled:
-            raise ValueError("workflow_comparison output requires postprocessing.workflow_comparison.enabled: true")
-        if summaries.secondary_mineral_assemblage and not post.secondary_mineral_assemblage.enabled:
-            raise ValueError(
-                "secondary_mineral_assemblage output requires "
-                "postprocessing.secondary_mineral_assemblage.enabled: true"
-            )
-        if summaries.surrogate_dataset and not post.surrogate_dataset.enabled:
-            raise ValueError("surrogate_dataset output requires postprocessing.surrogate_dataset.enabled: true")
-        if summaries.porosity_permeability and not post.porosity_permeability.enabled:
-            raise ValueError(
-                "porosity_permeability output requires postprocessing.porosity_permeability.enabled: true"
+                "reaction_rate_validation requires postprocessing.reaction_rates: true"
             )
         if post.surrogate_dataset.enabled:
             if not (post.reaction_rates and post.element_budget.enabled and post.carbon_inventory.enabled):
@@ -459,29 +439,6 @@ class CaseConfig(StrictModel):
 
         _validate_postprocessing_mappings(self)
         return self
-
-
-def _species_outputs_enabled(outputs: OutputsConfig) -> bool:
-    """Return whether any enabled output consumes selected aqueous species."""
-
-    return (
-        outputs.summaries.aqueous_summary
-        or (outputs.timeseries.enabled and outputs.timeseries.include_species_amounts)
-        or (outputs.timeseries.enabled and outputs.timeseries.include_species_molalities)
-    )
-
-
-def _mineral_outputs_enabled(outputs: OutputsConfig) -> bool:
-    """Return whether any enabled output consumes selected minerals."""
-
-    return (
-        outputs.summaries.mineral_summary
-        or (outputs.timeseries.enabled and outputs.timeseries.include_mineral_amounts)
-        or (outputs.timeseries.enabled and outputs.timeseries.include_mineral_deltas)
-        or (outputs.timeseries.enabled and outputs.timeseries.include_saturation_indices)
-        or (outputs.plots.enabled and outputs.plots.mineral_change)
-        or (outputs.plots.enabled and outputs.plots.saturation_index)
-    )
 
 
 def _validate_postprocessing_mappings(config: CaseConfig) -> None:

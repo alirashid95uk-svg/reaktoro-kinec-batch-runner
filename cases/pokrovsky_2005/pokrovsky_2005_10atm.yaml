@@ -196,9 +196,8 @@ postprocessing:
   - Ca+2
   requested_minerals:
   - Calcite
-  aqueous_molalities: true
-  saturation_indices: true
   reaction_rates: true
+  reaction_rate_validation: true
   element_budget: {enabled: false, elements: [], species: {}, minerals: {}, gas_species: {}}
   carbon_inventory: {enabled: false, carbon_species: {}, carbon_minerals: {}, carbon_gas_species: {}}
   mineral_volume_change: {enabled: false, molar_volumes_cm3_per_mol: {}, sources: {}}
@@ -210,18 +209,14 @@ postprocessing:
   porosity_permeability: {enabled: false}
 validation:
   enabled: false
-outputs:
-  monitor:
-    enabled: true
-    refresh_interval_s: 0.5
-    scalars: [pH]
-    species: [Ca+2, CO2]
-    minerals: [Calcite]
-    result_times: []
-  manifest: {enabled: true, include_input_snapshot: true}
-  diagnostics: {enabled: true}
-  timeseries: {enabled: true, include_species_amounts: true, include_species_molalities: true, include_mineral_amounts: true, include_mineral_deltas: true, include_saturation_indices: true, include_solver_columns: true}
-  summaries: {mineral_summary: true, aqueous_summary: true, reaction_rates: true, reaction_rate_validation: true, carbon_inventory: false, element_budget: false, mineral_volume_change: false, regime_classification: false, surface_area_audit: true, workflow_comparison: false, secondary_mineral_assemblage: false, surrogate_dataset: false, porosity_permeability: false}
-  solver_history: {enabled: true}
-  plots: {enabled: true, pH: true, mineral_change: true, saturation_index: true, solver_dt: false, solver_iterations: false}
-  debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}
+plots: {enabled: true, pH: true, mineral_change: true, saturation_index: true, solver_dt: false, solver_iterations: false}
+
+monitor:
+  enabled: true
+  refresh_interval_s: 0.5
+  scalars: [pH]
+  species: [Ca+2, CO2]
+  minerals: [Calcite]
+  result_times: []
+
+debug: {enabled: true, mineral_connection: true, resolved_config: true, final_state: true}

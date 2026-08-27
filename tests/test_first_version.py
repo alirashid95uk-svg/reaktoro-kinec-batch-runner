@@ -172,8 +172,8 @@ def test_removed_future_runtime_fields_are_unknown(tmp_path: Path) -> None:
     cases = [
         (("solver", "backend"), {"type": "standard"}),
         (("postprocessing", "unreviewed_future_diagnostic"), False),
-        (("outputs", "checkpoints"), {"enabled": False}),
-        (("outputs", "plots", "species_molality"), False),
+        (("outputs",), {}),
+        (("plots", "species_molality"), False),
     ]
     for path, value in cases:
         raw = _source_case_with_output(tmp_path / "outputs")
@@ -183,6 +183,14 @@ def test_removed_future_runtime_fields_are_unknown(tmp_path: Path) -> None:
         target[path[-1]] = value
         with pytest.raises(ValidationError, match=path[-1]):
             CaseConfig.model_validate(raw)
+
+
+def test_reaction_rate_validation_requires_rate_analysis(tmp_path: Path) -> None:
+    raw = _source_case_with_output(tmp_path / "outputs")
+    raw["postprocessing"]["reaction_rate_validation"] = True
+
+    with pytest.raises(ValidationError, match="requires postprocessing.reaction_rates"):
+        CaseConfig.model_validate(raw)
 
 
 def test_redox_staging_and_workflow_co2_compatibility(tmp_path: Path) -> None:
@@ -405,7 +413,7 @@ def test_mapping_report_location_and_output_toggle(tmp_path: Path) -> None:
         assert list(csv.DictReader(stream))[0]["status"] == "active"
 
     raw = _source_case_with_output(tmp_path / "mapping-disabled")
-    raw["outputs"]["debug"]["mineral_connection"] = False
+    raw["debug"]["mineral_connection"] = False
     case = load_case(_write_case(tmp_path, raw))
     write_kinetic_mapping(case, mapping)
     assert not (case.output_dir / "debug" / "mineral_connection.csv").exists()
@@ -465,8 +473,8 @@ def test_zero_initial_mineral_summary_avoids_divide_by_zero(tmp_path: Path) -> N
 
 def test_base_output_package_and_disabled_plot_behavior(tmp_path: Path) -> None:
     raw = _source_case_with_output(tmp_path / "output-package")
-    raw["outputs"]["plots"]["enabled"] = False
-    raw["outputs"]["plots"].update(
+    raw["plots"]["enabled"] = False
+    raw["plots"].update(
         {
             "pH": False,
             "mineral_change": False,
@@ -587,19 +595,9 @@ def test_optional_scientific_audit_outputs_are_config_controlled(tmp_path: Path)
     raw["postprocessing"]["regime_classification"] = {"enabled": True}
     raw["postprocessing"]["surface_area_audit"] = {"enabled": True}
     raw["postprocessing"]["workflow_comparison"] = {"enabled": True}
-    raw["outputs"]["plots"]["enabled"] = False
-    raw["outputs"]["plots"].update({"pH": False, "mineral_change": False, "saturation_index": False})
-    raw["outputs"]["summaries"].update(
-        {
-            "reaction_rates": True,
-            "reaction_rate_validation": True,
-            "carbon_inventory": True,
-            "element_budget": True,
-            "regime_classification": True,
-            "surface_area_audit": True,
-            "workflow_comparison": True,
-        }
-    )
+    raw["postprocessing"]["reaction_rate_validation"] = True
+    raw["plots"]["enabled"] = False
+    raw["plots"].update({"pH": False, "mineral_change": False, "saturation_index": False})
     case = load_case(_write_case(tmp_path, raw))
     mapping = build_kinetic_mapping(case, load_database(case), load_kinetic_parameters(case))
     write_kinetic_mapping(case, mapping)

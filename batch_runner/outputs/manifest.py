@@ -2,8 +2,8 @@
 
 The writer calls this after package files are known.  The manifest records
 input hashes, configured scientific setup, exact time semantics, software
-versions, and relative file inventory.  Its optional input snapshot mirrors
-validated models; it is provenance evidence, not another configuration source.
+versions, and relative file inventory. Its input snapshot mirrors validated
+models; it is provenance evidence, not another configuration source.
 """
 
 from __future__ import annotations
@@ -33,33 +33,31 @@ def build_manifest(
     conversion beyond the canonical-second schedule already resolved upstream.
     """
     config = case.config
-    input_snapshot = None
-    if config.outputs.manifest.include_input_snapshot:
-        input_snapshot = {
-            "model_scope": "simple Reaktoro batch simulation runner",
-            "physical_conditions": config.physical.model_dump(mode="json"),
-            "co2_setup": config.co2.model_dump(mode="json"),
-            "redox_setup": config.redox.model_dump(mode="json"),
-            "brine_setup": config.brine.model_dump(mode="json"),
-            "mineral_setup": [
-                {
-                    "name": mineral.name,
-                    "role": mineral.role,
-                    "initial_amount": (
-                        mineral.initial_amount.model_dump(mode="json")
-                        if mineral.initial_amount is not None
-                        else None
-                    ),
-                    "surface_area": (
-                        mineral.surface_area.model_dump(mode="json")
-                        if mineral.surface_area is not None
-                        else None
-                    ),
-                }
-                for mineral in config.minerals
-            ],
-            "kinetics_setup": config.kinetics.model_dump(mode="json"),
-        }
+    input_snapshot = {
+        "model_scope": "simple Reaktoro batch simulation runner",
+        "physical_conditions": config.physical.model_dump(mode="json"),
+        "co2_setup": config.co2.model_dump(mode="json"),
+        "redox_setup": config.redox.model_dump(mode="json"),
+        "brine_setup": config.brine.model_dump(mode="json"),
+        "mineral_setup": [
+            {
+                "name": mineral.name,
+                "role": mineral.role,
+                "initial_amount": (
+                    mineral.initial_amount.model_dump(mode="json")
+                    if mineral.initial_amount is not None
+                    else None
+                ),
+                "surface_area": (
+                    mineral.surface_area.model_dump(mode="json")
+                    if mineral.surface_area is not None
+                    else None
+                ),
+            }
+            for mineral in config.minerals
+        ],
+        "kinetics_setup": config.kinetics.model_dump(mode="json"),
+    }
 
     return {
         "output_schema_version": OUTPUT_SCHEMA_VERSION,
@@ -120,11 +118,49 @@ def build_manifest(
             "checkpoint_schedule": case.checkpoint_schedule_summary(),
             "restart": {"enabled": False, "from_checkpoint": None},
         },
-        "output_configuration": config.outputs.model_dump(mode="json"),
+        "output_configuration": _output_configuration(config),
         "software_environment": {
             "python_version": platform.python_version(),
             "reaktoro_version": rkt.__version__,
             "platform": platform.platform(),
         },
         "output_files": output_files,
+    }
+
+
+def _output_configuration(config: Any) -> dict[str, Any]:
+    """Project the source schema into the stable v4 manifest record."""
+
+    post = config.postprocessing
+    return {
+        "monitor": config.monitor.model_dump(mode="json"),
+        "manifest": {"enabled": True, "include_input_snapshot": True},
+        "diagnostics": {"enabled": True},
+        "timeseries": {
+            "enabled": True,
+            "include_species_amounts": True,
+            "include_species_molalities": True,
+            "include_mineral_amounts": True,
+            "include_mineral_deltas": True,
+            "include_saturation_indices": True,
+            "include_solver_columns": True,
+        },
+        "summaries": {
+            "mineral_summary": bool(post.requested_minerals),
+            "aqueous_summary": bool(post.requested_species),
+            "reaction_rates": post.reaction_rates,
+            "reaction_rate_validation": post.reaction_rate_validation,
+            "carbon_inventory": post.carbon_inventory.enabled,
+            "element_budget": post.element_budget.enabled,
+            "mineral_volume_change": post.mineral_volume_change.enabled,
+            "regime_classification": post.regime_classification.enabled,
+            "surface_area_audit": post.surface_area_audit.enabled,
+            "workflow_comparison": post.workflow_comparison.enabled,
+            "secondary_mineral_assemblage": post.secondary_mineral_assemblage.enabled,
+            "surrogate_dataset": post.surrogate_dataset.enabled,
+            "porosity_permeability": post.porosity_permeability.enabled,
+        },
+        "solver_history": {"enabled": True},
+        "plots": config.plots.model_dump(mode="json"),
+        "debug": config.debug.model_dump(mode="json"),
     }

@@ -1,9 +1,9 @@
-"""Define scientific reporting, validation-hook, and output selections.
+"""Define scientific postprocessing, presentation, and validation selections.
 
-These source-schema models tell observation and output modules which existing
-simulation quantities to record or derive.  They do not add solver physics or
-alter accepted states.  Cross-section prerequisites that involve minerals,
-kinetics, or other output blocks are enforced by :class:`case.CaseConfig`.
+Postprocessing selections determine both the quantities collected from accepted
+states and their standard data products. Plot, monitor, and debug settings are
+presentation or troubleshooting controls only. None of these models add solver
+physics or alter accepted states.
 """
 
 from __future__ import annotations
@@ -17,26 +17,31 @@ from .timestep import TimeValue
 
 
 class PostprocessingConfig(StrictModel):
-    """Select observed quantities and optional derived scientific diagnostics."""
+    """Select scientific quantities; each selection writes its standard data products."""
 
     requested_species: list[str] = Field(
-        description="Aqueous species recorded for enabled species outputs."
+        description=(
+            "Aqueous species whose amounts and molalities are recorded in the "
+            "timeseries and aqueous_summary.csv."
+        )
     )
     requested_elements: list[str] = Field(
         default_factory=list,
         description="Elements whose aqueous molalities are recorded in the timeseries.",
     )
     requested_minerals: list[str] = Field(
-        description="Configured minerals recorded for enabled mineral outputs."
-    )
-    aqueous_molalities: bool = Field(
-        description="Compute requested aqueous species molalities for reporting."
-    )
-    saturation_indices: bool = Field(
-        description="Compute saturation indices for requested minerals."
+        description=(
+            "Configured minerals whose amounts, changes, and saturation indices are "
+            "recorded in the timeseries and mineral_summary.csv."
+        )
     )
     reaction_rates: bool = Field(
-        description="Evaluate configured kinetic reaction rates for reporting."
+        description="Evaluate configured kinetic reaction rates and write reaction_rates.csv."
+    )
+    reaction_rate_validation: bool = Field(
+        description=(
+            "Write reaction_rate_validation.csv; requires reaction_rates."
+        )
     )
     element_budget: "ElementBudgetConfig" = Field(
         description="Element-budget reconstruction diagnostic."
@@ -70,13 +75,17 @@ class PostprocessingConfig(StrictModel):
 class EnabledConfig(StrictModel):
     """Enable or disable a diagnostic that needs no additional parameters."""
 
-    enabled: bool = Field(description="Enable this derived diagnostic.")
+    enabled: bool = Field(
+        description="Enable this derived diagnostic and write its standard table."
+    )
 
 
 class ElementBudgetConfig(StrictModel):
     """Configure a reporting-only element inventory from explicit stoichiometry."""
 
-    enabled: bool = Field(description="Enable element-budget reconstruction.")
+    enabled: bool = Field(
+        description="Enable reconstruction and write element_budget.csv."
+    )
     elements: list[str] = Field(
         description="Element symbols included in the reconstructed budget."
     )
@@ -123,7 +132,9 @@ class ElementBudgetConfig(StrictModel):
 class CarbonInventoryConfig(StrictModel):
     """Configure a reporting-only carbon inventory from explicit coefficients."""
 
-    enabled: bool = Field(description="Enable carbon-inventory reconstruction.")
+    enabled: bool = Field(
+        description="Enable reconstruction and write carbon_inventory.csv."
+    )
     carbon_species: dict[str, float] = Field(
         description="Aqueous species to non-negative carbon coefficients."
     )
@@ -153,7 +164,9 @@ class CarbonInventoryConfig(StrictModel):
 class MineralVolumeChangeConfig(StrictModel):
     """Configure mineral-volume-change derivation from sourced molar volumes."""
 
-    enabled: bool = Field(description="Enable mineral-volume-change reporting.")
+    enabled: bool = Field(
+        description="Enable derivation and write mineral_volume_change.csv."
+    )
     molar_volumes_cm3_per_mol: dict[str, float] = Field(
         description="Positive mineral molar volumes in cubic centimetres per mole."
     )
@@ -177,7 +190,7 @@ class MineralVolumeChangeConfig(StrictModel):
 class SurrogateDatasetConfig(StrictModel):
     """Control export of derived features for downstream surrogate modelling."""
 
-    enabled: bool = Field(description="Enable surrogate-dataset export.")
+    enabled: bool = Field(description="Enable writing surrogate_dataset.csv.")
     validity_domain: str | None = Field(
         default=None,
         min_length=1,
@@ -201,7 +214,7 @@ class SurrogateDatasetConfig(StrictModel):
 class PorosityPermeabilityConfig(StrictModel):
     """Configure porosity reporting without implying unsupported transport laws."""
 
-    enabled: bool = Field(description="Enable porosity/permeability status reporting.")
+    enabled: bool = Field(description="Enable writing porosity_permeability.csv.")
     bulk_volume_cm3: float | None = Field(
         default=None,
         gt=0,
@@ -263,82 +276,7 @@ class ValidationConfig(StrictModel):
         return self
 
 
-class ManifestOutputConfig(StrictModel):
-    """Control the output-package manifest and input snapshot entry."""
-
-    enabled: bool = Field(description="Write the output-package manifest.")
-    include_input_snapshot: bool = Field(
-        description="Include the executed source configuration snapshot in the package."
-    )
-
-
-class DiagnosticsOutputConfig(StrictModel):
-    """Control writing of the run diagnostics record."""
-
-    enabled: bool = Field(description="Write simulation diagnostics output.")
-
-
-class TimeseriesOutputConfig(StrictModel):
-    """Select columns written to the accepted-state timeseries."""
-
-    enabled: bool = Field(description="Write the accepted-state timeseries CSV.")
-    include_species_amounts: bool = Field(
-        description="Include requested aqueous species amounts in mol."
-    )
-    include_species_molalities: bool = Field(
-        description="Include requested aqueous species molalities in mol/kg water."
-    )
-    include_mineral_amounts: bool = Field(
-        description="Include requested mineral amounts in mol."
-    )
-    include_mineral_deltas: bool = Field(
-        description="Include requested mineral amount changes from their initial states in mol."
-    )
-    include_saturation_indices: bool = Field(
-        description="Include requested mineral saturation indices."
-    )
-    include_solver_columns: bool = Field(
-        description="Include solver status, iteration, and timestep columns."
-    )
-
-
-class SummaryOutputsConfig(StrictModel):
-    """Select optional summary tables derived from accepted simulation results."""
-
-    mineral_summary: bool = Field(description="Write the mineral summary table.")
-    aqueous_summary: bool = Field(description="Write the aqueous-species summary table.")
-    reaction_rates: bool = Field(description="Write configured kinetic reaction rates.")
-    reaction_rate_validation: bool = Field(
-        description="Write reaction-rate sign and consistency diagnostics."
-    )
-    carbon_inventory: bool = Field(description="Write the reconstructed carbon inventory.")
-    element_budget: bool = Field(description="Write reconstructed element budgets.")
-    mineral_volume_change: bool = Field(
-        description="Write mineral volume changes derived from configured molar volumes."
-    )
-    regime_classification: bool = Field(
-        description="Write the derived reaction-regime classification."
-    )
-    surface_area_audit: bool = Field(description="Write the kinetic surface-area audit.")
-    workflow_comparison: bool = Field(
-        description="Write the applicable workflow-stage comparison."
-    )
-    secondary_mineral_assemblage: bool = Field(
-        description="Write the secondary-mineral assemblage table."
-    )
-    surrogate_dataset: bool = Field(description="Write the derived surrogate dataset.")
-    porosity_permeability: bool = Field(
-        description="Write porosity derivation and unsupported-law status output."
-    )
-
-
-class SolverHistoryOutputConfig(StrictModel):
-    """Control writing of per-attempt solver history."""
-
-    enabled: bool = Field(description="Write accepted and rejected solver-attempt history.")
-
-
-class PlotOutputsConfig(StrictModel):
+class PlotsConfig(StrictModel):
     """Select plots generated from existing timeseries and solver-history data."""
 
     enabled: bool = Field(description="Enable plot generation.")
@@ -348,14 +286,14 @@ class PlotOutputsConfig(StrictModel):
         description="Generate mineral saturation-index versus time plots."
     )
     solver_dt: bool = Field(
-        description="Plot attempted solver timestep history; requires solver_history output."
+        description="Generate the attempted-timestep plot from standard solver history."
     )
     solver_iterations: bool = Field(
-        description="Plot solver iteration history; requires solver_history output."
+        description="Generate the iteration-count plot from standard solver history."
     )
 
     @model_validator(mode="after")
-    def validate_plots(self) -> "PlotOutputsConfig":
+    def validate_plots(self) -> "PlotsConfig":
         """Require at least one selected plot when plot generation is enabled."""
 
         flags = (
@@ -370,7 +308,7 @@ class PlotOutputsConfig(StrictModel):
         return self
 
 
-class DebugOutputsConfig(StrictModel):
+class DebugConfig(StrictModel):
     """Select explicitly requested debug artifacts."""
 
     enabled: bool = Field(description="Enable writing selected debug artifacts.")
@@ -419,23 +357,5 @@ class MonitorConfig(StrictModel):
             ("minerals", self.minerals),
         ):
             if len(values) != len(set(values)):
-                raise ValueError(f"outputs.monitor.{label} must not contain duplicates")
+                raise ValueError(f"monitor.{label} must not contain duplicates")
         return self
-
-
-class OutputsConfig(StrictModel):
-    """Control package files and presentation without changing simulation states."""
-
-    monitor: MonitorConfig = Field(
-        default_factory=MonitorConfig,
-        description="Human-readable terminal telemetry configuration.",
-    )
-    manifest: ManifestOutputConfig = Field(description="Manifest output configuration.")
-    diagnostics: DiagnosticsOutputConfig = Field(description="Diagnostics output configuration.")
-    timeseries: TimeseriesOutputConfig = Field(description="Timeseries output configuration.")
-    summaries: SummaryOutputsConfig = Field(description="Derived summary table selections.")
-    solver_history: SolverHistoryOutputConfig = Field(
-        description="Solver-attempt history output configuration."
-    )
-    plots: PlotOutputsConfig = Field(description="Plot output selections.")
-    debug: DebugOutputsConfig = Field(description="Debug artifact selections.")
