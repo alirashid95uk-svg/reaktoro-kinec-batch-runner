@@ -261,7 +261,7 @@ def resolve_target(
             if kind == "pk_lgk":
                 return _rule(target, scientific, "float", "lg10(mol m^-2 s^-1)", "lg10(mol m^-2 s^-1)", CONTINUOUS)
             if kind == "pk_activation_energy":
-                return _rule(target, scientific, "float", "kJ/mol", "kJ/mol", POSITIVE_CONTINUOUS, lower=0)
+                return _rule(target, scientific, "float", "kJ/mol", "kJ/mol", POSITIVE_CONTINUOUS)
             return _rule(target, scientific, "float", "1", None, CONTINUOUS)
         if model != "kinec": raise ValueError(f"{kind} requires kinec kinetics")
         record = _get(kinetics_raw, str(target.mineral))
@@ -274,7 +274,7 @@ def resolve_target(
         if kind == "kinec_A":
             return _rule(target, scientific, "float", "mol m^-2 s^-1", "mol m^-2 s^-1", POSITIVE_CONTINUOUS, lower=0, lower_inclusive=False)
         if kind == "kinec_E":
-            return _rule(target, scientific, "float", "J/mol", "J/mol", POSITIVE_CONTINUOUS, lower=0)
+            return _rule(target, scientific, "float", "J/mol", "J/mol", POSITIVE_CONTINUOUS)
         if kind == "kinec_Kc":
             return _rule(target, scientific, "float", "1", None, POSITIVE_CONTINUOUS, lower=0)
         return _rule(target, scientific, "float", "1", None, CONTINUOUS)
