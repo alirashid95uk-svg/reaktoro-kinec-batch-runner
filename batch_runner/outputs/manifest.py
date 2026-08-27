@@ -1,6 +1,6 @@
 """Build the output manifest from resolved inputs and recorded run evidence.
 
-The writer calls this after package files are known.  The manifest records
+The writer calls this after package files are known. The manifest records
 input hashes, configured scientific setup, exact time semantics, software
 versions, and relative file inventory. Its input snapshot mirrors validated
 models; it is provenance evidence, not another configuration source.
@@ -8,7 +8,10 @@ models; it is provenance evidence, not another configuration source.
 
 from __future__ import annotations
 
+import json
+import os
 import platform
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import reaktoro as rkt
@@ -20,6 +23,37 @@ if TYPE_CHECKING:
     from batch_runner.simulator import SimulationResult
 
 
+_DOE_LINEAGE_FIELDS = (
+    "schema_version",
+    "design_id",
+    "design_spec_hash_v1",
+    "sample_id",
+    "design_point_fingerprint_v1",
+    "run_id",
+    "run_snapshot_sha256",
+    "batch_runner_source_sha256",
+)
+
+
+def _load_doe_lineage() -> dict[str, Any] | None:
+    """Return optional run-scoped DoE lineage supplied by the DoE launcher."""
+    value = os.environ.get("BATCH_RUNNER_DOE_LINEAGE_FILE")
+    if not value:
+        return None
+    path = Path(value).resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"DoE lineage file does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("DoE lineage file must contain a JSON object")
+    if payload.get("schema_version") != "1.0":
+        raise ValueError("unsupported DoE lineage schema version")
+    missing = [key for key in _DOE_LINEAGE_FIELDS if key not in payload]
+    if missing:
+        raise ValueError(f"DoE lineage is missing required fields: {missing}")
+    return {key: payload[key] for key in _DOE_LINEAGE_FIELDS}
+
+
 def build_manifest(
     case: ResolvedCase,
     result: SimulationResult,
@@ -27,7 +61,7 @@ def build_manifest(
 ) -> dict[str, Any]:
     """Return the JSON-serializable manifest for one output package.
 
-    ``output_files`` must contain paths relative to the package root.  Runtime
+    ``output_files`` must contain paths relative to the package root. Runtime
     completion and timestamps come from ``result.diagnostics``; scientific
     configuration comes from the resolved case without added defaults or unit
     conversion beyond the canonical-second schedule already resolved upstream.
@@ -59,7 +93,7 @@ def build_manifest(
         "kinetics_setup": config.kinetics.model_dump(mode="json"),
     }
 
-    return {
+    manifest = {
         "output_schema_version": OUTPUT_SCHEMA_VERSION,
         "stale_output_policy": "fresh output_dir required; legacy results.csv is rejected",
         "run_identity": {
@@ -126,6 +160,10 @@ def build_manifest(
         },
         "output_files": output_files,
     }
+    doe_lineage = _load_doe_lineage()
+    if doe_lineage is not None:
+        manifest["doe_lineage"] = doe_lineage
+    return manifest
 
 
 def _output_configuration(config: Any) -> dict[str, Any]:
