@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from batch_runner.doe import generate_design, load_manifest
+from batch_runner.doe import generate_design, load_manifest, read_ledger
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +17,14 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _provenance() -> dict:
+    return {
+        "kind": "user_defined",
+        "justification": "software verification only",
+        "applicability_domain": "synthetic software-test fixture",
+    }
+
+
 def _write_spec(path: Path, case_path: Path) -> None:
     payload = {
         "mode": "existing_cases",
@@ -26,11 +34,7 @@ def _write_spec(path: Path, case_path: Path) -> None:
                 "case_id": "case_001",
                 "path": str(case_path),
                 "sha256": _sha256(case_path),
-                "provenance": {
-                    "kind": "user_defined",
-                    "justification": "software verification only",
-                    "applicability_domain": "synthetic software-test fixture",
-                },
+                "provenance": _provenance(),
             }
         ],
     }
@@ -67,3 +71,53 @@ def test_existing_case_dependency_bytes_change_design_identity(tmp_path: Path) -
     assert manifest_one["design_id"] != manifest_two["design_id"]
     assert len(manifest_one["dependencies"]["databases"]) == 1
     assert len(manifest_one["dependencies"]["kinetics"]) == 1
+
+
+def test_existing_cases_isolate_schema_invalid_case(tmp_path: Path) -> None:
+    valid_raw = yaml.safe_load(SYNTHETIC_CASE.read_text(encoding="utf-8"))
+    valid_path = tmp_path / "valid.yaml"
+    valid_path.write_text(yaml.safe_dump(valid_raw, sort_keys=False), encoding="utf-8")
+
+    invalid_raw = yaml.safe_load(SYNTHETIC_CASE.read_text(encoding="utf-8"))
+    invalid_raw["physical"]["pressure_bar"] = -1.0
+    invalid_path = tmp_path / "invalid.yaml"
+    invalid_path.write_text(yaml.safe_dump(invalid_raw, sort_keys=False), encoding="utf-8")
+
+    spec = {
+        "mode": "existing_cases",
+        "name": "fault_tolerant_existing_cases",
+        "cases": [
+            {
+                "case_id": "invalid_first",
+                "path": str(invalid_path),
+                "sha256": _sha256(invalid_path),
+                "provenance": _provenance(),
+            },
+            {
+                "case_id": "valid_second",
+                "path": str(valid_path),
+                "sha256": _sha256(valid_path),
+                "provenance": _provenance(),
+            },
+        ],
+    }
+    spec_path = tmp_path / "existing-mixed.yaml"
+    spec_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+
+    package = generate_design(spec_path, tmp_path / "mixed-design")
+    package_root, manifest = load_manifest(package)
+    ledger = read_ledger(package_root, manifest)
+
+    assert manifest["generation_status"] == "ready_with_exclusions"
+    assert [record["outcome"] for record in ledger] == ["schema_blocked", "accepted"]
+    assert ledger[0]["sample_id"] is None
+    assert ledger[1]["sample_id"] == "sample-000001"
+    assert ledger[0]["error"]["stage"] == "configuration_validation"
+
+    identities = manifest["resolved_spec"]
+    resolved = __import__("json").loads(
+        (package_root / identities["package_path"]).read_text(encoding="utf-8")
+    )
+    invalid_identity = resolved["existing_cases"][0]
+    assert invalid_identity["database_identity"] is not None
+    assert invalid_identity["kinetics_identity"] is not None
