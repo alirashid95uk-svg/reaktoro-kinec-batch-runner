@@ -9,6 +9,7 @@ never constructs Reaktoro objects.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -55,10 +56,57 @@ _UniqueKeyLoader.add_constructor(
 )
 
 
+def _artifact_root_from_argument(value: str | Path | None) -> Path | None:
+    if value is None:
+        environment_value = os.environ.get("BATCH_RUNNER_ARTIFACT_ROOT")
+        if not environment_value:
+            return None
+        value = environment_value
+    root = Path(value).resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"artifact root does not exist: {root}")
+    return root
+
+
+def _resolve_packaged_dependency(root: Path, value: str, label: str) -> str:
+    path = Path(value)
+    if path.is_absolute():
+        return str(path.resolve())
+    resolved = (root / path).resolve()
+    if resolved != root and root not in resolved.parents:
+        raise ValueError(f"{label} escapes the DoE artifact root: {value}")
+    return str(resolved)
+
+
+def _apply_artifact_root(raw: dict[str, Any], root: Path) -> None:
+    """Resolve only packaged local scientific dependencies against *root*.
+
+    Normal batch-runner configuration retains project-root path semantics. DoE
+    launchers opt into this projection explicitly (or through the documented
+    worker environment variable) so package-relative database and kinetics
+    files remain portable without changing output or validation-script paths.
+    """
+    database = raw.get("database")
+    if isinstance(database, dict) and database.get("source") == "local":
+        value = database.get("path")
+        if not isinstance(value, str) or not value:
+            raise ValueError("local database requires a path")
+        database["path"] = _resolve_packaged_dependency(root, value, "database.path")
+
+    kinetics = raw.get("kinetics")
+    if isinstance(kinetics, dict) and kinetics.get("enabled"):
+        value = kinetics.get("path")
+        if value is not None:
+            if not isinstance(value, str) or not value:
+                raise ValueError("enabled kinetics path must be a non-empty string")
+            kinetics["path"] = _resolve_packaged_dependency(root, value, "kinetics.path")
+
+
 def load_case(
     config_path: str | Path,
     *,
     output_dir_override: str | Path | None = None,
+    artifact_root: str | Path | None = None,
 ) -> ResolvedCase:
     """Read, validate, and resolve one runnable YAML case.
 
@@ -69,6 +117,11 @@ def load_case(
         output_dir_override: Optional operational output location used by
             preflight and managed-run preparation. It changes only the
             in-memory raw mapping; the source file is not rewritten.
+        artifact_root: Optional DoE package root. When provided, only relative
+            local database and kinetics paths are resolved against this root;
+            all normal non-DoE path semantics remain unchanged. Worker
+            subprocesses may supply the same value with
+            ``BATCH_RUNNER_ARTIFACT_ROOT``.
 
     Returns:
         A frozen :class:`ResolvedCase` containing the validated source model,
@@ -101,11 +154,20 @@ def load_case(
             "case config contains unresolved placeholder sentinel(s): "
             + ", ".join(placeholders)
         )
+
+    resolved_artifact_root = _artifact_root_from_argument(artifact_root)
+    if resolved_artifact_root is not None:
+        _apply_artifact_root(raw, resolved_artifact_root)
+
     if output_dir_override is not None:
         raw["paths"]["output_dir"] = str(output_dir_override)
 
     config = CaseConfig.model_validate(raw)
-    return resolve_case(config, path, source_config_sha256=hashlib.sha256(source_bytes).hexdigest())
+    return resolve_case(
+        config,
+        path,
+        source_config_sha256=hashlib.sha256(source_bytes).hexdigest(),
+    )
 
 
 def _placeholder_paths(value: Any, path: str = "$") -> Iterator[str]:
