@@ -206,7 +206,7 @@ def test_pk_lgk_rejects_log_uniform() -> None:
         canonicalize_sampling(parameter, resolved, year_days=None)
 
 
-def test_kinec_activation_energy_rejects_negative_values() -> None:
+def test_kinec_activation_energy_accepts_signed_values() -> None:
     raw = _raw_case()
     kinetics = yaml.safe_load(KINEC_PATH.read_text(encoding="utf-8"))
     target = Target(kind="kinec_E", mineral="Calcite", term="acid")
@@ -219,8 +219,8 @@ def test_kinec_activation_energy_rejects_negative_values() -> None:
         ),
         provenance=_provenance(),
     )
-    with pytest.raises(ValueError, match="requires value >= 0"):
-        canonicalize_sampling(parameter, resolved, year_days=None)
+    canonical = canonicalize_sampling(parameter, resolved, year_days=None)
+    assert canonical["values"] == [-100.0]
 
 
 def test_dimensional_constraint_requires_unit() -> None:
